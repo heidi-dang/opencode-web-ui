@@ -2,23 +2,71 @@
 /**
  * Bundle Report — Phase 3: Initial bundle and route splitting
  *
- * Analyzes the Vite build output at packages/app/dist/ and produces
- * a structured report with chunk sizes, lazy-loaded route boundaries,
- * and dependency ownership.
+ * Analyzes the Vite build output and produces a structured report with
+ * chunk sizes, lazy-loaded route boundaries, and compression metrics.
  *
  * Usage:
- *   bun run scripts/audit/bundle-report.mjs          # analyze dist/ for this worktree
- *   bun run scripts/audit/bundle-report.mjs --before  # compare with a previous snapshot
+ *   bun scripts/audit/bundle-report.mjs                         # analyze dist/ for this worktree
+ *   bun scripts/audit/bundle-report.mjs --phase phase-3         # output to artifacts/performance/phase-3/
+ *   bun scripts/audit/bundle-report.mjs --phase phase-3 --baseline baseline.json
+ *   bun scripts/audit/bundle-report.mjs --phase phase-3 --dist packages/app/dist
  *
  * Dependencies: Node 18+ (stdlib only).
  */
 
-import { existsSync, readFileSync, statSync, readdirSync, writeFileSync } from "node:fs"
-import { join, relative } from "node:path"
-import { createHash } from "node:crypto"
+import { existsSync, readFileSync, statSync, readdirSync, writeFileSync, mkdirSync } from "node:fs"
+import { join, dirname, relative, extname } from "node:path"
+import { gzipSync, brotliCompressSync } from "node:zlib"
 
-const DIST = join(import.meta.dirname, "../../packages/app/dist")
-const SNAPSHOT_FILE = join(import.meta.dirname, ".bundle-snapshot.json")
+// ── CLI ──────────────────────────────────────────────────────────────────────
+
+function parseArgs() {
+  const args = process.argv.slice(2)
+  const opts = { phase: "", dist: null, baseline: null, output: null, help: false }
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === "--help" || args[i] === "-h") {
+      opts.help = true
+    } else if (args[i] === "--phase") {
+      opts.phase = args[++i] ?? ""
+    } else if (args[i] === "--dist") {
+      opts.dist = args[++i] ?? null
+    } else if (args[i] === "--output") {
+      opts.output = args[++i] ?? null
+    } else if (args[i] === "--baseline") {
+      const path = args[++i]
+      if (path && existsSync(path)) opts.baseline = JSON.parse(readFileSync(path, "utf-8"))
+    }
+  }
+  if (!opts.phase) opts.phase = "phase-3"
+  if (!opts.dist) {
+    opts.dist = join(process.cwd(), "packages/app/dist")
+    if (!existsSync(opts.dist)) {
+      opts.dist = join(import.meta.dirname, "../../packages/app/dist")
+    }
+  }
+  return opts
+}
+
+function printHelp() {
+  const help = `
+Usage: bundle-report.mjs [options]
+
+Options:
+  --phase <name>       Phase label (default: "phase-3"). Used for output directory naming.
+  --dist <dir>         Path to built dist directory (default: packages/app/dist relative to CWD).
+  --output <file.json> Output path for the JSON report. Summary is written alongside with .summary.json suffix.
+  --baseline <file>    Baseline report JSON for comparison (delta + percentage).
+  --help, -h           Show this help message and exit.
+
+Examples:
+  node scripts/audit/bundle-report.mjs
+  node scripts/audit/bundle-report.mjs --phase phase-3
+  node scripts/audit/bundle-report.mjs --phase phase-3 --dist packages/app/dist
+  node scripts/audit/bundle-report.mjs --phase phase-3 --output ./report.json
+  node scripts/audit/bundle-report.mjs --phase phase-3 --baseline baseline.json
+`
+  console.log(help)
+}
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -38,144 +86,281 @@ function readJSON(path) {
   }
 }
 
-// ── Analyze ──────────────────────────────────────────────────────────────────
+function formatPercent(change, total) {
+  if (!total || total === 0) return "0.0%"
+  const pct = (change / total) * 100
+  return `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%`
+}
 
-function analyzeAssets() {
-  const assetsDir = join(DIST, "assets")
+// ── HTML Analysis ────────────────────────────────────────────────────────────
+
+function findHTML(distDir) {
+  const htmlFile = join(distDir, "index.html")
+  if (!existsSync(htmlFile)) return null
+  return readFileSync(htmlFile, "utf-8")
+}
+
+function parseHTMLAssets(html) {
+  if (!html) return { moduleScripts: [], stylesheets: [], modulepreloadLinks: [], inlineScripts: [] }
+
+  const moduleScripts = []
+  const stylesheets = []
+  const modulepreloadLinks = []
+  const inlineScripts = []
+
+  // Match <script type="module" ... src="...">
+  const scriptRe = /<script[^>]*type=["']module["'][^>]*src=["']([^"']+)["'][^>]*>/g
+  let match
+  while ((match = scriptRe.exec(html)) !== null) {
+    moduleScripts.push(match[1].replace(/^\//, ""))
+  }
+
+  // Match <link rel="stylesheet" ... href="...">
+  const cssRe = /<link[^>]*rel=["']stylesheet["'][^>]*href=["']([^"']+)["'][^>]*>/g
+  while ((match = cssRe.exec(html)) !== null) {
+    stylesheets.push(match[1].replace(/^\//, ""))
+  }
+
+  // Match <link rel="modulepreload" ... href="...">
+  const preloadRe = /<link[^>]*rel=["']modulepreload["'][^>]*href=["']([^"']+)["'][^>]*>/g
+  while ((match = preloadRe.exec(html)) !== null) {
+    modulepreloadLinks.push(match[1].replace(/^\//, ""))
+  }
+
+  // Match inline scripts (scripts without src)
+  const inlineRe = /<script[^>]*>([\s\S]*?)<\/script>/g
+  while ((match = inlineRe.exec(html)) !== null) {
+    const srcAttr = match[0].match(/src\s*=\s*["']/);
+    if (!srcAttr) {
+      inlineScripts.push({ content: match[1], size: Buffer.byteLength(match[1], "utf-8") })
+    }
+  }
+
+  return { moduleScripts, stylesheets, modulepreloadLinks, inlineScripts }
+}
+
+// ── Asset Analysis ───────────────────────────────────────────────────────────
+
+function analyzeAssets(distDir, html) {
+  const assetsDir = join(distDir, "assets")
   if (!existsSync(assetsDir)) {
-    console.error("❌ dist/assets/ not found. Run `bun --cwd packages/app build` first.")
+    console.error(`❌ ${assetsDir}/ not found. Run \`bun --cwd packages/app build\` first.`)
     process.exit(1)
   }
 
-  const files = readdirSync(assetsDir).filter((f) => f.endsWith(".js"))
+  const allFiles = readdirSync(assetsDir)
+  const htmlAssets = parseHTMLAssets(html)
 
-  const chunks = files.map((file) => {
+  // Track all assets in the build graph
+  const allGraphAssets = allFiles.map((file) => {
     const fullPath = join(assetsDir, file)
     const stat = statSync(fullPath)
-    // Read first 8KB to inspect import references
-    const head = readFileSync(fullPath, "utf-8").slice(0, 8192)
-    const isLazyEntry = head.includes('import("') || head.includes("import(")
-    const isRouteChunk = /route|page|session|home|directory|login/i.test(file)
+    const isDir = stat.isDirectory()
+    if (isDir) return null
+    const ext = extname(file).toLowerCase()
+    const size = stat.size
+    const gzip = ext === ".js" || ext === ".css" || ext === ".html" ? gzipSync(readFileSync(fullPath)).length : 0
     return {
       file,
-      size: stat.size,
-      sizeGzip: 0, // would need zlib.gzipSync — skip for speed
-      isLazyEntry,
-      isRouteChunk,
+      size,
+      sizeFormatted: formatBytes(size),
+      gzipSize: gzip,
+      gzipFormatted: formatBytes(gzip),
+      type: ext === ".js" ? "script" : ext === ".css" ? "stylesheet" : ext === ".woff2" || ext === ".woff" || ext === ".ttf" ? "font" : "other",
+    }
+  }).filter(Boolean)
+
+  // HTML preloaded assets (modulepreload links)
+  const htmlPreloadedAssets = htmlAssets.modulepreloadLinks.map((href) => {
+    const file = href.replace(/^assets\//, "")
+    const fullPath = join(assetsDir, file)
+    const exists = existsSync(fullPath)
+    return {
+      file: href,
+      size: exists ? statSync(fullPath).size : 0,
+      exists,
     }
   })
 
-  // Sort by size descending
-  chunks.sort((a, b) => b.size - a.size)
+  // Initial network assets — the entry module script and CSS loaded from HTML
+  const initialPaths = [
+    ...htmlAssets.moduleScripts,
+    ...htmlAssets.stylesheets,
+  ]
 
-  // Identify initial vs route chunks
-  const totalJS = chunks.reduce((sum, c) => sum + c.size, 0)
-  // The first script loaded by index.html is the entry. Vite names it index-*.js
-  const entry = chunks.find((c) => c.file.startsWith("index-"))
-  // Largest chunks that are NOT lazy entries = initial load
-  const initialChunks = entry ? [entry] : []
-  // The remaining chunks are route/feature splits
-  const routeChunks = chunks.filter((c) => c !== entry && c.file !== entry?.file)
-  // Largest initial = the entry chunk
-  const largestInitial = entry || chunks[0]
+  const initialNetworkAssets = initialPaths.map((href) => {
+    const file = href.replace(/^assets\//, "")
+    const fullPath = join(assetsDir, file)
+    const exists = existsSync(fullPath)
+    const size = exists ? statSync(fullPath).size : 0
+    const content = exists ? readFileSync(fullPath) : Buffer.alloc(0)
+    const gzip = content.length > 0 ? gzipSync(content).length : 0
+    return {
+      file: href,
+      size,
+      sizeFormatted: formatBytes(size),
+      gzipSize: gzip,
+      gzipFormatted: formatBytes(gzip),
+      exists,
+    }
+  })
+
+  // Route/chunk assets — JS files that are NOT in the initial network set
+  const initialFiles = new Set(initialPaths.map((p) => p.replace(/^assets\//, "")))
+  const routeRequestedAssets = allGraphAssets
+    .filter((a) => a.type === "script" && !initialFiles.has(a.file))
+    .map((a) => ({
+      file: a.file,
+      size: a.size,
+      sizeFormatted: a.sizeFormatted,
+      gzipSize: a.gzipSize,
+      gzipFormatted: a.gzipFormatted,
+      isRouteChunk: true,
+    }))
+
+  // Totals
+  const totalJavaScript = allGraphAssets
+    .filter((a) => a.type === "script")
+    .reduce((sum, a) => sum + a.size, 0)
+
+  const initialJavaScript = initialNetworkAssets
+    .filter((a) => a.file.endsWith(".js"))
+    .reduce((sum, a) => sum + a.size, 0)
+
+  // Gzip of all JS (read + compress)
+  const allJSContent = allGraphAssets
+    .filter((a) => a.type === "script")
+    .map((a) => readFileSync(join(assetsDir, a.file)))
+  const combinedJSBuffer = Buffer.concat(allJSContent)
+  const gzipSize = gzipSync(combinedJSBuffer).length
+  const brotliSize = brotliCompressSync(combinedJSBuffer).length
 
   return {
-    totalFiles: chunks.length,
-    totalJSSize: totalJS,
-    totalJSSizeFormatted: formatBytes(totalJS),
-    entryChunk: entry
-      ? { file: entry.file, size: entry.size, formatted: formatBytes(entry.size) }
-      : null,
-    largestInitial: largestInitial
-      ? { file: largestInitial.file, size: largestInitial.size, formatted: formatBytes(largestInitial.size) }
-      : null,
-    initialChunks: initialChunks.length,
-    routeChunks: routeChunks.length,
-    routeChunkList: routeChunks.slice(0, 15).map((c) => ({
-      file: c.file,
-      size: formatBytes(c.size),
-      lazy: c.isLazyEntry,
-    })),
-    allChunks: chunks.map((c) => ({
-      file: c.file,
-      size: formatBytes(c.size),
-    })),
-    summary: {
-      initialJSSize: initialChunks.reduce((s, c) => s + c.size, 0),
-      initialJSFormatted: formatBytes(initialChunks.reduce((s, c) => s + c.size, 0)),
-      routeJSSize: routeChunks.reduce((s, c) => s + c.size, 0),
-      routeJSFormatted: formatBytes(routeChunks.reduce((s, c) => s + c.size, 0)),
-    },
+    allGraphAssets,
+    htmlPreloadedAssets,
+    initialNetworkAssets,
+    routeRequestedAssets,
+    totalJavaScript,
+    initialJavaScript,
+    gzipSize,
+    brotliSize,
   }
 }
 
-// ── Snapshot ─────────────────────────────────────────────────────────────────
+// ── Report JSON ──────────────────────────────────────────────────────────────
 
-function saveSnapshot(data) {
-  const snapshot = {
+function generateReport(data, opts) {
+  const report = {
+    phase: opts.phase,
     timestamp: new Date().toISOString(),
-    totalJSSize: data.totalJSSize,
-    entryChunkSize: data.entryChunk?.size ?? 0,
-    routeChunks: data.routeChunks,
-    chunkCount: data.totalFiles,
+    dist: opts.dist,
+    allGraphAssets: data.allGraphAssets.map((a) => ({
+      file: a.file,
+      size: a.size,
+      gzipSize: a.gzipSize,
+      type: a.type,
+    })),
+    htmlPreloadedAssets: data.htmlPreloadedAssets,
+    initialNetworkAssets: data.initialNetworkAssets.map((a) => ({
+      file: a.file,
+      size: a.size,
+      gzipSize: a.gzipSize,
+    })),
+    routeRequestedAssets: data.routeRequestedAssets.map((a) => ({
+      file: a.file,
+      size: a.size,
+      gzipSize: a.gzipSize,
+    })),
+    totalJavaScript: data.totalJavaScript,
+    initialJavaScript: data.initialJavaScript,
+    gzipSize: data.gzipSize,
+    brotliSize: data.brotliSize,
   }
-  writeFileSync(SNAPSHOT_FILE, JSON.stringify(snapshot, null, 2))
-  console.log(`\n📸 Snapshot saved to ${relative(process.cwd(), SNAPSHOT_FILE)}`)
+
+  if (opts.baseline) {
+    const baseline = opts.baseline
+    const totalJSDiff = data.totalJavaScript - (baseline.totalJavaScript ?? 0)
+    const initialJSDiff = data.initialJavaScript - (baseline.initialJavaScript ?? 0)
+    const gzipDiff = data.gzipSize - (baseline.gzipSize ?? 0)
+    const brotliDiff = data.brotliSize - (baseline.brotliSize ?? 0)
+    report.baseline = {
+      totalJavaScriptDiff: totalJSDiff,
+      initialJavaScriptDiff: initialJSDiff,
+      gzipSizeDiff: gzipDiff,
+      brotliSizeDiff: brotliDiff,
+      totalJavaScriptDiffFormatted: formatBytes(Math.abs(totalJSDiff)),
+      initialJavaScriptDiffFormatted: formatBytes(Math.abs(initialJSDiff)),
+      gzipSizeDiffFormatted: formatBytes(Math.abs(gzipDiff)),
+      brotliSizeDiffFormatted: formatBytes(Math.abs(brotliDiff)),
+      totalJavaScriptPct: formatPercent(totalJSDiff, baseline.totalJavaScript ?? 0),
+      initialJavaScriptPct: formatPercent(initialJSDiff, baseline.initialJavaScript ?? 0),
+      gzipSizePct: formatPercent(gzipDiff, baseline.gzipSize ?? 0),
+      brotliSizePct: formatPercent(brotliDiff, baseline.brotliSize ?? 0),
+    }
+  }
+
+  return report
 }
 
-function loadSnapshot() {
-  return readJSON(SNAPSHOT_FILE)
+function generateSummary(report) {
+  return {
+    phase: report.phase,
+    timestamp: report.timestamp,
+    totalJavaScript: report.totalJavaScript,
+    initialJavaScript: report.initialJavaScript,
+    gzipSize: report.gzipSize,
+    brotliSize: report.brotliSize,
+    initialAssetCount: report.initialNetworkAssets.length,
+    routeAssetCount: report.routeRequestedAssets.length,
+    totalAssetCount: report.allGraphAssets.length,
+    totalJavaScriptFormatted: formatBytes(report.totalJavaScript),
+    initialJavaScriptFormatted: formatBytes(report.initialJavaScript),
+    gzipSizeFormatted: formatBytes(report.gzipSize),
+    brotliSizeFormatted: formatBytes(report.brotliSize),
+  }
 }
 
-// ── Report ───────────────────────────────────────────────────────────────────
+// ── Console Report ───────────────────────────────────────────────────────────
 
-function generateReport(data) {
+function printConsoleSummary(report, data) {
   const lines = []
   lines.push("╔═══════════════════════════════════════════════════════════╗")
-  lines.push("║  Phase 3 — Bundle Analysis Report                       ║")
+  lines.push(`║  ${report.phase.padEnd(20)} — Bundle Analysis Report           ║`)
   lines.push("╚═══════════════════════════════════════════════════════════╝")
   lines.push("")
-  lines.push(`  Date:         ${new Date().toISOString()}`)
-  lines.push(`  Dist:         ${DIST}`)
-  lines.push(`  Total files:  ${data.totalFiles}`)
-  lines.push(`  Total JS:     ${data.totalJSSizeFormatted}`)
+  lines.push(`  Date:         ${report.timestamp}`)
+  lines.push(`  Phase:        ${report.phase}`)
+  lines.push(`  Dist:         ${report.dist}`)
+  lines.push(`  Total assets: ${data.allGraphAssets.length}`)
   lines.push("")
-  lines.push("  ── Initial Load ──")
-  if (data.entryChunk) {
-    lines.push(`    Entry chunk:    ${data.entryChunk.file}`)
-    lines.push(`    Entry size:     ${data.entryChunk.formatted}`)
-  }
-  if (data.largestInitial) {
-    lines.push(`    Largest chunk:  ${data.largestInitial.file}`)
-    lines.push(`    Largest size:   ${data.largestInitial.formatted}`)
-  }
-  lines.push(`    Initial JS:     ${data.summary.initialJSFormatted}`)
-  lines.push(`    Initial chunks: ${data.initialChunks}`)
+  lines.push("  ── JavaScript ──")
+  lines.push(`    Total JS:     ${formatBytes(report.totalJavaScript)}`)
+  lines.push(`    Initial JS:   ${formatBytes(report.initialJavaScript)}`)
+  lines.push(`    Route JS:     ${formatBytes(report.totalJavaScript - report.initialJavaScript)}`)
   lines.push("")
-  lines.push("  ── Route Splits ──")
-  lines.push(`    Route chunks:   ${data.routeChunks}`)
-  lines.push(`    Route JS:       ${data.summary.routeJSFormatted}`)
+  lines.push("  ── Compression ──")
+  lines.push(`    Gzip:         ${formatBytes(report.gzipSize)}`)
+  lines.push(`    Brotli:       ${formatBytes(report.brotliSize)}`)
   lines.push("")
-  lines.push("  ── Top Chunks ──")
-  for (const chunk of data.allChunks.slice(0, 10)) {
-    lines.push(`    ${chunk.size.padStart(10)}  ${chunk.file}`)
+  lines.push("  ── Initial Network Assets ──")
+  for (const a of report.initialNetworkAssets) {
+    lines.push(`    ${a.file.padEnd(50)} ${formatBytes(a.size).padStart(10)}`)
   }
   lines.push("")
-  lines.push("  ── Route-Level Splits ──")
-  for (const chunk of data.routeChunkList.slice(0, 10)) {
-    lines.push(`    ${chunk.size.padStart(10)}  ${chunk.file}${chunk.lazy ? "" : " (eager)"}`)
+  lines.push("  ── Route Chunks (top 15) ──")
+  for (const a of report.routeRequestedAssets.slice(0, 15)) {
+    lines.push(`    ${a.file.padEnd(50)} ${formatBytes(a.size).padStart(10)}`)
   }
 
-  // ── Comparison ──
-  const prev = loadSnapshot()
-  if (prev) {
-    const diff = data.totalJSSize - prev.totalJSSize
-    const entryDiff = (data.entryChunk?.size ?? 0) - prev.entryChunkSize
+  if (report.baseline) {
+    const b = report.baseline
+    const sign = (v) => v > 0 ? "+" : v < 0 ? "-" : " "
     lines.push("")
-    lines.push("  ── vs Previous Snapshot ──")
-    lines.push(`    Total JS:   ${diff > 0 ? "+" : ""}${formatBytes(diff)}`)
-    lines.push(`    Entry:      ${entryDiff > 0 ? "+" : ""}${formatBytes(entryDiff)}`)
-    lines.push(`    Chunks:     ${data.totalFiles - prev.chunkCount > 0 ? "+" : ""}${data.totalFiles - prev.chunkCount}`)
+    lines.push("  ── vs Baseline ──")
+    lines.push(`    Total JS:     ${sign(b.totalJavaScriptDiff)}${b.totalJavaScriptDiffFormatted}  (${b.totalJavaScriptPct})`)
+    lines.push(`    Initial JS:   ${sign(b.initialJavaScriptDiff)}${b.initialJavaScriptDiffFormatted}  (${b.initialJavaScriptPct})`)
+    lines.push(`    Gzip:         ${sign(b.gzipSizeDiff)}${b.gzipSizeDiffFormatted}  (${b.gzipSizePct})`)
+    lines.push(`    Brotli:       ${sign(b.brotliSizeDiff)}${b.brotliSizeDiffFormatted}  (${b.brotliSizePct})`)
   }
 
   lines.push("")
@@ -184,19 +369,40 @@ function generateReport(data) {
 
 // ── Main ─────────────────────────────────────────────────────────────────────
 
-const isBefore = process.argv.includes("--before")
-if (isBefore) {
-  const prev = loadSnapshot()
-  if (prev) {
-    console.log("Previous snapshot:")
-    console.log(JSON.stringify(prev, null, 2))
-  } else {
-    console.log("No snapshot found. Run without --before first.")
-  }
+const opts = parseArgs()
+
+if (opts.help) {
+  printHelp()
   process.exit(0)
 }
 
-const data = analyzeAssets()
-const report = generateReport(data)
-console.log(report)
-saveSnapshot(data)
+const html = findHTML(opts.dist)
+if (!html) {
+  console.error(`❌ index.html not found in ${opts.dist}. Run \`bun --cwd packages/app build\` first.`)
+  process.exit(1)
+}
+
+const data = analyzeAssets(opts.dist, html)
+const report = generateReport(data, opts)
+const summary = generateSummary(report)
+
+// Determine output paths
+let reportPath
+if (opts.output) {
+  reportPath = opts.output
+} else {
+  const outputDir = join(process.cwd(), "artifacts", "performance", opts.phase)
+  mkdirSync(outputDir, { recursive: true })
+  reportPath = join(outputDir, "bundle-report.json")
+}
+
+const summaryPath = reportPath.replace(/\.json$/, ".summary.json")
+
+mkdirSync(dirname(reportPath), { recursive: true })
+
+writeFileSync(reportPath, JSON.stringify(report, null, 2))
+writeFileSync(summaryPath, JSON.stringify(summary, null, 2))
+
+console.log(printConsoleSummary(report, data))
+console.log(`\n📄 Report written to ${relative(process.cwd(), reportPath)}`)
+console.log(`📄 Summary written to ${relative(process.cwd(), summaryPath)}`)
