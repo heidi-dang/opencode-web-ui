@@ -58,19 +58,21 @@ import { SettingsProvider, useSettings } from "@/context/settings"
 import { TabsProvider, useTabs, type DraftTab } from "@/context/tabs"
 import { SDKProvider, useSDK } from "@/context/sdk"
 import { WslServersProvider } from "@/wsl/context"
-import DirectoryLayout, { DirectoryDataProvider } from "@/pages/directory-layout"
-import LegacyLayout from "@/pages/layout"
-import NewLayout from "@/pages/layout-new"
+import { DirectoryDataProvider } from "@/pages/directory-layout"
 import { ErrorPage } from "./pages/error"
 import { useCheckServerHealth } from "./utils/server-health"
 import { legacySessionHref, legacySessionServer, requireServerKey, sessionHref } from "./utils/session-route"
 import { createSessionLineage } from "@/pages/session/session-lineage"
+import { SessionRouteErrorBoundary } from "@/pages/session/session-error-boundary"
 
-import { SessionPage, SessionRouteErrorBoundary, TargetSessionRouteContent } from "@/pages/session"
-import { NewHome } from "@/pages/home"
-import { LegacyHome } from "@/pages/home/legacy-home"
-
-import NewSession from "@/pages/new-session"
+const DirectoryLayout = lazy(() => import("@/pages/directory-layout"))
+const LegacyLayout = lazy(() => import("@/pages/layout"))
+const NewLayout = lazy(() => import("@/pages/layout-new"))
+const SessionPage = lazy(() => import("@/pages/session").then((m) => ({ default: m.SessionPage })))
+const TargetSessionRouteContent = lazy(() => import("@/pages/session").then((m) => ({ default: m.TargetSessionRouteContent })))
+const NewHome = lazy(() => import("@/pages/home").then((m) => ({ default: m.NewHome })))
+const LegacyHome = lazy(() => import("@/pages/home/legacy-home").then((m) => ({ default: m.LegacyHome })))
+const NewSession = lazy(() => import("@/pages/new-session"))
 
 const SessionRoute = () => {
   const settings = useSettings()
@@ -103,7 +105,9 @@ const SessionRoute = () => {
 
   return (
     <SessionRouteErrorBoundary sessionID={params.id}>
-      <SessionPage />
+      <MarkedProvider>
+        <SessionPage />
+      </MarkedProvider>
     </SessionRouteErrorBoundary>
   )
 }
@@ -130,7 +134,9 @@ function TargetServerRoute(props: ParentProps) {
 
 const TargetSessionRoute = () => (
   <TargetServerRoute>
-    <TargetSessionRouteContent />
+    <MarkedProvider>
+      <TargetSessionRouteContent />
+    </MarkedProvider>
   </TargetServerRoute>
 )
 
@@ -221,7 +227,9 @@ function ResolvedDraftRoute(props: { draft: DraftTab }) {
             <SDKProvider directory={directory}>
               <DirectoryDataProvider directory={directory} server={serverKey}>
                 <DraftProviders>
-                  <NewSession />
+                  <MarkedProvider>
+                    <NewSession />
+                  </MarkedProvider>
                 </DraftProviders>
               </DirectoryDataProvider>
             </SDKProvider>
@@ -405,9 +413,7 @@ export function AppBaseProviders(props: ParentProps<{ locale?: Locale }>) {
               <QueryProvider>
                 <WslServersProvider>
                   <DialogProvider>
-                    <MarkedProvider>
-                      <FileComponentProvider component={File}>{props.children}</FileComponentProvider>
-                    </MarkedProvider>
+                    <FileComponentProvider component={File}>{props.children}</FileComponentProvider>
                   </DialogProvider>
                 </WslServersProvider>
               </QueryProvider>
