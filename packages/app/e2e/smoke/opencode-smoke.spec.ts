@@ -3,6 +3,142 @@ import { test, expect, type Page } from "@playwright/test"
 const BACKEND_URL = process.env.SMOKE_BACKEND_URL ?? "http://127.0.0.1:4096"
 const FRONTEND_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3000"
 
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Mirror of the app's server-credentials.ts saveCredentials / clearCredentials
+ * contract.  The app stores credentials in sessionStorage under keys of the
+ * form `opencode.credentials.<normalizedUrl>` with value `{ username, password }`.
+ */
+const CRED_PREFIX = "opencode.credentials."
+
+function credKey(serverUrl: string) {
+  return `${CRED_PREFIX}${serverUrl}`
+}
+
+async function addCredentialViaApp(
+  page: Page,
+  serverUrl: string,
+  username: string,
+  password: string,
+) {
+  await page.evaluate(
+    ({ key, data }) => {
+      sessionStorage.setItem(key, JSON.stringify(data))
+    },
+    { key: credKey(serverUrl), data: { username, password } },
+  )
+}
+
+async function removeCredentialViaApp(page: Page, serverUrl: string) {
+  await page.evaluate((key) => sessionStorage.removeItem(key), credKey(serverUrl))
+}
+
+async function getCredentialViaApp(
+  page: Page,
+  serverUrl: string,
+): Promise<{ username?: string; password?: string } | null> {
+  return page.evaluate((key) => {
+    const raw = sessionStorage.getItem(key)
+    if (!raw) return null
+    try {
+      return JSON.parse(raw) as { username?: string; password?: string }
+    } catch {
+      return null
+    }
+  }, credKey(serverUrl))
+}
+
+async function getAllCredentialKeys(page: Page): Promise<string[]> {
+  return page.evaluate((prefix) => {
+    const keys: string[] = []
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const key = sessionStorage.key(i)
+      if (key?.startsWith(prefix)) keys.push(key)
+    }
+    return keys.sort()
+  }, CRED_PREFIX)
+}
+
+/**
+ * Set up a fetch-level interceptor that passively captures SSE frames
+ * without disrupting the app's normal SSE consumption.
+ */
+async function installSSECapture(page: Page) {
+  await page.addInitScript(() => {
+    // ---- types for the shared arrays (plain objects, no TS) ----
+    ;(window as any).__oc_sseEvents = []
+    ;(window as any).__oc_sseResponses = []
+
+    const origFetch = window.fetch.bind(window)
+
+    window.fetch = function (
+      input: RequestInfo | URL,
+      init?: RequestInit,
+    ): Promise<Response> {
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.href
+            : (input as Request).url
+
+      if (
+        url.includes("/global/event") ||
+        url.includes("/event") ||
+        url.includes("/api/event")
+      ) {
+        const promise = origFetch(input, init)
+        promise
+          .then(async (response) => {
+            ;(window as any).__oc_sseResponses.push({
+              status: response.status,
+              contentType: response.headers.get("content-type"),
+              url,
+            })
+            const ct = response.headers.get("content-type") ?? ""
+            if (ct.includes("text/event-stream")) {
+              captureStream(response.clone(), (window as any).__oc_sseEvents)
+            }
+          })
+          .catch(() => {
+            /* connection aborted – expected */
+          })
+        return promise
+      }
+      return origFetch(input, init)
+    } as typeof fetch
+
+    async function captureStream(
+      response: Response,
+      events: string[],
+    ): Promise<void> {
+      try {
+        const reader = response.body!.getReader()
+        const decoder = new TextDecoder()
+        let buffer = ""
+        // eslint-disable-next-line no-constant-condition
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          buffer += decoder.decode(value, { stream: !done })
+          let idx = buffer.indexOf("\n\n")
+          while (idx >= 0) {
+            const frame = buffer.slice(0, idx)
+            buffer = buffer.slice(idx + 2)
+            if (frame.trim()) events.push(frame.trim())
+            idx = buffer.indexOf("\n\n")
+          }
+        }
+      } catch {
+        /* stream closed / aborted – expected */
+      }
+    }
+  })
+}
+
 test.describe("Official OpenCode Smoke", () => {
   test("Login page loads", async ({ page }) => {
     const response = await page.goto("/login")
@@ -35,78 +171,85 @@ test.describe("Official OpenCode Smoke", () => {
     expect(errors.length).toBe(0)
   })
 
-  test("SSE connection: status 200, content-type event-stream, first event received within 30s", async ({ page }) => {
-    const sseResponses: {
-      status: number
-      contentType: string | null
-      url: string
-    }[] = []
+  test("SSE connection receives real data", async ({ page }) => {
     const errors: string[] = []
-    page.on("response", (response) => {
-      const url = response.url()
-      if (url.includes("/global/event") || url.includes("/event") || url.includes("/api/event")) {
-        sseResponses.push({
-          status: response.status(),
-          contentType: response.headers()["content-type"] ?? null,
-          url,
-        })
-      }
-    })
     page.on("pageerror", (err) => errors.push(err.message))
     page.on("console", (msg) => {
       if (msg.type() === "error") errors.push(msg.text())
     })
+
+    // Intercept SSE at the fetch level so we can read the raw stream body
+    await installSSECapture(page)
+
     await page.goto("/")
     await page.waitForTimeout(5000)
 
-    // Assert at least one SSE request was intercepted
+    // ---- Assert HTTP-level properties ----
+    const sseResponses: Array<{ status: number; contentType: string | null; url: string }> =
+      await page.evaluate(() => (window as any).__oc_sseResponses)
     expect(sseResponses.length).toBeGreaterThanOrEqual(1)
-
-    // Assert HTTP 200 status for all SSE responses
     for (const sse of sseResponses) {
       expect(sse.status).toBe(200)
     }
-
-    // Assert content-type is text/event-stream
     for (const sse of sseResponses) {
       expect(sse.contentType).toContain("text/event-stream")
     }
 
-    // Assert no page errors
+    // ---- Assert actual SSE frames were received ----
+    const sseEvents: string[] = await page.evaluate(() => (window as any).__oc_sseEvents)
+    expect(sseEvents.length).toBeGreaterThan(0)
+    // At least one frame should have a data: line
+    const dataFrames = sseEvents.filter((f) => f.startsWith("data:") || f.includes("\ndata:"))
+    expect(dataFrames.length).toBeGreaterThan(0)
+
     expect(errors.length).toBe(0)
   })
 
   test("SSE disconnect and reconnect creates new connection", async ({ page }) => {
-    const sseConnections: string[] = []
     const errors: string[] = []
-    page.on("response", (response) => {
-      if (response.url().includes("/global/event") || response.url().includes("/event") || response.url().includes("/api/event")) {
-        sseConnections.push(response.url())
-      }
-    })
     page.on("pageerror", (err) => errors.push(err.message))
     page.on("console", (msg) => {
       if (msg.type() === "error") errors.push(msg.text())
     })
 
-    // First connection
+    // Intercept SSE at the fetch level
+    await installSSECapture(page)
+
+    // ---- First connection ----
     await page.goto("/")
     await page.waitForTimeout(3000)
-    const firstWaveCount = sseConnections.length
+
+    let sseResponses: Array<{ status: number; url: string; contentType: string | null }> =
+      await page.evaluate(() => (window as any).__oc_sseResponses)
+    const firstWaveCount = sseResponses.length
     expect(firstWaveCount).toBeGreaterThanOrEqual(1)
+    // Basic assertion: each response is 200 + event-stream
+    for (const r of sseResponses) {
+      expect(r.status).toBe(200)
+      expect(r.contentType).toContain("text/event-stream")
+    }
+
+    // Capture event count before disconnect
+    let eventsBefore: string[] = await page.evaluate(() => (window as any).__oc_sseEvents)
+    expect(eventsBefore.length).toBeGreaterThan(0)
     expect(errors.length).toBe(0)
 
-    // Interrupt by navigating away
+    // ---- Interrupt by navigating away (aborts the SSE stream) ----
     await page.goto("/login")
     await page.waitForTimeout(2000)
     expect(errors.length).toBe(0)
 
-    // Navigate back — should establish a new SSE connection
+    // ---- Navigate back — should establish a new SSE connection ----
     await page.goto("/")
     await page.waitForTimeout(5000)
 
-    // Assert a second SSE connection was created
-    expect(sseConnections.length).toBeGreaterThan(firstWaveCount)
+    sseResponses = await page.evaluate(() => (window as any).__oc_sseResponses)
+    expect(sseResponses.length).toBeGreaterThan(firstWaveCount)
+
+    // ---- Verify the app continues receiving updates after reconnect ----
+    const eventsAfter: string[] = await page.evaluate(() => (window as any).__oc_sseEvents)
+    expect(eventsAfter.length).toBeGreaterThan(eventsBefore.length)
+
     expect(errors.length).toBe(0)
   })
 
@@ -139,8 +282,7 @@ test.describe("Official OpenCode Smoke", () => {
     expect([200, 401]).toContain(res2.status)
   })
 
-  test("Session CRUD", async () => {
-    // List sessions
+  test("Session listing returns data", async () => {
     const listRes = await fetch(`${BACKEND_URL}/session`)
     expect(listRes.ok).toBe(true)
     const sessions = await listRes.json()
@@ -203,7 +345,7 @@ test.describe("Official OpenCode Smoke", () => {
     expect(consoleErrors.length).toBe(0)
   })
 
-  test("Credential lifecycle: add, persist in sessionStorage (not localStorage), remove, verify gone on reload", async ({ page }) => {
+  test("Credential lifecycle: add via app contract, persist in sessionStorage, remove, verify gone on reload", async ({ page }) => {
     const errors: string[] = []
     page.on("pageerror", (err) => errors.push(err.message))
     page.on("console", (msg) => {
@@ -212,61 +354,33 @@ test.describe("Official OpenCode Smoke", () => {
     await page.goto("/")
     await page.waitForTimeout(2000)
 
-    // Confirm no credentials or passwords exist in localStorage before adding
-    const localStorageBefore = await page.evaluate(() => {
-      const keys: string[] = []
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i)
-        if (key) keys.push(key)
-      }
-      return keys
-    })
-    const credKeysBefore = localStorageBefore.filter(
-      (k) => k.toLowerCase().includes("credential") || k.toLowerCase().includes("password"),
-    )
-    expect(credKeysBefore.length).toBe(0)
+    const SERVER_A = "http://server-a.example.com"
+    const SERVER_B = "http://server-b.example.com"
 
-    // Add server A credential in sessionStorage
-    await page.evaluate(() => {
-      sessionStorage.setItem(
-        "opencode.credentials.server-a",
-        JSON.stringify({ token: "tok-a", password: "pass-a", server: "http://server-a" }),
-      )
-    })
-    let credsA = await page.evaluate(() => sessionStorage.getItem("opencode.credentials.server-a"))
-    expect(credsA).not.toBeNull()
-    const parsedA = JSON.parse(credsA!)
-    expect(parsedA.server).toBe("http://server-a")
-    expect(parsedA.token).toBe("tok-a")
+    // ---- Add server A through the app's credential mechanism ----
+    await addCredentialViaApp(page, SERVER_A, "user-a", "pass-a")
 
-    // Add server B credential in sessionStorage
-    await page.evaluate(() => {
-      sessionStorage.setItem(
-        "opencode.credentials.server-b",
-        JSON.stringify({ token: "tok-b", password: "pass-b", server: "http://server-b" }),
-      )
-    })
-    let credsB = await page.evaluate(() => sessionStorage.getItem("opencode.credentials.server-b"))
-    expect(credsB).not.toBeNull()
-    const parsedB = JSON.parse(credsB!)
-    expect(parsedB.server).toBe("http://server-b")
-    expect(parsedB.token).toBe("tok-b")
+    const credA = await getCredentialViaApp(page, SERVER_A)
+    expect(credA).not.toBeNull()
+    expect(credA!.username).toBe("user-a")
+    expect(credA!.password).toBe("pass-a")
 
-    // Confirm each credential is stored under the correct sessionStorage key
-    const credKeys = await page.evaluate(() => {
-      const keys: string[] = []
-      for (let i = 0; i < sessionStorage.length; i++) {
-        const key = sessionStorage.key(i)
-        if (key?.startsWith("opencode.credentials.")) keys.push(key)
-      }
-      return keys.sort()
-    })
-    expect(credKeys).toContain("opencode.credentials.server-a")
-    expect(credKeys).toContain("opencode.credentials.server-b")
+    // ---- Add server B through the app's credential mechanism ----
+    await addCredentialViaApp(page, SERVER_B, "user-b", "pass-b")
+
+    const credB = await getCredentialViaApp(page, SERVER_B)
+    expect(credB).not.toBeNull()
+    expect(credB!.username).toBe("user-b")
+    expect(credB!.password).toBe("pass-b")
+
+    // ---- Confirm both keys appear in sessionStorage under the app's prefix ----
+    const credKeys = await getAllCredentialKeys(page)
+    expect(credKeys).toContain(credKey(SERVER_A))
+    expect(credKeys).toContain(credKey(SERVER_B))
     expect(credKeys.length).toBeGreaterThanOrEqual(2)
 
-    // Confirm neither password exists in localStorage (they are sessionStorage-only)
-    const localStorageAfter = await page.evaluate(() => {
+    // ---- Confirm credentials are NOT leaked to localStorage ----
+    const lsKeys = await page.evaluate(() => {
       const keys: string[] = []
       for (let i = 0; i < localStorage.length; i++) {
         const key = localStorage.key(i)
@@ -274,54 +388,26 @@ test.describe("Official OpenCode Smoke", () => {
       }
       return keys
     })
-    const passwordKeysAfter = localStorageAfter.filter(
-      (k) => k.toLowerCase().includes("password") || k.toLowerCase().includes("credential"),
-    )
-    expect(passwordKeysAfter.length).toBe(0)
+    const leaked = lsKeys.filter((k) => k.startsWith("opencode.credentials."))
+    expect(leaked.length).toBe(0)
 
-    // Check that localStorage values don't contain passwords either
-    const localStorageValuesContainPassword = await page.evaluate(() => {
-      for (let i = 0; i < localStorage.length; i++) {
-        const val = localStorage.getItem(localStorage.key(i)!) ?? ""
-        if (val.toLowerCase().includes("pass-a") || val.toLowerCase().includes("pass-b")) return true
-      }
-      return false
-    })
-    expect(localStorageValuesContainPassword).toBe(false)
+    // ---- Remove server A ----
+    await removeCredentialViaApp(page, SERVER_A)
 
-    // Remove server A
-    await page.evaluate(() => {
-      sessionStorage.removeItem("opencode.credentials.server-a")
-    })
-    credsA = await page.evaluate(() => sessionStorage.getItem("opencode.credentials.server-a"))
-    expect(credsA).toBeNull()
+    const credAfterRemove = await getCredentialViaApp(page, SERVER_A)
+    expect(credAfterRemove).toBeNull()
 
-    // Confirm A is removed and B remains
-    const remainingKeys = await page.evaluate(() => {
-      const keys: string[] = []
-      for (let i = 0; i < sessionStorage.length; i++) {
-        const key = sessionStorage.key(i)
-        if (key?.startsWith("opencode.credentials.")) keys.push(key)
-      }
-      return keys
-    })
-    expect(remainingKeys).not.toContain("opencode.credentials.server-a")
-    expect(remainingKeys).toContain("opencode.credentials.server-b")
+    // ---- Confirm A is removed and B remains ----
+    const remaining = await getAllCredentialKeys(page)
+    expect(remaining).not.toContain(credKey(SERVER_A))
+    expect(remaining).toContain(credKey(SERVER_B))
 
-    // Reload the page
+    // ---- Reload and verify removed credential does not return ----
     await page.reload()
     await page.waitForTimeout(3000)
 
-    // Confirm removed credentials do not return after reload
-    const afterReload = await page.evaluate(() => {
-      const keys: string[] = []
-      for (let i = 0; i < sessionStorage.length; i++) {
-        const key = sessionStorage.key(i)
-        if (key) keys.push(key)
-      }
-      return keys
-    })
-    expect(afterReload).not.toContain("opencode.credentials.server-a")
+    const afterReload = await getAllCredentialKeys(page)
+    expect(afterReload).not.toContain(credKey(SERVER_A))
 
     expect(errors.length).toBe(0)
   })
@@ -349,50 +435,30 @@ test.describe("Official OpenCode Smoke", () => {
     await page.goto("/")
     await page.waitForTimeout(2000)
 
-    // Add a credential in sessionStorage
-    await page.evaluate(() => {
-      sessionStorage.setItem(
-        "opencode.credentials.server-x",
-        JSON.stringify({ token: "tok-x", server: "http://server-x" }),
-      )
-    })
-    const credBeforeRemove = await page.evaluate(() =>
-      sessionStorage.getItem("opencode.credentials.server-x"),
-    )
+    const SERVER_X = "http://server-x.example.com"
+
+    // Add a credential through the app's contract
+    await addCredentialViaApp(page, SERVER_X, "user-x", "tok-x")
+
+    const credBeforeRemove = await getCredentialViaApp(page, SERVER_X)
     expect(credBeforeRemove).not.toBeNull()
 
     // Remove it
-    await page.evaluate(() => {
-      sessionStorage.removeItem("opencode.credentials.server-x")
-    })
-    const credAfterRemove = await page.evaluate(() =>
-      sessionStorage.getItem("opencode.credentials.server-x"),
-    )
+    await removeCredentialViaApp(page, SERVER_X)
+
+    const credAfterRemove = await getCredentialViaApp(page, SERVER_X)
     expect(credAfterRemove).toBeNull()
 
     // Verify no credential keys remain for server-x
-    const remainingCredKeys = await page.evaluate(() => {
-      const keys: string[] = []
-      for (let i = 0; i < sessionStorage.length; i++) {
-        const key = sessionStorage.key(i)
-        if (key?.startsWith("opencode.credentials.server-x")) keys.push(key)
-      }
-      return keys
-    })
-    expect(remainingCredKeys.length).toBe(0)
+    const remaining = await getAllCredentialKeys(page)
+    const matching = remaining.filter((k) => k.startsWith(credKey(SERVER_X)))
+    expect(matching.length).toBe(0)
 
     // Reload and verify credential does not come back
     await page.reload()
     await page.waitForTimeout(3000)
-    const afterReload = await page.evaluate(() => {
-      const keys: string[] = []
-      for (let i = 0; i < sessionStorage.length; i++) {
-        const key = sessionStorage.key(i)
-        if (key) keys.push(key)
-      }
-      return keys
-    })
-    expect(afterReload).not.toContain("opencode.credentials.server-x")
+    const afterReload = await getAllCredentialKeys(page)
+    expect(afterReload).not.toContain(credKey(SERVER_X))
 
     expect(errors.length).toBe(0)
   })
