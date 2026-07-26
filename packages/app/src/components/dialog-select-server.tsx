@@ -604,7 +604,9 @@ export function useServerManagementController(options: { onSelect?: () => void; 
       username: conn.http.username ?? "",
       password: conn.http.password ?? "",
       error: "",
-      status: global.servers.health[ServerConnection.key(conn)]?.healthy,
+      status: global.servers.health[ServerConnection.key(conn)]?.healthy !== undefined
+        ? { healthy: global.servers.health[ServerConnection.key(conn)]?.healthy }
+        : undefined,
     })
   }
 
