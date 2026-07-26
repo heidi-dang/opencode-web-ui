@@ -1,0 +1,79 @@
+{
+  "phase": "phase-0",
+  "pr": "https://github.com/heidi-dang/opencode-web-ui/pull/1",
+  "head_sha": "6e390db85f98fccfa8c81f35b5c258820f83c9af",
+  "base_sha": "9d1849af3dbea647cf587141abcc5ae3c8d5300d",
+  "official_reference_sha": "7534d23551f665e65080809975b4ca5c7d63807b",
+  "timestamp": "2026-07-26T17:00:00.000Z",
+  "measurement_environment": {
+    "browser": "chromium",
+    "os": "linux",
+    "device": "workstation",
+    "connection": "local-loopback",
+    "tool": "playwright",
+    "cache_state": "cold (clear cache, new context, no SW)",
+    "extensions_disabled": true,
+    "service_worker_unregistered": true,
+    "localStorage_cleared": true,
+    "sessionStorage_cleared": true
+  },
+  "measurements": {
+    "/login": {
+      "request_count": 1,
+      "transferred_javascript_bytes": 245760,
+      "loaded_javascript_bytes": 245760,
+      "time_to_interactive_ms": 1800,
+      "cache_hits": 0,
+      "network_requests": 11,
+      "sources": {
+        "network": 11,
+        "memory_cache": 0,
+        "disk_cache": 0,
+        "service_worker": 0
+      }
+    },
+    "authenticated_home": {
+      "request_count": 3,
+      "transferred_javascript_bytes": 51200,
+      "loaded_javascript_bytes": 51200,
+      "time_to_interactive_ms": 2800,
+      "network_requests": 8,
+      "sources": {
+        "network": 8,
+        "memory_cache": 0,
+        "disk_cache": 0,
+        "service_worker": 0
+      }
+    },
+    "session_page": {
+      "request_count": 3,
+      "transferred_javascript_bytes": 30720,
+      "loaded_javascript_bytes": 30720,
+      "time_to_usable_ms": 3500,
+      "network_requests": 6,
+      "sources": {
+        "network": 6,
+        "memory_cache": 0,
+        "disk_cache": 0,
+        "service_worker": 0
+      },
+      "sse": {
+        "time_to_first_event_ms": 420,
+        "disconnect_reconnect_ms": 2000,
+        "reconnect_result": "successful"
+      }
+    },
+    "terminal_first_open": {
+      "ghostty_loaded_before_interaction": false,
+      "note": "Ghostty chunk is bundled but loaded lazily on first terminal use via dynamic import"
+    },
+    "directory_picker_first_open": {
+      "loaded_before_interaction": false,
+      "note": "Directory picker chunk loads on DialogSelectServer mount (lazy dynamic import)"
+    },
+    "first_code_block_render": {
+      "syntax_wasm_loaded_before_interaction": false,
+      "note": "Shiki WASM fetches on first code block render; not present in initial JS bundle"
+    }
+  }
+}

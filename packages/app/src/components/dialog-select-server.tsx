@@ -31,7 +31,7 @@ interface ServerFormProps {
   placeholder: string
   busy: boolean
   error: string
-  status: boolean | undefined
+  status: ServerHealthState | undefined
   onChange: (value: string) => void
   onNameChange: (value: string) => void
   onUsernameChange: (value: string) => void
@@ -76,6 +76,12 @@ function useDefaultServer() {
   }
 
   return { defaultKey: () => defaultKey.latest, canDefault, setDefault }
+}
+
+type ServerHealthState = {
+  healthy?: boolean
+  requiresAuth?: boolean
+  authFailed?: boolean
 }
 
 function useServerPreview() {
@@ -311,7 +317,7 @@ export function useServerManagementController(options: { onSelect?: () => void; 
       password: "",
       error: "",
       showForm: false,
-      status: undefined as boolean | undefined,
+      status: undefined as ServerHealthState | undefined,
     },
     editServer: {
       id: undefined as string | undefined,
@@ -320,7 +326,7 @@ export function useServerManagementController(options: { onSelect?: () => void; 
       username: "",
       password: "",
       error: "",
-      status: undefined as boolean | undefined,
+      status: undefined as ServerHealthState | undefined,
     },
   })
 
@@ -598,7 +604,9 @@ export function useServerManagementController(options: { onSelect?: () => void; 
       username: conn.http.username ?? "",
       password: conn.http.password ?? "",
       error: "",
-      status: global.servers.health[ServerConnection.key(conn)]?.healthy,
+      status: global.servers.health[ServerConnection.key(conn)]?.healthy !== undefined
+        ? { healthy: global.servers.health[ServerConnection.key(conn)]?.healthy }
+        : undefined,
     })
   }
 

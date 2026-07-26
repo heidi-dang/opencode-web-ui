@@ -4,6 +4,7 @@ import { createStore, type SetStoreFunction, type Store } from "solid-js/store"
 import { Persist, persisted } from "@/utils/persist"
 import { pathKey } from "@/utils/path-key"
 import { ServerScope } from "@/utils/server-scope"
+import { saveCredentials, clearCredentials, getCredentials, runCredentialMigration } from "@/utils/server-credentials"
 
 type StoredProject = { worktree: string; expanded: boolean }
 type StoredServer = string | ServerConnection.HttpBase | ServerConnection.Http
@@ -193,6 +194,20 @@ export function resolveServerList(input: {
         : "http" in value
           ? { ...value, http: { ...value.http, url: normalizedUrl } }
           : { type: "http", http: { ...value, url: normalizedUrl } }
+
+    if (conn.http.password) {
+      const pw = conn.http.password
+      if (pw.startsWith("http://") || pw.startsWith("https://")) {
+        const stored = getCredentials(pw)
+        if (stored?.password) {
+          conn.http.password = stored.password
+          if (stored.username) conn.http.username = stored.username
+        } else {
+          delete conn.http.password
+        }
+      }
+    }
+
     const key = ServerConnection.key(conn)
 
     const existing = deduped.get(key)
@@ -293,6 +308,7 @@ export const { use: useServer, provider: ServerProvider } = createSimpleContext(
     canonicalLocalServer?: ServerConnection.Key
     servers?: Array<ServerConnection.Any>
   }) => {
+    runCredentialMigration()
     const [store, setStore, _, ready] = persisted(
       {
         ...Persist.global("server", ["server.v3"]),
@@ -323,7 +339,15 @@ export const { use: useServer, provider: ServerProvider } = createSimpleContext(
     function add(input: ServerConnection.Http) {
       const url_ = normalizeServerUrl(input.http.url)
       if (!url_) return
-      const conn: ServerConnection.Http = { ...input, authToken: undefined, http: { ...input.http, url: url_ } }
+      const hasPassword = !!input.http.password
+      if (hasPassword) {
+        saveCredentials(url_, input.http.username, input.http.password!)
+      }
+      const conn: ServerConnection.Http = {
+        ...input,
+        authToken: undefined,
+        http: { ...input.http, url: url_, password: hasPassword ? url_ : undefined },
+      }
       return batch(() => {
         const existing = store.list.findIndex((x) => url(x) === url_)
         if (existing !== -1) {
@@ -337,6 +361,7 @@ export const { use: useServer, provider: ServerProvider } = createSimpleContext(
     }
 
     function remove(key: ServerConnection.Key) {
+      clearCredentials(key)
       const next = nextServerAfterRemoval(allServers(), key, props.defaultServer)
       const list = store.list.filter((x) => url(x) !== key)
       batch(() => {

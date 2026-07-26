@@ -1,0 +1,218 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+
+  security-regression:
+    name: Security Regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - run: bun install --frozen-lockfile
+      - name: Vite config - no remote-proxy middleware
+        run: |
+          if grep -n '/api/remote-proxy' packages/app/vite.config.ts; then
+            echo "FAIL: /api/remote-proxy found in vite.config.ts"
+            exit 1
+          fi
+          echo "PASS: No remote-proxy middleware"
+      - name: Vite config - no X-Target-URL header
+        run: |
+          if grep -n 'X-Target-URL' packages/app/vite.config.ts; then
+            echo "FAIL: X-Target-URL found in vite.config.ts"
+            exit 1
+          fi
+          echo "PASS: No X-Target-URL reference"
+      - name: Vite config - no allowedHosts true
+        run: |
+          if grep -n 'allowedHosts\s*:\s*true' packages/app/vite.config.ts; then
+            echo "FAIL: allowedHosts is true"
+            exit 1
+          fi
+          echo "PASS: allowedHosts is not true"
+      - name: Vite config - host is 127.0.0.1
+        run: |
+          if grep -n 'host:"0\.0\.0\.0"' packages/app/vite.config.ts || grep -n "host: '0\.0\.0\.0'" packages/app/vite.config.ts; then
+            echo "FAIL: host is 0.0.0.0"
+            exit 1
+          fi
+          echo "PASS: host is 127.0.0.1 (or equivalent)"
+      - name: server-health.ts - no remote proxy fallback
+        run: |
+          if grep -n 'remote-proxy\|remoteProxy\|X-Target-URL' packages/app/src/utils/server-health.ts; then
+            echo "FAIL: remote proxy code found in server-health.ts"
+            exit 1
+          fi
+          echo "PASS: No remote proxy fallback"
+      - name: sw.js - no remote-proxy bypass
+        run: |
+          if grep -n 'remote-proxy\|mobile-log' packages/app/public/sw.js | grep -v '//.*Note:'; then
+            echo "FAIL: bypass entries for removed endpoints"
+            exit 1
+          fi
+          echo "PASS: Service worker has no bypass for removed endpoints"
+
+  unit:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - run: bun install --frozen-lockfile
+      - name: Run unit tests
+        working-directory: packages/app
+        run: bun test --preload ./happydom.ts ./src
+
+  browser:
+    name: Browser Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - run: bun install --frozen-lockfile
+      - run: bun --cwd packages/app test:browser
+
+  build:
+    name: Production Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - run: bun install --frozen-lockfile
+      - run: bun --cwd packages/app build
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: packages/app/dist
+          retention-days: 7
+
+  official-smoke:
+    name: Official OpenCode Smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - run: bun install --frozen-lockfile
+      - name: Checkout official opencode reference
+        uses: actions/checkout@v4
+        with:
+          repository: anomalyco/opencode
+          ref: 7534d23551f665e65080809975b4ca5c7d63807b
+          path: .opencode-reference
+          fetch-depth: 1
+      - name: Install official opencode dependencies
+        working-directory: .opencode-reference
+        run: bun install --frozen-lockfile 2>&1 | tail -5
+      - name: Start opencode backend
+        run: |
+          PORT=4097
+          echo "OPCODE_PID=$PORT" >> $GITHUB_ENV
+          bun run --cwd .opencode-reference/packages/opencode --conditions=browser src/index.ts serve --port $PORT &
+          echo "BACKEND_PID=$!" >> $GITHUB_ENV
+          for i in $(seq 1 30); do
+            if curl -s http://127.0.0.1:$PORT/global/health > /dev/null 2>&1; then
+              echo "Backend ready on port $PORT"
+              break
+            fi
+            sleep 2
+          done
+      - name: Run Playwright smoke tests
+        working-directory: packages/app
+        run: |
+          export SMOKE_BACKEND_URL="http://127.0.0.1:4097"
+          export PLAYWRIGHT_PORT=3002
+          export PLAYWRIGHT_SERVER_HOST=127.0.0.1
+          export PLAYWRIGHT_SERVER_PORT=4097
+          npx playwright test e2e/smoke/opencode-smoke.spec.ts --reporter=line 2>&1 | tail -30
+        env:
+          SMOKE_BACKEND_URL: http://127.0.0.1:4097
+      - name: Stop backend
+        if: always()
+        run: |
+          kill $BACKEND_PID 2>/dev/null || true
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-smoke
+          path: packages/app/e2e/playwright-report/
+          retention-days: 7
+
+  bundle-report:
+    name: Bundle Report
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [build]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - run: bun install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: packages/app/dist
+      - name: Generate Phase 0 report
+        run: bun scripts/audit/bundle-report.mjs --phase phase-0
+      - name: Generate Phase 1 report
+        run: bun scripts/audit/bundle-report.mjs --phase phase-1
+      - name: Validate reports
+        run: |
+          for f in artifacts/performance/phase-0/bundle-report.json artifacts/performance/phase-1/bundle-report.json; do
+            if [ ! -f "$f" ]; then
+              echo "FAIL: $f not found"
+              exit 1
+            fi
+            echo "PASS: $f exists"
+          done
+          for f in artifacts/performance/phase-0/bundle-report.summary.json artifacts/performance/phase-1/bundle-report.summary.json; do
+            if [ ! -f "$f" ]; then
+              echo "FAIL: $f not found"
+              exit 1
+            fi
+            echo "PASS: $f exists"
+          done
+      - name: Upload reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: bundle-reports
+          path: artifacts/performance/
+          retention-days: 30

@@ -63,8 +63,9 @@ function wait(ms: number, signal?: AbortSignal) {
 function retryable(error: unknown, signal?: AbortSignal) {
   if (signal?.aborted) return false
   if (error instanceof ClientError) {
-    if (error.status === 401 || error.status === 403) return false
-    if (error.status >= 400 && error.status < 500) return false
+    const status = (error as { status?: number }).status
+    if (status === 401 || status === 403) return false
+    if (status !== undefined && status >= 400 && status < 500) return false
   }
   return true
 }
@@ -134,19 +135,6 @@ export function checkServerHealth(
           } catch {}
         }
 
-        // Remote Gateway Proxy probe for arbitrary remote servers (e.g. GCloud Tailscale IP 100.103.50.19:4096)
-        const remoteProxyBase = `${location.origin}/api/remote-proxy`
-        for (const path of probePaths) {
-          try {
-            const targetUrl = new URL(path, server.url).toString()
-            const proxyRes = await fetch(remoteProxyBase, {
-              headers: { ...authHeaders, "X-Target-URL": targetUrl },
-              signal,
-            }).catch(() => null)
-            const result = await processRes(proxyRes)
-            if (result) return result
-          } catch {}
-        }
       }
     } catch {}
 
