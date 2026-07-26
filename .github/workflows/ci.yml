@@ -175,6 +175,78 @@ jobs:
           path: packages/app/e2e/playwright-report/
           retention-days: 7
 
+  test-inventory:
+    name: Test Inventory
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - run: bun install --frozen-lockfile
+      - name: Generate test inventory
+        run: bun scripts/audit/test-inventory.ts
+      - name: Upload inventory report
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-inventory-report
+          path: scripts/audit/test-inventory-report.json
+          retention-days: 30
+
+  stability:
+    name: Visual Stability
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - run: bun install --frozen-lockfile
+      - run: bun --cwd packages/app build
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
+      - name: Run timeline stability tests
+        working-directory: packages/app
+        run: bun test ./e2e/performance/unit/visual-stability.test.ts 2>&1 | tail -20
+      - name: Run Playwright stability tests
+        working-directory: packages/app
+        run: npx playwright test --config e2e/performance/timeline-stability/playwright.config.ts 2>&1 | tail -30
+      - name: Upload stability report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stability-report
+          path: packages/app/e2e/playwright-report/timeline-stability/
+          retention-days: 7
+
+  performance-baseline:
+    name: Performance Baseline
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - run: bun install --frozen-lockfile
+      - run: bun --cwd packages/app build
+      - name: Install Playwright browsers
+        run: npx playwright install chromium --with-deps
+      - name: Run performance benchmarks
+        working-directory: packages/app
+        run: npx playwright test --config e2e/performance/playwright.config.ts 2>&1 | tail -30
+        env:
+          OPENCODE_PERFORMANCE_RUN_ID: ${{ github.sha }}
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: packages/app/e2e/test-results/performance/
+          retention-days: 30
+
   bundle-report:
     name: Bundle Report
     runs-on: ubuntu-latest
