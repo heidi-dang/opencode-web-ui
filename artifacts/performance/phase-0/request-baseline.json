@@ -1,0 +1,20 @@
+{
+  "note": "Browser/network baseline requires running opencode serve instance and Playwright.",
+  "server": "Requires official opencode serve process with --cors",
+  "metrics": {
+    "homeRequestCount": "TBD - requires Playwright run",
+    "initialTransferredJS": "TBD",
+    "initialLoadedJS": "TBD",
+    "timeToFirstUsableShell": "TBD",
+    "timeToHomeReady": "TBD",
+    "sessionOpeningRequestCount": "TBD",
+    "sseTimeToFirstEvent": "TBD",
+    "sseReconnectBehaviour": "TBD"
+  },
+  "codeSplitting": {
+    "ghosttyLoadBeforeTerminalUse": "Yes (bundled but lazy loaded)",
+    "directoryPickerLoadBeforeUse": "Yes (lazy loaded chunk dialog-select-directory-v2)",
+    "syntaxHighlighterWasmLoadBeforeCode": "Yes (shiki WASM loaded on demand)"
+  },
+  "generatedAt": "'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"
+}
