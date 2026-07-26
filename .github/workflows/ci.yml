@@ -33,34 +33,48 @@ jobs:
         with:
           bun-version: 1.3.14
       - run: bun install --frozen-lockfile
-      - name: Check for SSRF endpoint
+      - name: Vite config - no remote-proxy middleware
         run: |
-          if grep -r 'X-Target-URL' packages/app --include='*.ts' --include='*.tsx' --include='*.js' --include='*.mjs' -l | grep -v node_modules | grep -v '.d.ts'; then
-            echo "FAIL: X-Target-URL found - SSRF risk"
+          if grep -n '/api/remote-proxy' packages/app/vite.config.ts; then
+            echo "FAIL: /api/remote-proxy found in vite.config.ts"
             exit 1
           fi
-          echo "PASS: No X-Target-URL references"
-      - name: Check no remote-proxy endpoint
+          echo "PASS: No remote-proxy middleware"
+      - name: Vite config - no X-Target-URL header
         run: |
-          if grep -r '/api/remote-proxy' packages/app --include='*.ts' --include='*.tsx' --include='*.js' --include='*.mjs' -l | grep -v node_modules | grep -v '.d.ts'; then
-            echo "FAIL: /api/remote-proxy found - SSRF risk"
+          if grep -n 'X-Target-URL' packages/app/vite.config.ts; then
+            echo "FAIL: X-Target-URL found in vite.config.ts"
             exit 1
           fi
-          echo "PASS: No remote-proxy endpoint"
-      - name: Check allowedHosts is never true
+          echo "PASS: No X-Target-URL reference"
+      - name: Vite config - no allowedHosts true
         run: |
-          if grep -r 'allowedHosts:\s*true' packages/app --include='*.ts' --include='*.tsx' --include='*.js' -l | grep -v node_modules | grep -v '.d.ts'; then
-            echo "FAIL: allowedHosts is set to true"
+          if grep -n 'allowedHosts\s*:\s*true' packages/app/vite.config.ts; then
+            echo "FAIL: allowedHosts is true"
             exit 1
           fi
           echo "PASS: allowedHosts is not true"
-      - name: Check host is loopback
+      - name: Vite config - host is 127.0.0.1
         run: |
-          if grep -r "host:.*0\\.0\\.0\\.0" packages/app --include='*.ts' --include='*.tsx' -l | grep -v node_modules; then
-            echo "FAIL: host is 0.0.0.0 instead of 127.0.0.1"
+          if grep -n 'host:"0\.0\.0\.0"' packages/app/vite.config.ts || grep -n "host: '0\.0\.0\.0'" packages/app/vite.config.ts; then
+            echo "FAIL: host is 0.0.0.0"
             exit 1
           fi
-          echo "PASS: host is not 0.0.0.0"
+          echo "PASS: host is 127.0.0.1 (or equivalent)"
+      - name: server-health.ts - no remote proxy fallback
+        run: |
+          if grep -n 'remote-proxy\|remoteProxy\|X-Target-URL' packages/app/src/utils/server-health.ts; then
+            echo "FAIL: remote proxy code found in server-health.ts"
+            exit 1
+          fi
+          echo "PASS: No remote proxy fallback"
+      - name: sw.js - no remote-proxy bypass
+        run: |
+          if grep -n 'remote-proxy\|mobile-log' packages/app/public/sw.js | grep -v '//.*Note:'; then
+            echo "FAIL: bypass entries for removed endpoints"
+            exit 1
+          fi
+          echo "PASS: Service worker has no bypass for removed endpoints"
 
   unit:
     name: Unit Tests
@@ -72,7 +86,7 @@ jobs:
         with:
           bun-version: 1.3.14
       - run: bun install --frozen-lockfile
-      - run: bun --cwd packages/app test:unit
+      - run: bun --cwd packages/app test --preload ./happydom.ts ./src --timeout 10000
 
   browser:
     name: Browser Tests

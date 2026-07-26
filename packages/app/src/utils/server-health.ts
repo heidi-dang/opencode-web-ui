@@ -63,8 +63,9 @@ function wait(ms: number, signal?: AbortSignal) {
 function retryable(error: unknown, signal?: AbortSignal) {
   if (signal?.aborted) return false
   if (error instanceof ClientError) {
-    if (error.status === 401 || error.status === 403) return false
-    if (error.status >= 400 && error.status < 500) return false
+    const status = (error as { status?: number }).status
+    if (status === 401 || status === 403) return false
+    if (status !== undefined && status >= 400 && status < 500) return false
   }
   return true
 }

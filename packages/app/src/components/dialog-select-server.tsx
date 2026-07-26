@@ -78,6 +78,12 @@ function useDefaultServer() {
   return { defaultKey: () => defaultKey.latest, canDefault, setDefault }
 }
 
+type ServerHealthState = {
+  healthy?: boolean
+  requiresAuth?: boolean
+  authFailed?: boolean
+}
+
 function useServerPreview() {
   const checkServerHealth = useCheckServerHealth()
 
