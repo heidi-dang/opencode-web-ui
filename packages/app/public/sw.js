@@ -8,6 +8,7 @@ const CACHE_VERSION = "oc-shell-v2"
 const PRECACHE_URLS = ["/"]
 
 // Never intercept these paths — must always hit the live network.
+// (Note: /api/remote-proxy and /api/mobile-log were removed in Phase 1 security audit)
 const BYPASS_PREFIXES = [
   "/opencode-server",
   "chrome-extension://",
