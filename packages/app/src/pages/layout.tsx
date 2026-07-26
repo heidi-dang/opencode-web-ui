@@ -2325,7 +2325,8 @@ export default function LegacyLayout(props: ParentProps) {
             <div class="xl:hidden">
               <div
                 classList={{
-                  "fixed inset-x-0 top-10 bottom-0 z-40 transition-opacity duration-200": true,
+                  "fixed inset-x-0 top-10 bottom-0 z-40 transition-opacity duration-200 backdrop-blur-sm": true,
+                  "bg-black/40": true,
                   "opacity-100 pointer-events-auto": layout.mobileSidebar.opened(),
                   "opacity-0 pointer-events-none": !layout.mobileSidebar.opened(),
                 }}
@@ -2337,7 +2338,7 @@ export default function LegacyLayout(props: ParentProps) {
                 aria-label={language.t("sidebar.nav.projectsAndSessions")}
                 data-component="sidebar-nav-mobile"
                 classList={{
-                  "@container fixed top-10 bottom-0 left-0 z-50 w-full max-w-[400px] overflow-hidden border-r border-border-weaker-base bg-background-base transition-transform duration-200 ease-out": true,
+                  "@container fixed top-10 bottom-0 left-0 z-50 w-full max-w-[400px] overflow-hidden border-r border-border-weaker-base bg-background-base transition-transform duration-200 ease-out will-change-transform": true,
                   "translate-x-0": layout.mobileSidebar.opened(),
                   "-translate-x-full": !layout.mobileSidebar.opened(),
                 }}

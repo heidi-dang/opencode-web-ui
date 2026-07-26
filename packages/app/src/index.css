@@ -24,6 +24,28 @@
   }
 }
 
+/* ─── Safe Area Insets (iPhone notch / home indicator) ─────────────────────
+   Ensures the sidebar, mobile titlebar, and main content never
+   get clipped under the home indicator or status bar.
+──────────────────────────────────────────────────────────────────────────── */
+@supports (padding: max(0px)) {
+  #root {
+    /* Use safe-area insets when available (iOS Safari, Chrome on notched phones) */
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+  }
+
+  /* Mobile sidebar must not overlap the home indicator */
+  [data-component="sidebar-nav-mobile"] {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  /* Bottom-positioned titlebar must sit above the home indicator */
+  [data-component="titlebar"][data-position="bottom"] {
+    padding-bottom: max(env(safe-area-inset-bottom, 0px), 4px);
+  }
+}
+
 @layer components {
   [data-component="getting-started"] {
     container-type: inline-size;
@@ -382,3 +404,91 @@ kbd, [data-slot="desktop-app-menu-keybind"] {
   border-radius: var(--radius-lg, 8px);
 }
 
+/* ─── prefers-reduced-motion ─────────────────────────────────────────────────
+   Disable all non-essential animations & transitions for users who have
+   enabled "Reduce Motion" in their OS accessibility settings (iOS, macOS,
+   Android, Windows). Covers our custom keyframes AND Tailwind transitions.
+──────────────────────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  /* Stop our custom glow/streaming animation */
+  .streaming-active-glow {
+    animation: none;
+  }
+
+  /* Stop the title-bar update loader spin */
+  [data-slot="titlebar-update-loader"] {
+    animation: none;
+  }
+
+  /* Neutralize all CSS transitions globally (sidebar slide, opacity fades, etc.) */
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ─── prefers-contrast: more ─────────────────────────────────────────────────
+   Increase visual distinction between UI elements when the user requests
+   higher contrast in OS accessibility settings.
+──────────────────────────────────────────────────────────────────────────── */
+@media (prefers-contrast: more) {
+  /* Strengthen all border colours */
+  [class*="border-"] {
+    border-color: rgba(200, 200, 220, 0.5) !important;
+  }
+
+  /* Ensure weak text is still readable */
+  [class*="text-weak"],
+  [class*="text-weaker"],
+  [data-slot="desktop-app-menu-keybind"] {
+    color: rgba(220, 220, 240, 0.85) !important;
+  }
+
+  /* Keyboard shortcut badges — boost legibility */
+  kbd,
+  [data-slot="desktop-app-menu-keybind"] {
+    background: rgba(255, 255, 255, 0.12) !important;
+    border-color: rgba(255, 255, 255, 0.35) !important;
+  }
+
+  /* Mobile sidebar gets a crisper edge */
+  [data-component="sidebar-nav-mobile"] {
+    border-right-width: 2px;
+  }
+}
+
+/* ─── forced-colors (Windows High Contrast Mode) ─────────────────────────────
+   Ensure custom decorative elements don't render as invisible blocks.
+   The browser re-colours most text & buttons automatically; we only need
+   to handle decorative backgrounds and box-shadows.
+──────────────────────────────────────────────────────────────────────────── */
+@media (forced-colors: active) {
+  /* Let the OS control our custom scrollbar — hide the Webkit overrides */
+  ::-webkit-scrollbar,
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-thumb {
+    display: none;
+  }
+
+  /* Remove decorative glows that force-colors can't translate */
+  .streaming-active-glow {
+    animation: none;
+    box-shadow: none;
+    outline: 2px solid Highlight;
+  }
+
+  /* Ensure mobile sidebar overlay backdrop is visible */
+  [data-component="sidebar-nav-mobile"] {
+    border-right: 2px solid ButtonText;
+  }
+
+  /* Title-bar update badge */
+  [data-slot="titlebar-update-loader"] {
+    border-color: ButtonText;
+    animation: none;
+  }
+}

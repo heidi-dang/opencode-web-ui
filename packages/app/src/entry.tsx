@@ -17,6 +17,18 @@ if (typeof window !== "undefined") {
       event.stopImmediatePropagation()
     }
   })
+
+  // Register service worker for offline-capable PWA (production only).
+  // Skipped in dev mode to avoid Vite HMR conflicts.
+  if (!import.meta.env.DEV && "serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker
+        .register("/sw.js", { updateViaCache: "none" })
+        .catch(() => {
+          // Non-critical — app still works without SW
+        })
+    })
+  }
 }
 
 const DEFAULT_SERVER_URL_KEY = "opencode.settings.dat:defaultServerUrl"
