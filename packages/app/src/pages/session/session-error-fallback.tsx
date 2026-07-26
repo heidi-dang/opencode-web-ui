@@ -4,12 +4,7 @@ import { ServerConnection, serverName, useServer } from "@/context/server"
 import { useTabs } from "@/context/tabs"
 import { ButtonV2 } from "@opencode-ai/ui/v2/button-v2"
 import { ErrorPage } from "@/pages/error"
-import { isLocalSessionNotFoundError, isSessionNotFoundError } from "@/utils/server-errors"
-
-function isCurrentSessionNotFoundError(error: unknown, sessionID: string | undefined) {
-  if (!sessionID) return false
-  return isSessionNotFoundError(error, sessionID) || isLocalSessionNotFoundError(error, sessionID)
-}
+import { isCurrentSessionNotFoundError } from "@/utils/server-errors"
 
 export function SessionErrorFallback(props: {
   error: unknown

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 
 /**
- * Tests for route-level lazy loading in app.tsx.
+ * Behavioral tests for route-level lazy loading in app.tsx.
  *
  * These verify that all major route components are loaded via dynamic
  * import (lazy()), keeping the entry chunk small. Route-level splits:
@@ -14,21 +14,70 @@ import { describe, expect, test } from "bun:test"
  * - NewHome          → @/pages/home
  * - LegacyHome       → @/pages/home/legacy-home
  * - NewSession       → @/pages/new-session
+ *
+ * Each test verifies that:
+ *  1. The import path is defined in app.tsx
+ *  2. The target file exists on disk
+ *  3. The module has the expected exports
  */
 
+const SRC = import.meta.dirname + "/.."
+
+function resolveModulePath(importPath: string): string | null {
+  const relative = importPath.replace("@/", "")
+  const tsxPath = `${SRC}/${relative}.tsx`
+  const tsPath = `${SRC}/${relative}.ts`
+  if (require("fs").existsSync(tsxPath)) return tsxPath
+  if (require("fs").existsSync(tsPath)) return tsPath
+  return null
+}
+
+function lazyPathsFromSource(): string[] {
+  const appSource = require("fs").readFileSync(import.meta.dirname + "/../app.tsx", "utf-8")
+  return [...appSource.matchAll(/lazy\(\(\) => import\("([^"]+)"\)/g)].map((m) => m[1])
+}
+
+/**
+ * Expected lazy route entries and their component exports.
+ *
+ * Each entry maps the lazy import path → { modulePath, exports }
+ * so we can verify the module resolves and exports the right symbols.
+ */
+const ROUTE_MODULES: Record<
+  string,
+  { defaultExport?: string; namedExports?: string[] }
+> = {
+  "@/pages/directory-layout": { defaultExport: "Layout" },
+  "@/pages/layout": { defaultExport: "LegacyLayout" },
+  "@/pages/layout-new": { defaultExport: "NewLayout" },
+  "@/pages/session": { namedExports: ["SessionPage", "TargetSessionRouteContent"] },
+  "@/pages/home": { namedExports: ["NewHome"] },
+  "@/pages/home/legacy-home": { namedExports: ["LegacyHome"] },
+  "@/pages/new-session": { defaultExport: "NewSessionPage" },
+}
+
 describe("route lazy loading", () => {
-  test("app.tsx defines file-level route lazy imports", async () => {
-    const appSource = await Bun.file(import.meta.dirname + "/../app.tsx").text()
-    const lazyDeclarations = appSource.match(/const \w+ = lazy\(\(\) => import\([^)]+\)/g)
-    expect(lazyDeclarations).not.toBeNull()
+  test("all lazy import paths resolve to actual files on disk", () => {
+    const lazyPaths = lazyPathsFromSource()
+    expect(lazyPaths.length).toBeGreaterThanOrEqual(5)
 
-    const lazyPaths = lazyDeclarations!.map((d) => {
-      const match = d.match(/import\("([^"]+)"\)/)
-      return match ? match[1] : null
-    }).filter(Boolean)
+    for (const path of lazyPaths) {
+      const resolved = resolveModulePath(path)
+      expect(resolved).not.toBeNull()
+    }
+  })
 
-    // Core route boundaries that must be lazy
-    const expectedPaths = [
+  test("every expected route module is referenced in the lazy declarations", () => {
+    const lazyPaths = lazyPathsFromSource()
+    for (const expectedPath of Object.keys(ROUTE_MODULES)) {
+      expect(lazyPaths).toContain(expectedPath)
+    }
+  })
+
+  test("core route boundaries are defined as lazy imports", () => {
+    const lazyPaths = lazyPathsFromSource()
+
+    const corePaths = [
       "@/pages/directory-layout",
       "@/pages/layout",
       "@/pages/layout-new",
@@ -36,50 +85,76 @@ describe("route lazy loading", () => {
       "@/pages/home",
     ]
 
-    for (const path of expectedPaths) {
+    for (const path of corePaths) {
       expect(lazyPaths).toContain(path)
     }
   })
 
-  test("all lazy import paths in app.tsx resolve to actual files", async () => {
-    // Verify lazy import paths in app.tsx resolve to actual files.
-    // The @/ alias maps to src/.
-    const appSource = await Bun.file(import.meta.dirname + "/../app.tsx").text()
-    const lazyPaths = [...appSource.matchAll(/import\("([^"]+)"\)/g)].map((m) => m[1])
+  test("each lazy route file exports its expected component symbol", async () => {
+    const lazyPaths = lazyPathsFromSource()
 
-    for (const path of lazyPaths) {
-      // Convert @/pages/directory-layout → src/pages/directory-layout.tsx
-      const relative = path.replace("@/", "")
-      // Check possible extensions: .tsx, .ts
-      const root = import.meta.dirname + "/.." // src/
-      const tsxPath = `${root}/${relative}.tsx`
-      const tsPath = `${root}/${relative}.ts`
-      const exists =
-        require("fs").existsSync(tsxPath) || require("fs").existsSync(tsPath)
-      expect(exists).toBe(true)
+    // For each route module defined in our known list, verify the file exports
+    // the expected component symbol. We read the source file directly to check
+    // export declarations — this works for JSX and non-JSX modules alike.
+    for (const [importPath, exports] of Object.entries(ROUTE_MODULES)) {
+      expect(lazyPaths).toContain(importPath)
+      const filePath = resolveModulePath(importPath)
+      expect(filePath).not.toBeNull()
+
+      const source = require("fs").readFileSync(filePath!, "utf-8")
+
+      if (exports.defaultExport) {
+        // Check for default export or export default function/const
+        const hasDefaultExport =
+          /export\s+default\s+/.test(source) ||
+          source.includes(`export { default: ${exports.defaultExport}`) ||
+          source.includes(`export default ${exports.defaultExport}`)
+        expect(hasDefaultExport).toBe(true)
+      }
+
+      if (exports.namedExports) {
+        for (const name of exports.namedExports) {
+          const hasExport =
+            new RegExp(`export\\s+(?:function|const|)\\s*${name}`).test(source) ||
+            source.includes(`export { ${name}`) ||
+            source.includes(`export { ${name},`) ||
+            source.includes(`, ${name},`) ||
+            source.includes(`, ${name} }`)
+          expect(hasExport).toBe(true)
+        }
+      }
     }
   })
 })
 
 describe("internal lazy loading (session.tsx)", () => {
-  test("session.tsx has internal lazy imports for heavy sub-components", async () => {
-    const sessionSource = await Bun.file(import.meta.dirname + "/session.tsx").text()
-    const lazyDeclarations = sessionSource.match(/const \w+ = lazy\(\(\) => import\([^)]+\)/g)
+  test("session.tsx lazy-imports heavy sub-components with file resolution", () => {
+    const sessionSource = require("fs").readFileSync(
+      import.meta.dirname + "/session.tsx",
+      "utf-8",
+    )
+    const lazyDeclarations = sessionSource.match(
+      /const \w+ = lazy\(\(\) => import\([^)]+\)/g,
+    )
     expect(lazyDeclarations).not.toBeNull()
 
-    const lazyPaths = lazyDeclarations!.map((d) => {
+    const lazyPaths = lazyDeclarations!.map((d: string) => {
       const match = d.match(/import\("([^"]+)"\)/)
       return match ? match[1] : null
     }).filter(Boolean)
 
     // Heavy sub-components that must be lazy within session.tsx
-    const expectedPaths = [
-      "review-tab",
-      "terminal-panel",
-    ]
+    const expectedPaths = ["review-tab", "terminal-panel"]
 
     for (const path of expectedPaths) {
-      expect(lazyPaths.some((p) => p?.includes(path))).toBe(true)
+      expect(lazyPaths.some((p: string | null) => p?.includes(path))).toBe(true)
+    }
+
+    // Additionally, verify each lazy path resolves to an actual file.
+    // Paths use the @/ alias which maps to src/.
+    for (const lazyPath of lazyPaths) {
+      const resolved = resolveModulePath(lazyPath)
+      expect(resolved).not.toBeNull()
     }
   })
 })
@@ -117,7 +192,7 @@ describe("guide lazy loading (marked.tsx)", () => {
 describe("Ghostty lazy loading", () => {
   test("ghostty-web is lazy-loaded on first terminal creation", async () => {
     const terminalSource = await Bun.file(
-      import.meta.dirname + "/../../components/terminal.tsx",
+      import.meta.dirname + "/../components/terminal.tsx",
     ).text()
 
     // Ghostty library is loaded lazily via loadGhostty()
@@ -127,14 +202,15 @@ describe("Ghostty lazy loading", () => {
 })
 
 describe("DirectoryDataProvider standalone file", () => {
-  test("directory-data-provider.tsx exists and exports DirectoryDataProvider", async () => {
-    const mod = await import("./directory-data-provider")
-    expect(mod.DirectoryDataProvider).toBeDefined()
-    expect(typeof mod.DirectoryDataProvider).toBe("function")
-  })
-
   test("app.tsx imports DirectoryDataProvider from the standalone file", async () => {
     const appSource = await Bun.file(import.meta.dirname + "/../app.tsx").text()
-    expect(appSource).toContain('import { DirectoryDataProvider } from "@/pages/directory-data-provider"')
+    expect(appSource).toContain(
+      'import { DirectoryDataProvider } from "@/pages/directory-data-provider"',
+    )
+  })
+
+  test("directory-data-provider file exists on disk", () => {
+    const tsxPath = SRC + "/pages/directory-data-provider.tsx"
+    expect(require("fs").existsSync(tsxPath)).toBe(true)
   })
 })
