@@ -1,0 +1,15 @@
+{
+  "phase": "phase-3",
+  "timestamp": "2026-07-26T11:12:25.430Z",
+  "totalJavaScript": 25092122,
+  "initialJavaScript": 1438858,
+  "gzipSize": 5249425,
+  "brotliSize": 3213573,
+  "initialAssetCount": 2,
+  "routeAssetCount": 773,
+  "totalAssetCount": 881,
+  "totalJavaScriptFormatted": "23.9 MiB",
+  "initialJavaScriptFormatted": "1.4 MiB",
+  "gzipSizeFormatted": "5.0 MiB",
+  "brotliSizeFormatted": "3.1 MiB"
+}
