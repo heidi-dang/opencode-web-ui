@@ -31,7 +31,7 @@ interface ServerFormProps {
   placeholder: string
   busy: boolean
   error: string
-  status: boolean | undefined
+  status: ServerHealthState | undefined
   onChange: (value: string) => void
   onNameChange: (value: string) => void
   onUsernameChange: (value: string) => void
@@ -317,7 +317,7 @@ export function useServerManagementController(options: { onSelect?: () => void; 
       password: "",
       error: "",
       showForm: false,
-      status: undefined as boolean | ServerHealthState | undefined,
+      status: undefined as ServerHealthState | undefined,
     },
     editServer: {
       id: undefined as string | undefined,
@@ -326,7 +326,7 @@ export function useServerManagementController(options: { onSelect?: () => void; 
       username: "",
       password: "",
       error: "",
-      status: undefined as boolean | ServerHealthState | undefined,
+      status: undefined as ServerHealthState | undefined,
     },
   })
 
