@@ -317,7 +317,7 @@ export function useServerManagementController(options: { onSelect?: () => void; 
       password: "",
       error: "",
       showForm: false,
-      status: undefined as boolean | undefined,
+      status: undefined as boolean | ServerHealthState | undefined,
     },
     editServer: {
       id: undefined as string | undefined,
@@ -326,7 +326,7 @@ export function useServerManagementController(options: { onSelect?: () => void; 
       username: "",
       password: "",
       error: "",
-      status: undefined as boolean | undefined,
+      status: undefined as boolean | ServerHealthState | undefined,
     },
   })
 

@@ -22,6 +22,7 @@ describe("detectServerProtocol", () => {
     const fetcher = mockFetch((input) => {
       const path = new URL(input instanceof Request ? input.url : input).pathname
       if (path === "/global/health") return Promise.resolve(json({}, 404))
+      if (path === "/health") return Promise.resolve(json({}, 404))
       return Promise.resolve(json({ healthy: true, version: "2.0.0", pid: 123 }))
     })
 
