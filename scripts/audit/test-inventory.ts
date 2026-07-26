@@ -1,22 +1,25 @@
 #!/usr/bin/env bun
 /**
- * Phase 2A — Test Inventory
+ * Phase 2 — Test Inventory
  *
- * Discovers every test file across all workspace packages, counts test cases,
- * checks CI inclusion, notes runtime dependencies, runs test files, and
- * produces a structured JSON report at scripts/audit/test-inventory-report.json.
+ * Discovers test files across all workspace packages and optionally runs them.
+ *
+ * Usage:
+ *   bun scripts/audit/test-inventory.ts --help
+ *   bun scripts/audit/test-inventory.ts --inventory-only
+ *   bun scripts/audit/test-inventory.ts --execute
+ *   bun scripts/audit/test-inventory.ts --entry <package>
  */
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync, statSync } from "node:fs"
-import { resolve, relative, dirname, basename } from "node:path"
-import { spawnSync, spawn } from "node:child_process"
-import { createInterface } from "node:readline"
-import { fileURLToPath } from "node:url"
+import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync } from "node:fs"
+import { resolve, relative, basename } from "node:path"
+import { spawnSync } from "node:child_process"
 
 // ── Paths ────────────────────────────────────────────────────────────────────
 const ROOT = resolve(import.meta.dirname, "../..")
 const WORKSPACE_DIR = resolve(ROOT, "packages")
-const REPORT_PATH = resolve(ROOT, "scripts/audit/test-inventory-report.json")
+const SUMMARY_DIR = resolve(ROOT, "artifacts/test-inventory")
+const SUMMARY_PATH = resolve(SUMMARY_DIR, "phase-2-summary.json")
 const CI_FILE = resolve(ROOT, ".github/workflows/ci.yml")
 
 const ciContent = existsSync(CI_FILE) ? readFileSync(CI_FILE, "utf-8") : ""
@@ -25,84 +28,103 @@ const ciContent = existsSync(CI_FILE) ? readFileSync(CI_FILE, "utf-8") : ""
 type PackageInfo = {
   name: string
   path: string
-  version?: string
-  scripts?: Record<string, string>
+  testCommand?: string
+  hasTestScript: boolean
 }
 
-type TestCaseBlock = {
-  type: "describe" | "test" | "it"
+interface PackageInventory {
   name: string
-  line: number
-}
-
-type TestFile = {
-  package: string
   path: string
-  relativePath: string
-  testCaseBlocks: TestCaseBlock[]
-  testBlockCount: number
-  testCount: number
-  describeCount: number
-  includedInCI: boolean
-  runtimeDependencies: string[]
-  execution: {
-    passed: number
-    failed: number
-    skipped: number
-    durationMs: number
-    error?: string
-    status: "passed" | "failed" | "skipped" | "error" | "not_run"
-  }
+  testCommand: string | null
+  testFiles: string[]
+  preloadConfig: string | null
+  ciJob: string
+  envRequirements: string[]
+  hasTestScript: boolean
 }
 
-type TestInventoryReport = {
-  generatedAt: string
-  summary: {
-    totalPackages: number
-    totalTestFiles: number
-    totalTestBlocks: number
-    totalTestCases: number
-    totalDescribeBlocks: number
-    totalPassed: number
-    totalFailed: number
-    totalSkipped: number
-    totalDurationMs: number
-    packagesWithTests: number
-    packagesWithoutTests: number
-    includedInCI: number
-    excludedFromCI: number
-  }
-  ciConfig: {
-    workspaceTestPattern: string
-    packagesInCI: string[]
-    packagesExcludedFromCI: string[]
-    hasUnitJob: boolean
-    hasBrowserJob: boolean
-    hasE2EJob: boolean
-    hasStabilityJob: boolean
-    hasBenchmarkJob: boolean
-    hasTestInventoryJob: boolean
-  }
-  issues: {
-    serverSessionFailures: string[]
-    ghosttyWeb: string
-    desktopOnlyPaths: string[]
-    excludedFromCI: string[]
-  }
-  packages: Record<string, {
-    name: string
-    path: string
-    packageInfo: PackageInfo
-    testFiles: TestFile[]
-  }>
-  errors: string[]
+interface InventoryReport {
+  workspacePackages: number
+  packagesWithTests: number
+  packagesWithoutTests: number
+  packages: PackageInventory[]
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+interface ExecutionResult {
+  package: string
+  passed: number
+  failed: number
+  skipped: number
+  total: number
+  durationMs: number
+  status: "passed" | "failed" | "skipped" | "error"
+  error?: string
+}
 
-/** Recursively find test files in a directory */
+// ── Arg Parsing ──────────────────────────────────────────────────────────────
+interface CliArgs {
+  help: boolean
+  inventoryOnly: boolean
+  execute: boolean
+  entry: string | undefined
+}
+
+function parseArgs(): CliArgs {
+  const args = process.argv.slice(2)
+  const result: CliArgs = { help: false, inventoryOnly: false, execute: false, entry: undefined }
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i]
+    switch (arg) {
+      case "--help":
+      case "-h":
+        result.help = true
+        break
+      case "--inventory-only":
+        result.inventoryOnly = true
+        break
+      case "--execute":
+        result.execute = true
+        break
+      case "--entry":
+        if (i + 1 >= args.length) {
+          console.error("Error: --entry requires a package name argument")
+          process.exit(1)
+        }
+        result.entry = args[++i]
+        break
+      default:
+        console.error(`Error: unknown option "${arg}"`)
+        printUsage()
+        process.exit(1)
+    }
+  }
+
+  return result
+}
+
+function printUsage(): void {
+  console.log(`Usage: test-inventory.ts [options]
+
+Options:
+  --inventory-only   Discover test files and package commands (no execution)
+  --execute          Run tests package-by-package with correct preload/env
+  --entry <package>  Run tests for a single package only
+  --help, -h         Show this help message
+
+Examples:
+  bun scripts/audit/test-inventory.ts --inventory-only
+  bun scripts/audit/test-inventory.ts --execute
+  bun scripts/audit/test-inventory.ts --entry client
+`)
+}
+
+// ── Discovery ────────────────────────────────────────────────────────────────
+
+/** Recursively find test files in a directory. */
 function findTestFiles(dir: string, maxDepth = 6): string[] {
   const results: string[] = []
+
   function walk(current: string, depth: number) {
     if (depth > maxDepth) return
     try {
@@ -122,370 +144,352 @@ function findTestFiles(dir: string, maxDepth = 6): string[] {
       // skip unreadable dirs
     }
   }
+
   walk(dir, 0)
   return results
 }
 
-/** Count test blocks in a file */
-function countTestBlocks(content: string): TestCaseBlock[] {
-  const blocks: TestCaseBlock[] = []
-  const lines = content.split("\n")
-  // Also search for describe/it/test without accounting for line continuations
-  const describeRe = /^\s*(?:export\s+)?describe\s*\(\s*["'`](.+?)["'`]/g
-  const testRe = /^\s*(?:export\s+)?(?:test|it)\s*\(\s*["'`](.+?)["'`]/g
-
-  let match: RegExpExecArray | null
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]
-    describeRe.lastIndex = 0
-    testRe.lastIndex = 0
-    if ((match = describeRe.exec(line))) {
-      blocks.push({ type: "describe", name: match[1], line: i + 1 })
-    }
-    if ((match = testRe.exec(line))) {
-      blocks.push({ type: "test", name: match[1], line: i + 1 })
-    }
-  }
-
-  return blocks
-}
-
-/** Read package.json for a workspace package */
+/** Read package.json for a workspace package. */
 function readPackageJson(pkgDir: string): PackageInfo | null {
   const pkgPath = resolve(pkgDir, "package.json")
   if (!existsSync(pkgPath)) return null
   try {
     const content = JSON.parse(readFileSync(pkgPath, "utf-8"))
+    const scripts: Record<string, string> = content.scripts || {}
     return {
       name: content.name || basename(pkgDir),
       path: pkgDir,
-      version: content.version,
-      scripts: content.scripts,
+      testCommand: scripts.test || undefined,
+      hasTestScript: !!scripts.test,
     }
   } catch {
     return null
   }
 }
 
-/** Check if a path is referenced in CI */
-function isIncludedInCI(relativePath: string, packageName: string): boolean {
-  // Check CI yml content
-  const patterns = [
-    relativePath,
-    packageName,
-    basename(relativePath),
-  ]
-  return patterns.some((p) => ciContent.includes(p))
+/** Get the short package name (strip @scope/ prefix). */
+function shortName(pkgName: string): string {
+  const idx = pkgName.indexOf("/")
+  return idx >= 0 ? pkgName.slice(idx + 1) : pkgName
 }
 
-/** Get runtime dependencies from import statements */
-function getRuntimeDependencies(content: string): string[] {
-  const deps = new Set<string>()
-  const importRe = /from\s+["']([^"']+)["']/g
-  let match: RegExpExecArray | null
-  while ((match = importRe.exec(content)) !== null) {
-    const spec = match[1]
-    if (spec.startsWith(".") || spec.startsWith("@/")) continue
-    // Extract package name
-    if (spec.startsWith("@")) {
-      const parts = spec.split("/")
-      deps.add(`${parts[0]}/${parts[1]}`)
-    } else {
-      const parts = spec.split("/")
-      deps.add(parts[0])
+/** Determine which CI job owns this package's tests. */
+function getCiJob(pkgName: string): string {
+  const short = shortName(pkgName)
+  if (short === "app") return "unit / browser"
+  const matrixPkgs = [
+    "client", "core", "effect-drizzle-sqlite", "http-recorder",
+    "httpapi-codegen", "llm", "sdk", "session-ui", "ui",
+  ]
+  return matrixPkgs.includes(short) ? "workspace-test-matrix" : "none"
+}
+
+/** Determine environment requirements for a package. */
+function getEnvRequirements(pkgName: string): string[] {
+  const reqs = ["bun"]
+  if (shortName(pkgName) === "app") {
+    reqs.push("happydom (preload)")
+    reqs.push("browser environment for browser tests")
+  }
+  return reqs
+}
+
+/** Determine preload config for a package. */
+function getPreloadConfig(pkgName: string): string | null {
+  if (shortName(pkgName) === "app") return "happydom.ts"
+  return null
+}
+
+/** Discover all workspace packages and their test files. */
+function discoverPackages(): PackageInventory[] {
+  const workspaceDirs = readdirSync(WORKSPACE_DIR, { withFileTypes: true })
+    .filter((d) => d.isDirectory() && !d.name.startsWith("."))
+    .map((d) => resolve(WORKSPACE_DIR, d.name))
+
+  const inventories: PackageInventory[] = []
+
+  for (const pkgDir of workspaceDirs) {
+    const pkgInfo = readPackageJson(pkgDir)
+    const pkgName = pkgInfo?.name || basename(pkgDir)
+    const testFiles = findTestFiles(pkgDir).map((fp) => relative(ROOT, fp))
+
+    // Always include packages with test files OR a test script
+    if (testFiles.length === 0 && !pkgInfo?.hasTestScript) continue
+
+    inventories.push({
+      name: pkgName,
+      path: relative(ROOT, pkgDir),
+      testCommand: pkgInfo?.testCommand ?? null,
+      testFiles,
+      preloadConfig: getPreloadConfig(pkgName),
+      ciJob: getCiJob(pkgName),
+      envRequirements: getEnvRequirements(pkgName),
+      hasTestScript: pkgInfo?.hasTestScript ?? false,
+    })
+  }
+
+  return inventories
+}
+
+// ── Execution ────────────────────────────────────────────────────────────────
+
+/** Parse bun test output and return structured result. */
+function parseTestOutput(
+  result: { status: number | null; stdout: Buffer; stderr: Buffer },
+  durationMs: number,
+  label: string,
+): ExecutionResult {
+  const stdout = result.stdout?.toString() || ""
+  const stderr = result.stderr?.toString() || ""
+  const output = stdout + stderr
+
+  // Try to parse bun test summary lines: "N pass", "M fail", "K skip"
+  const passMatch = output.match(/(\d+)\s+pass/)
+  const failMatch = output.match(/(\d+)\s+fail/)
+  const skipMatch = output.match(/(\d+)\s+skip/)
+
+  let passed = passMatch ? parseInt(passMatch[1], 10) : 0
+  let failed = failMatch ? parseInt(failMatch[1], 10) : 0
+  let skipped = skipMatch ? parseInt(skipMatch[1], 10) : 0
+
+  // Fallback: count result lines directly if no summary matched
+  if (!passMatch && result.status === 0 && output.includes("✓")) {
+    const lines = output.split("\n")
+    passed = lines.filter((l) => l.includes("✓")).length
+    failed = lines.filter((l) => l.includes("✗")).length
+    skipped = lines.filter((l) => l.includes("···")).length
+  }
+
+  const total = passed + failed + skipped
+
+  let status: ExecutionResult["status"]
+  if (result.status === 0 && failed === 0) {
+    status = "passed"
+  } else if (result.status === 0 && failed > 0) {
+    status = "failed"
+  } else {
+    status = failed > 0 ? "failed" : "error"
+  }
+
+  let error: string | undefined
+  if (status !== "passed") {
+    error = stderr.slice(0, 1000)
+    const failLines = output.split("\n").filter(
+      (l: string) => l.includes("FAIL") || l.includes("Error:") || l.includes("expect("),
+    )
+    if (failLines.length > 0) {
+      console.log(`    ${label}:`)
+      for (const line of failLines.slice(0, 5)) {
+        console.log(`      ${line.trim()}`)
+      }
     }
   }
-  return [...deps].sort()
+
+  return { package: label, passed, failed, skipped, total, durationMs: Math.round(durationMs), status, error }
+}
+
+/** Run tests for the app package (unit + browser separately). */
+function runAppTests(pkg: PackageInventory): ExecutionResult {
+  console.log(`\n  TEST  ${pkg.name} (unit + browser) ...`)
+  const pkgDir = resolve(ROOT, pkg.path)
+
+  // Unit tests
+  console.log(`    UNIT ${pkg.name}/src ...`)
+  const uStart = performance.now()
+  const uResult = spawnSync("bun", ["test", "--preload", "./happydom.ts", "./src"], {
+    cwd: pkgDir,
+    timeout: 120_000,
+    env: { ...process.env as Record<string, string>, NODE_ENV: "test" },
+    stdio: ["ignore", "pipe", "pipe"],
+  })
+  const uDur = performance.now() - uStart
+  const unitRes = parseTestOutput(uResult, uDur, `${pkg.name} unit`)
+
+  // Browser tests
+  console.log(`    BROWSER ${pkg.name}/test-browser ...`)
+  const bStart = performance.now()
+  const bResult = spawnSync("bun", ["test", "--conditions=browser", "--preload", "./happydom.ts", "./test-browser"], {
+    cwd: pkgDir,
+    timeout: 120_000,
+    env: { ...process.env as Record<string, string>, NODE_ENV: "test" },
+    stdio: ["ignore", "pipe", "pipe"],
+  })
+  const bDur = performance.now() - bStart
+  const browserRes = parseTestOutput(bResult, bDur, `${pkg.name} browser`)
+
+  // Aggregate
+  const passed = (unitRes.passed ?? 0) + (browserRes.passed ?? 0)
+  const failed = (unitRes.failed ?? 0) + (browserRes.failed ?? 0)
+  const skipped = (unitRes.skipped ?? 0) + (browserRes.skipped ?? 0)
+  const total = passed + failed + skipped
+  const durationMs = (unitRes.durationMs ?? 0) + (browserRes.durationMs ?? 0)
+
+  const unitOk = unitRes.status === "passed"
+  const browserOk = browserRes.status === "passed"
+
+  let status: ExecutionResult["status"] = "passed"
+  if (failed > 0 || !unitOk || !browserOk) {
+    status = "failed"
+  }
+
+  if (status === "passed") {
+    console.log(`  PASS  ${pkg.name} (${durationMs}ms, ${total} tests)`)
+  } else {
+    console.log(`  FAIL  ${pkg.name} (${failed} failed, ${passed} passed, ${durationMs}ms)`)
+  }
+
+  const errors = [unitRes.error, browserRes.error].filter(Boolean) as string[]
+  const error = errors.length > 0 ? errors.join("\n").slice(0, 1000) : undefined
+
+  return { package: pkg.name, passed, failed, skipped, total, durationMs, status, error }
+}
+
+/** Run tests for a single package. */
+function runPackageTests(pkg: PackageInventory): ExecutionResult {
+  if (shortName(pkg.name) === "app") {
+    return runAppTests(pkg)
+  }
+
+  const pkgDir = resolve(ROOT, pkg.path)
+  console.log(`  TEST  ${pkg.name} (${pkg.testCommand || "bun test"}) ...`)
+
+  const env: Record<string, string> = { ...process.env as Record<string, string>, NODE_ENV: "test" }
+  const start = performance.now()
+
+  let result: { status: number | null; stdout: Buffer; stderr: Buffer }
+
+  if (pkg.testCommand) {
+    // Use the package's own test command (e.g. "bun test --timeout 30000 --only-failures")
+    const [cmd, ...cmdArgs] = pkg.testCommand.split(/\s+/)
+    result = spawnSync(cmd, cmdArgs, {
+      cwd: pkgDir,
+      timeout: 120_000,
+      env,
+      stdio: ["ignore", "pipe", "pipe"],
+    })
+  } else {
+    // No test script — run bun test directly
+    result = spawnSync("bun", ["test"], {
+      cwd: pkgDir,
+      timeout: 120_000,
+      env,
+      stdio: ["ignore", "pipe", "pipe"],
+    })
+  }
+
+  const duration = performance.now() - start
+  const parsed = parseTestOutput(result, duration, pkg.name)
+
+  if (parsed.status === "passed") {
+    console.log(`  PASS  ${pkg.name} (${parsed.durationMs}ms, ${parsed.total} tests)`)
+  } else {
+    console.log(`  FAIL  ${pkg.name} (${parsed.failed} failed, ${parsed.passed} passed, ${parsed.durationMs}ms)`)
+  }
+
+  return parsed
 }
 
 // ── Main ─────────────────────────────────────────────────────────────────────
-const report: TestInventoryReport = {
-  generatedAt: new Date().toISOString(),
-  summary: {
-    totalPackages: 0,
-    totalTestFiles: 0,
-    totalTestBlocks: 0,
-    totalTestCases: 0,
-    totalDescribeBlocks: 0,
-    totalPassed: 0,
-    totalFailed: 0,
-    totalSkipped: 0,
-    totalDurationMs: 0,
-    packagesWithTests: 0,
-    packagesWithoutTests: 0,
-    includedInCI: 0,
-    excludedFromCI: 0,
-  },
-  ciConfig: {
-    workspaceTestPattern: "not explicitly configured (bun test per-package)",
-    packagesInCI: [],
-    packagesExcludedFromCI: [],
-    hasUnitJob: ciContent.includes("Unit Tests"),
-    hasBrowserJob: ciContent.includes("Browser Tests"),
-    hasE2EJob: ciContent.includes("Official OpenCode Smoke"),
-    hasStabilityJob: ciContent.includes("stability"),
-    hasBenchmarkJob: ciContent.includes("bench"),
-    hasTestInventoryJob: false,
-  },
-  issues: {
-    serverSessionFailures: [],
-    ghosttyWeb: "ghostty-web is an optional terminal emulator integration — not critical for test execution. Tests importing it directly may fail without it installed.",
-    desktopOnlyPaths: [],
-    excludedFromCI: [],
-  },
-  packages: {},
-  errors: [],
-}
 
-// Find all workspace packages
-const workspaceDirs = readdirSync(WORKSPACE_DIR, { withFileTypes: true })
-  .filter((d) => d.isDirectory())
-  .map((d) => resolve(WORKSPACE_DIR, d.name))
+async function main(): Promise<void> {
+  const args = parseArgs()
 
-report.summary.totalPackages = workspaceDirs.length
-
-for (const pkgDir of workspaceDirs) {
-  const pkgInfo = readPackageJson(pkgDir)
-  if (!pkgInfo) {
-    report.summary.packagesWithoutTests++
-    continue
+  // If no actionable flag or --help, show usage
+  if (args.help || (!args.inventoryOnly && !args.execute && !args.entry)) {
+    printUsage()
+    process.exit(args.help ? 0 : 1)
   }
 
-  const testFiles = findTestFiles(pkgDir)
-  const pkgName = pkgInfo.name
+  // ── Inventory-only mode ──────────────────────────────────────────────────
+  if (args.inventoryOnly) {
+    console.log("Discovering test files across workspace packages ...")
+    const packages = discoverPackages()
 
-  if (testFiles.length === 0) {
-    report.summary.packagesWithoutTests++
-    continue
-  }
+    const withTests = packages.filter((p) => p.testFiles.length > 0)
+    const scriptOnly = packages.filter((p) => p.testFiles.length === 0 && p.hasTestScript)
 
-  report.summary.packagesWithTests++
-  const pkgData = { name: pkgName, path: pkgDir, packageInfo: pkgInfo, testFiles: [] as TestFile[] }
-
-  for (const filePath of testFiles) {
-    const relPath = relative(ROOT, filePath)
-    const content = readFileSync(filePath, "utf-8")
-    const blocks = countTestBlocks(content)
-    const deps = getRuntimeDependencies(content)
-    const inCI = isIncludedInCI(relPath, pkgName)
-
-    // Check for ghostty-web imports
-    if (content.includes("ghostty-web")) {
-      report.issues.desktopOnlyPaths.push(relPath)
+    const report: InventoryReport = {
+      workspacePackages: packages.length,
+      packagesWithTests: withTests.length,
+      packagesWithoutTests: scriptOnly.length,
+      packages,
     }
 
-    if (!inCI) {
-      report.issues.excludedFromCI.push(relPath)
+    // Write summary file — no timestamps, no absolute paths
+    if (!existsSync(SUMMARY_DIR)) {
+      mkdirSync(SUMMARY_DIR, { recursive: true })
     }
+    writeFileSync(SUMMARY_PATH, JSON.stringify(report, null, 2), "utf-8")
 
-    const testFile: TestFile = {
-      package: pkgName,
-      path: filePath,
-      relativePath: relPath,
-      testCaseBlocks: blocks,
-      testBlockCount: blocks.length,
-      testCount: blocks.filter((b) => b.type === "test" || b.type === "it").length,
-      describeCount: blocks.filter((b) => b.type === "describe").length,
-      includedInCI: inCI,
-      runtimeDependencies: deps,
-      execution: {
-        passed: 0,
-        failed: 0,
-        skipped: 0,
-        durationMs: 0,
-        status: "not_run",
-      },
-    }
-
-    report.summary.totalTestBlocks += testFile.testBlockCount
-    report.summary.totalTestCases += testFile.testCount
-    report.summary.totalDescribeBlocks += testFile.describeCount
-
-    if (inCI) report.summary.includedInCI++
-    else report.summary.excludedFromCI++
-
-    pkgData.testFiles.push(testFile)
+    console.log(`  Packages:        ${report.workspacePackages}`)
+    console.log(`  With tests:      ${report.packagesWithTests}`)
+    console.log(`  Script only:     ${report.packagesWithoutTests}`)
+    console.log(`  Total test files: ${withTests.reduce((s, p) => s + p.testFiles.length, 0)}`)
+    console.log(`\n  Summary written to: artifacts/test-inventory/phase-2-summary.json`)
   }
 
-  report.packages[pkgName] = pkgData
-}
+  // ── Execute mode ─────────────────────────────────────────────────────────
+  if (args.execute || args.entry) {
+    const packages = discoverPackages()
+    let targets = packages.filter((p) => p.hasTestScript || p.testFiles.length > 0)
 
-report.summary.totalTestFiles = Object.values(report.packages).reduce(
-  (sum, pkg) => sum + pkg.testFiles.length, 0,
-)
-
-// Determine CI config
-for (const [name] of Object.entries(report.packages)) {
-  if (ciContent.includes(name)) {
-    report.ciConfig.packagesInCI.push(name)
-  } else {
-    report.ciConfig.packagesExcludedFromCI.push(name)
-  }
-}
-
-// --- Phase 2A issue investigation: server-session.test.ts ---
-const serverSessionFile = Object.values(report.packages)
-  .flatMap((pkg) => pkg.testFiles)
-  .find((tf) => tf.relativePath.includes("server-session.test"))
-
-if (serverSessionFile) {
-  report.issues.serverSessionFailures.push(
-    "server-session.test.ts found at " + serverSessionFile.relativePath,
-    "File has " + serverSessionFile.testCount + " test cases and " + serverSessionFile.describeCount + " describe blocks",
-    "Runtime deps: " + serverSessionFile.runtimeDependencies.join(", "),
-  )
-}
-
-// Check ghostty-web resolution
-const pkgJsonPath = resolve(ROOT, "packages/app/package.json")
-if (existsSync(pkgJsonPath)) {
-  const appPkg = JSON.parse(readFileSync(pkgJsonPath, "utf-8"))
-  if (appPkg.dependencies?.["ghostty-web"]) {
-    report.issues.ghosttyWeb = `ghostty-web is declared as a dependency: ${appPkg.dependencies["ghostty-web"]}. It is a terminal emulator component (GitHub: anomalyco/ghostty-web). In WSL/CI environments, it will fail to resolve or install because it requires native binaries (macOS or Linux desktop libs). Tests that import ghostty-web will fail in these environments.`
-
-    // Check its actual install state
-    const ghosttyPath = resolve(ROOT, "node_modules/ghostty-web")
-    if (existsSync(ghosttyPath)) {
-      report.issues.ghosttyWeb += " Currently INSTALLED in node_modules."
-    } else {
-      report.issues.ghosttyWeb += " NOT INSTALLED in node_modules (expected in CI/WSL)."
+    if (args.entry) {
+      const entry = args.entry
+      const normalized = packages.find(
+        (p) => p.name === entry || shortName(p.name) === entry || p.path.endsWith(`/${entry}`),
+      )
+      if (!normalized) {
+        console.error(`Error: package "${entry}" not found in workspace`)
+        process.exit(1)
+      }
+      targets = [normalized]
     }
-  }
-}
 
-// Detect desktop-only path dependencies in test files
-const desktopPatterns = [
-  "../../../desktop/",
-  "../../desktop/",
-  "../desktop/",
-  "@opencode-ai/desktop",
-]
-for (const [pkgName, pkgData] of Object.entries(report.packages)) {
-  for (const testFile of pkgData.testFiles) {
-    const content = readFileSync(testFile.path, "utf-8")
-    for (const pattern of desktopPatterns) {
-      if (content.includes(pattern)) {
-        if (!report.issues.desktopOnlyPaths.includes(testFile.relativePath)) {
-          report.issues.desktopOnlyPaths.push(testFile.relativePath)
-        }
+    console.log("\n=== Running Tests ===\n")
+
+    let anyFailure = false
+    const results: ExecutionResult[] = []
+
+    for (const pkg of targets) {
+      const result = runPackageTests(pkg)
+      results.push(result)
+      if (result.status !== "passed") {
+        anyFailure = true
       }
     }
-  }
-}
 
-// --- Execution Phase ---
-console.log("\n=== Running Test Inventory ===\n")
+    // Summary
+    const totalPassed = results.reduce((s, r) => s + r.passed, 0)
+    const totalFailed = results.reduce((s, r) => s + r.failed, 0)
+    const totalSkipped = results.reduce((s, r) => s + r.skipped, 0)
+    const totalTests = totalPassed + totalFailed + totalSkipped
 
-for (const [pkgName, pkgData] of Object.entries(report.packages)) {
-  for (const testFile of pkgData.testFiles) {
-    // Skip execution for files with ghostty-web dependency in non-desktop context
-    if (testFile.runtimeDependencies.includes("ghostty-web")) {
-      testFile.execution.status = "skipped"
-      testFile.execution.skipped = testFile.testCount
-      report.summary.totalSkipped += testFile.testCount
-      console.log(`  SKIP  ${testFile.relativePath} (ghostty-web dependency)`)
-      continue
+    console.log("\n=== Test Execution Summary ===")
+    console.log(`  Packages executed: ${results.length}`)
+    console.log(`  Passed:            ${results.filter((r) => r.status === "passed").length}`)
+    console.log(`  Failed:            ${results.filter((r) => r.status === "failed").length}`)
+    console.log(`  Errors:            ${results.filter((r) => r.status === "error").length}`)
+    console.log("")
+    console.log(`  Tests passed:      ${totalPassed}`)
+    console.log(`  Tests failed:      ${totalFailed}`)
+    console.log(`  Tests skipped:     ${totalSkipped}`)
+    console.log(`  Tests total:       ${totalTests}`)
+
+    if (totalTests > 0) {
+      const reconciled = totalPassed + totalFailed + totalSkipped
+      console.log(`  Reconciled:        ${totalPassed} + ${totalFailed} + ${totalSkipped} = ${reconciled} ${reconciled === totalTests ? "✓" : "✗ MISMATCH"}`)
     }
 
-    // Run the test file
-    console.log(`  TEST  ${testFile.relativePath} ...`)
-    try {
-      const start = performance.now()
-      const result = spawnSync("bun", ["test", testFile.path], {
-        cwd: ROOT,
-        timeout: 60000,
-        env: {
-          ...process.env,
-          NODE_ENV: "test",
-        },
-        stdio: ["ignore", "pipe", "pipe"],
-      })
-      const duration = performance.now() - start
-
-      const stdout = result.stdout?.toString() || ""
-      const stderr = result.stderr?.toString() || ""
-      const output = stdout + stderr
-
-      if (result.status === 0) {
-        testFile.execution.passed = testFile.testCount
-        testFile.execution.status = "passed"
-        report.summary.totalPassed += testFile.testCount
-      } else {
-        // Parse result for pass/fail/skip
-        const passMatch = output.match(/(\d+)\s+pass/)
-        const failMatch = output.match(/(\d+)\s+fail/)
-        const skipMatch = output.match(/(\d+)\s+skip/)
-
-        testFile.execution.passed = passMatch ? parseInt(passMatch[1]) : 0
-        testFile.execution.failed = failMatch ? parseInt(failMatch[1]) : 0
-        testFile.execution.skipped = skipMatch ? parseInt(skipMatch[1]) : 0
-        testFile.execution.status = testFile.execution.failed > 0 ? "failed" : "error"
-        testFile.execution.error = stderr.slice(0, 2000)
-
-        report.summary.totalPassed += testFile.execution.passed
-        report.summary.totalFailed += testFile.execution.failed
-        report.summary.totalSkipped += testFile.execution.skipped
-
-        console.log(`  FAIL  ${testFile.relativePath} (${testFile.execution.failed} failed, ${testFile.execution.passed} passed)`)
-        if (testFile.execution.failed > 0) {
-          // Extract specific failure lines
-          const failLines = output.split("\n").filter((l) => l.includes("FAIL") || l.includes("Error:") || l.includes("expect("))
-          for (const line of failLines.slice(0, 5)) {
-            console.log(`    ${line.trim()}`)
-          }
-        }
-      }
-
-      testFile.execution.durationMs = Math.round(duration)
-      report.summary.totalDurationMs += testFile.execution.durationMs
-
-      if (result.status === 0) {
-        console.log(`  PASS  ${testFile.relativePath} (${duration.toFixed(0)}ms)`)
-      }
-
-    } catch (err) {
-      testFile.execution.status = "error"
-      testFile.execution.error = String(err).slice(0, 1000)
-      report.errors.push(`${testFile.relativePath}: ${err}`)
-      console.log(`  ERROR ${testFile.relativePath}: ${err}`)
+    if (anyFailure) {
+      console.log("\n  Result: FAIL — blocking failures detected")
+      process.exit(1)
     }
+
+    console.log("\n  Result: PASS — all tests passed")
   }
 }
 
-// Final summary
-console.log("\n=== Test Inventory Summary ===")
-console.log(`  Packages:           ${report.summary.totalPackages}`)
-console.log(`  With tests:         ${report.summary.packagesWithTests}`)
-console.log(`  Test files:         ${report.summary.totalTestFiles}`)
-console.log(`  Test cases:         ${report.summary.totalTestCases}`)
-console.log(`  Describe blocks:    ${report.summary.totalDescribeBlocks}`)
-console.log(`  Passed:             ${report.summary.totalPassed}`)
-console.log(`  Failed:             ${report.summary.totalFailed}`)
-console.log(`  Skipped:            ${report.summary.totalSkipped}`)
-console.log(`  In CI:              ${report.summary.includedInCI}`)
-console.log(`  Excluded from CI:   ${report.summary.excludedFromCI}`)
-
-if (report.issues.serverSessionFailures.length > 0) {
-  console.log("\n=== server-session.test.ts Issues ===")
-  for (const issue of report.issues.serverSessionFailures) {
-    console.log(`  - ${issue}`)
-  }
-}
-
-if (report.issues.desktopOnlyPaths.length > 0) {
-  console.log("\n=== Desktop-only path dependencies ===")
-  for (const path of report.issues.desktopOnlyPaths) {
-    console.log(`  - ${path}`)
-  }
-}
-
-// Write report
-const reportDir = dirname(REPORT_PATH)
-if (!existsSync(reportDir)) {
-  mkdirSync(reportDir, { recursive: true })
-}
-writeFileSync(REPORT_PATH, JSON.stringify(report, null, 2), "utf-8")
-console.log(`\nReport written to: ${REPORT_PATH}`)
-
-// Export for other phases
-export default report
+main().catch((err) => {
+  console.error("Fatal error:", err)
+  process.exit(1)
+})
