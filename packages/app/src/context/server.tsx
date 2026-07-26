@@ -5,6 +5,41 @@ import { Persist, persisted } from "@/utils/persist"
 import { pathKey } from "@/utils/path-key"
 import { ServerScope } from "@/utils/server-scope"
 
+// In-memory password store (not persisted to localStorage).
+// Passwords survive only for the current tab session unless stored in sessionStorage.
+const PASSWORD_MEMORY = new Map<ServerConnection.Key, string>()
+const SESSION_PASSWORD_PREFIX = "oc-pwd:"
+
+// Migrate: strip passwords from persisted server data.
+// After migration, passwords are stored in memory/sessionStorage only.
+function stripPasswordsFromStored(value: unknown): unknown {
+  if (!value || typeof value !== "object") return value
+  const list = (value as any).list
+  if (!Array.isArray(list)) return value
+  const migrated = list.map((entry: any) => {
+    if (!entry || typeof entry !== "object") return entry
+    // Password-bearing entries are either string (legacy) or Http/HttpBase objects
+    if (typeof entry === "string") return entry
+    const http = entry.http || entry
+    if (http && typeof http === "object" && "password" in http && http.password) {
+      const url = http.url || ""
+      // Preserve password for the current tab session
+      try {
+        sessionStorage.setItem(SESSION_PASSWORD_PREFIX + url, http.password)
+      } catch {}
+      // Remove password from the persisted object
+      const cleaned = { ...http }
+      delete cleaned.password
+      if (entry.http) {
+        return { ...entry, http: cleaned }
+      }
+      return cleaned
+    }
+    return entry
+  })
+  return { ...(value as any), list: migrated }
+}
+
 type StoredProject = { worktree: string; expanded: boolean }
 type StoredServer = string | ServerConnection.HttpBase | ServerConnection.Http
 type ServerProjectState = {
@@ -296,7 +331,10 @@ export const { use: useServer, provider: ServerProvider } = createSimpleContext(
     const [store, setStore, _, ready] = persisted(
       {
         ...Persist.global("server", ["server.v3"]),
-        migrate: (value) => migrateCanonicalLocalServerState(value, props.canonicalLocalServer),
+        migrate: (value) => {
+          const stripped = stripPasswordsFromStored(value)
+          return migrateCanonicalLocalServerState(stripped, props.canonicalLocalServer)
+        },
       },
       createStore({
         list: [] as StoredServer[],
@@ -309,7 +347,21 @@ export const { use: useServer, provider: ServerProvider } = createSimpleContext(
     const url = (x: StoredServer) => (typeof x === "string" ? x : "type" in x ? x.http.url : x.url)
 
     const allServers = createMemo((): Array<ServerConnection.Any> => {
-      return resolveServerList({ stored: store.list, props: props.servers })
+      const list = resolveServerList({ stored: store.list, props: props.servers })
+      // Restore passwords from memory/session for each server
+      return list.map((conn): ServerConnection.Any => {
+        if (conn.type !== "http" && !("http" in conn)) return conn
+        const httpConn = conn as ServerConnection.Http
+        const key = ServerConnection.key(httpConn)
+        // Check memory first, then sessionStorage
+        const pwd = PASSWORD_MEMORY.get(key) || 
+          (typeof sessionStorage !== "undefined" ? sessionStorage.getItem(SESSION_PASSWORD_PREFIX + httpConn.http.url) : null)
+        if (pwd) {
+          PASSWORD_MEMORY.set(key, pwd)
+          return { ...httpConn, http: { ...httpConn.http, password: pwd } }
+        }
+        return conn
+      })
     })
 
     const [state, setState] = createStore({
@@ -323,7 +375,16 @@ export const { use: useServer, provider: ServerProvider } = createSimpleContext(
     function add(input: ServerConnection.Http) {
       const url_ = normalizeServerUrl(input.http.url)
       if (!url_) return
-      const conn: ServerConnection.Http = { ...input, authToken: undefined, http: { ...input.http, url: url_ } }
+      // Store password in memory before persisting (stripped from localStorage)
+      if (input.http.password) {
+        const key = ServerConnection.key({ ...input, http: { ...input.http, url: url_ } })
+        PASSWORD_MEMORY.set(key, input.http.password)
+        // Optionally remember-for-tab via sessionStorage
+        try {
+          sessionStorage.setItem(SESSION_PASSWORD_PREFIX + url_, input.http.password)
+        } catch {}
+      }
+      const conn: ServerConnection.Http = { ...input, authToken: undefined, http: { ...input.http, url: url_, password: undefined } }
       return batch(() => {
         const existing = store.list.findIndex((x) => url(x) === url_)
         if (existing !== -1) {
@@ -332,7 +393,8 @@ export const { use: useServer, provider: ServerProvider } = createSimpleContext(
           setStore("list", store.list.length, conn)
         }
         setState("active", ServerConnection.key(conn))
-        return conn
+        // Re-attach password for returned connection
+        return { ...conn, http: { ...conn.http, password: PASSWORD_MEMORY.get(ServerConnection.key(conn)) } }
       })
     }
 
@@ -343,6 +405,14 @@ export const { use: useServer, provider: ServerProvider } = createSimpleContext(
         setStore("list", list)
         if (state.active === key) setState("active", next)
       })
+      // Clear password from memory and session
+      PASSWORD_MEMORY.delete(key)
+      try {
+        const server = allServers().find(s => ServerConnection.key(s) === key)
+        if (server && "http" in server) {
+          sessionStorage.removeItem(SESSION_PASSWORD_PREFIX + (server as any).http.url)
+        }
+      } catch {}
     }
 
     const isReady = Object.assign(

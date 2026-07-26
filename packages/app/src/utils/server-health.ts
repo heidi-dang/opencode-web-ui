@@ -133,20 +133,6 @@ export function checkServerHealth(
             if (result) return result
           } catch {}
         }
-
-        // Remote Gateway Proxy probe for arbitrary remote servers (e.g. GCloud Tailscale IP 100.103.50.19:4096)
-        const remoteProxyBase = `${location.origin}/api/remote-proxy`
-        for (const path of probePaths) {
-          try {
-            const targetUrl = new URL(path, server.url).toString()
-            const proxyRes = await fetch(remoteProxyBase, {
-              headers: { ...authHeaders, "X-Target-URL": targetUrl },
-              signal,
-            }).catch(() => null)
-            const result = await processRes(proxyRes)
-            if (result) return result
-          } catch {}
-        }
       }
     } catch {}
 

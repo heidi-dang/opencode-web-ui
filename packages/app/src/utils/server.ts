@@ -3,8 +3,19 @@ import { OpenCode, type OpenCodeClient } from "@opencode-ai/client/promise"
 import type { ServerConnection } from "@/context/server"
 import { decode64 } from "@/utils/base64"
 
+// UTF-8 safe Base64 encoding for Basic Auth credentials.
+// btoa() throws on non-ASCII characters, so we encode to bytes first.
+function utf8ToBase64(input: string): string {
+  const bytes = new TextEncoder().encode(input)
+  let binary = ""
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i])
+  }
+  return btoa(binary)
+}
+
 export function authTokenFromCredentials(input: { username?: string; password: string }) {
-  return btoa(`${input.username ?? "opencode"}:${input.password}`)
+  return utf8ToBase64(`${input.username ?? "opencode"}:${input.password}`)
 }
 
 export function authFromToken(token: string | null) {
