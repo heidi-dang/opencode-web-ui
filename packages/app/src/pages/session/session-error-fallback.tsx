@@ -92,7 +92,7 @@ export function SessionErrorFallback(props: {
                   {language.t("notification.session.error.fallbackDescription")}
                 </div>
               </div>
-              <ButtonV2 variant="primary" size="normal" icon="arrow-clockwise" onClick={props.onRetry}>
+              <ButtonV2 variant="outline" size="normal" icon="arrow-clockwise" onClick={props.onRetry}>
                 {language.t("wsl.server.retryStart")}
               </ButtonV2>
             </div>
