@@ -1,8 +1,6 @@
 import { sentryVitePlugin } from "@sentry/vite-plugin"
 import { defineConfig } from "vite"
 import desktopPlugin from "./vite"
-import { appendFileSync } from "node:fs"
-import { resolve } from "node:path"
 
 const sentry =
   process.env.SENTRY_AUTH_TOKEN && process.env.SENTRY_ORG && process.env.SENTRY_PROJECT
@@ -21,75 +19,66 @@ const sentry =
       })
     : false
 
-const mobileLogFile = resolve(__dirname, "../../mobile-debug.log")
-
-const remoteProxyPlugin = {
-  name: "remote-proxy-gateway",
-  configureServer(server: any) {
-    server.middlewares.use("/api/remote-proxy", async (req: any, res: any) => {
-      const targetUrl = req.headers["x-target-url"] as string
-      if (!targetUrl) {
-        res.statusCode = 400
-        return res.end("Missing X-Target-URL header")
-      }
-      try {
-        const headers: Record<string, string> = {}
-        if (req.headers["authorization"]) headers["authorization"] = req.headers["authorization"] as string
-        if (req.headers["content-type"]) headers["content-type"] = req.headers["content-type"] as string
-
-        const remoteRes = await fetch(targetUrl, {
-          method: req.method || "GET",
-          headers,
-          signal: AbortSignal.timeout(6000),
-        })
-
-        res.statusCode = remoteRes.status
-        res.setHeader("Access-Control-Allow-Origin", "*")
-        res.setHeader("Access-Control-Allow-Headers", "*")
-        const arrayBuffer = await remoteRes.arrayBuffer()
-        res.end(Buffer.from(arrayBuffer))
-      } catch (err: any) {
-        res.statusCode = 502
-        res.setHeader("Access-Control-Allow-Origin", "*")
-        res.end(JSON.stringify({ error: err?.message || String(err) }))
-      }
-    })
-  },
+function validateProxyUrl(raw) {
+  if (!raw) return "http://127.0.0.1:4096"
+  let url
+  try {
+    url = new URL(raw)
+  } catch {
+    throw new Error(`Configuration error: VITE_OPENCODE_SERVER_URL "${raw}" is not a valid URL`)
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new Error(`Configuration error: Unsupported protocol "${url.protocol}" in VITE_OPENCODE_SERVER_URL. Only http and https are allowed.`)
+  }
+  if (url.username || url.password) {
+    throw new Error(`Configuration error: VITE_OPENCODE_SERVER_URL must not contain credentials (username or password). Use separate auth configuration instead.`)
+  }
+  return raw
 }
 
-const mobileLogPlugin = {
-  name: "mobile-log-receiver",
-  configureServer(server: any) {
-    server.middlewares.use("/api/mobile-log", (req: any, res: any) => {
-      if (req.method === "POST") {
-        let body = ""
-        req.on("data", (chunk: any) => { body += chunk })
-        req.on("end", () => {
-          const timestamp = new Date().toISOString()
-          const entry = `[${timestamp}] ${body}\n`
-          try { appendFileSync(mobileLogFile, entry, "utf8") } catch {}
-          console.log("\n📱 [MOBILE REMOTE LOG]:", body)
-          res.setHeader("Content-Type", "application/json")
-          res.end(JSON.stringify({ ok: true }))
-        })
-      } else {
-        res.end("OK")
-      }
-    })
-  },
-}
+const serverUrl = process.env.VITE_OPENCODE_SERVER_URL || ""
+const validatedUrl = serverUrl ? validateProxyUrl(serverUrl) : null
+
+const proxyTarget = validatedUrl
+  ? validatedUrl
+  : `http://127.0.0.1:${process.env.VITE_OPENCODE_SERVER_PORT || "4096"}`
+
+const hopByHopHeaders = [
+  "keep-alive", "transfer-encoding", "te", "connection",
+  "trailer", "upgrade", "proxy-authorization", "proxy-authenticate",
+]
+
+const MAX_REQUEST_BODY_BYTES = 10 * 1024 * 1024
 
 export default defineConfig({
-  plugins: [desktopPlugin, mobileLogPlugin, remoteProxyPlugin, sentry] as any,
+  plugins: [desktopPlugin, sentry].filter(Boolean),
   server: {
-    host: "0.0.0.0",
-    allowedHosts: true,
+    host: "127.0.0.1",
+    allowedHosts: false,
     port: 3000,
     proxy: {
       "/opencode-server": {
-        target: `http://127.0.0.1:${process.env.VITE_OPENCODE_SERVER_PORT || "4096"}`,
+        target: proxyTarget,
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/opencode-server/, ""),
+        configure: (proxy) => {
+          proxy.on("proxyReq", (proxyReq, req) => {
+            for (const header of hopByHopHeaders) {
+              proxyReq.removeHeader(header)
+            }
+          })
+          proxy.on("proxyReqWs", (proxyReq, req) => {
+            for (const header of hopByHopHeaders) {
+              proxyReq.removeHeader(header)
+            }
+          })
+          proxy.on("error", (err, req, res) => {
+            if (res && !res.headersSent) {
+              res.statusCode = 502
+              res.end()
+            }
+          })
+        },
       },
     },
   },

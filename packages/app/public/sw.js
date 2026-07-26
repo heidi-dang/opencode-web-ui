@@ -10,8 +10,6 @@ const PRECACHE_URLS = ["/"]
 // Never intercept these paths — must always hit the live network.
 const BYPASS_PREFIXES = [
   "/opencode-server",
-  "/api/remote-proxy",
-  "/api/mobile-log",
   "chrome-extension://",
 ]
 

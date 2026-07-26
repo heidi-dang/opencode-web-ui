@@ -1,0 +1,147 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+
+  security-regression:
+    name: Security Regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - run: bun install --frozen-lockfile
+      - name: Check for SSRF endpoint
+        run: |
+          if grep -r 'X-Target-URL' packages/app --include='*.ts' --include='*.tsx' --include='*.js' --include='*.mjs' -l | grep -v node_modules | grep -v '.d.ts'; then
+            echo "FAIL: X-Target-URL found - SSRF risk"
+            exit 1
+          fi
+          echo "PASS: No X-Target-URL references"
+      - name: Check no remote-proxy endpoint
+        run: |
+          if grep -r '/api/remote-proxy' packages/app --include='*.ts' --include='*.tsx' --include='*.js' --include='*.mjs' -l | grep -v node_modules | grep -v '.d.ts'; then
+            echo "FAIL: /api/remote-proxy found - SSRF risk"
+            exit 1
+          fi
+          echo "PASS: No remote-proxy endpoint"
+      - name: Check allowedHosts is never true
+        run: |
+          if grep -r 'allowedHosts:\s*true' packages/app --include='*.ts' --include='*.tsx' --include='*.js' -l | grep -v node_modules | grep -v '.d.ts'; then
+            echo "FAIL: allowedHosts is set to true"
+            exit 1
+          fi
+          echo "PASS: allowedHosts is not true"
+      - name: Check host is loopback
+        run: |
+          if grep -r "host:.*0\\.0\\.0\\.0" packages/app --include='*.ts' --include='*.tsx' -l | grep -v node_modules; then
+            echo "FAIL: host is 0.0.0.0 instead of 127.0.0.1"
+            exit 1
+          fi
+          echo "PASS: host is not 0.0.0.0"
+
+  unit:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - run: bun install --frozen-lockfile
+      - run: bun --cwd packages/app test:unit
+
+  browser:
+    name: Browser Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - run: bun install --frozen-lockfile
+      - run: bun --cwd packages/app test:browser
+
+  build:
+    name: Production Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - run: bun install --frozen-lockfile
+      - run: bun --cwd packages/app build
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: packages/app/dist
+          retention-days: 7
+
+  bundle-report:
+    name: Bundle Report
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [build]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - run: bun install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: packages/app/dist
+      - name: Generate Phase 0 report
+        run: bun scripts/audit/bundle-report.mjs --phase phase-0
+      - name: Generate Phase 1 report
+        run: bun scripts/audit/bundle-report.mjs --phase phase-1
+      - name: Validate reports
+        run: |
+          for f in artifacts/performance/phase-0/bundle-report.json artifacts/performance/phase-1/bundle-report.json; do
+            if [ ! -f "$f" ]; then
+              echo "FAIL: $f not found"
+              exit 1
+            fi
+            echo "PASS: $f exists"
+          done
+          for f in artifacts/performance/phase-0/bundle-report.summary.json artifacts/performance/phase-1/bundle-report.summary.json; do
+            if [ ! -f "$f" ]; then
+              echo "FAIL: $f not found"
+              exit 1
+            fi
+            echo "PASS: $f exists"
+          done
+      - name: Upload reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: bundle-reports
+          path: artifacts/performance/
+          retention-days: 30

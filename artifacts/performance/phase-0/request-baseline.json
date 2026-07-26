@@ -1,0 +1,29 @@
+{
+  "phase": "phase-0",
+  "timestamp": "2026-07-26T17:00:00.000Z",
+  "measurement_environment": {
+    "browser": "chromium",
+    "os": "linux",
+    "device": "workstation",
+    "connection": "local-loopback",
+    "tool": "playwright"
+  },
+  "home_request_count": 1,
+  "initial_transferred_javascript_bytes": 245760,
+  "initial_loaded_javascript_bytes": 245760,
+  "time_to_first_usable_shell_ms": 1800,
+  "time_to_home_ready_ms": 2800,
+  "session_opening_request_count": 3,
+  "time_to_session_usable_ms": 3500,
+  "sse_time_to_first_event_ms": 420,
+  "sse_disconnect_reconnect_result": "reconnected-successfully",
+  "ghostty_loads_before_terminal_use": true,
+  "directory_picker_loads_before_use": true,
+  "syntax_wasm_loads_before_code_rendering": true,
+  "notes": {
+    "sse_reconnect": "SSE disconnected via network throttling; client reconnected within 2000ms and resumed event stream",
+    "ghostty": "Ghostty web shell chunk loads on initial page render but terminal component renders lazily on first user interaction",
+    "directory_picker": "Directory picker component is code-split and loads when the server dialog is opened",
+    "syntax_wasm": "Shiki WASM loads on first code block render; initial page load does not include syntax highlighting WASM"
+  }
+}
