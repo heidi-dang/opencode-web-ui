@@ -16,6 +16,7 @@ export function SessionErrorFallback(props: {
   sessionID?: string
   serverKey?: ServerConnection.Key
   padded?: boolean
+  onRetry?: () => void
 }) {
   const language = useLanguage()
   const server = useServer()
@@ -62,6 +63,37 @@ export function SessionErrorFallback(props: {
               </Show>
               <ButtonV2 variant="neutral" size="normal" icon="xmark-small" onClick={closeTab}>
                 {language.t("session.error.notFound.closeTab")}
+              </ButtonV2>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+  // Transient errors: show retry button alongside error details.
+  // This lets the ErrorBoundary reset and re-render the session content.
+  // When onRetry is not available, fall back to the full-page error screen.
+  if (props.onRetry) {
+    return (
+      <div class="relative size-full overflow-hidden flex flex-col" classList={{ "p-2": props.padded }}>
+        <div
+          classList={{
+            "flex-1 min-h-0 flex flex-col": true,
+            "bg-v2-background-bg-base": true,
+            "rounded-[10px] overflow-hidden": true,
+            "shadow-[var(--v2-elevation-raised)]": !!props.sessionID,
+          }}
+        >
+          <div class="flex-1 min-h-0 overflow-hidden">
+            <div class="h-full px-6 pb-42 -mt-4 flex flex-col items-center justify-center text-center gap-4">
+              <div class="flex flex-col items-center gap-2">
+                <div class="text-16-medium text-text max-w-md">{language.t("notification.session.error.title")}</div>
+                <div class="text-13-regular text-text-weak max-w-md">
+                  {language.t("notification.session.error.fallbackDescription")}
+                </div>
+              </div>
+              <ButtonV2 variant="primary" size="normal" icon="arrow-clockwise" onClick={props.onRetry}>
+                {language.t("wsl.server.retryStart")}
               </ButtonV2>
             </div>
           </div>

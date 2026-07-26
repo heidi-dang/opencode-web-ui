@@ -1,4 +1,5 @@
 import { createEffect, Suspense, type ParentProps } from "solid-js"
+import { Splash } from "@opencode-ai/ui/logo"
 import { createStore } from "solid-js/store"
 import { useNavigate } from "@solidjs/router"
 import { DebugBar } from "@/components/debug-bar"
@@ -43,7 +44,15 @@ export default function NewLayout(props: ParentProps) {
         }
       />
       <main class="flex-1 min-h-0 min-w-0 overflow-x-hidden flex flex-col items-start contain-strict">
-        <Suspense>{props.children}</Suspense>
+        <Suspense
+          fallback={
+            <div class="flex-1 flex items-center justify-center">
+              <Splash class="w-8 h-10 opacity-30 animate-pulse" />
+            </div>
+          }
+        >
+          {props.children}
+        </Suspense>
       </main>
       {import.meta.env.DEV && state.debugTools && <DebugBar inline />}
       <TabsInfoPopup />

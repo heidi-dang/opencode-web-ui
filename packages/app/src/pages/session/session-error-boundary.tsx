@@ -14,13 +14,14 @@ export function SessionRouteErrorBoundary(
   const settings = useSettings()
   return (
     <ErrorBoundary
-      fallback={(error) =>
+      fallback={(error, reset) =>
         settings.general.newLayoutDesigns() ? (
           <SessionErrorFallback
             error={error}
             sessionID={props.sessionID}
             serverKey={props.serverKey}
             padded={props.padded}
+            onRetry={reset}
           />
         ) : (
           <ErrorPage error={error} />
