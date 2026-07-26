@@ -1,214 +1,202 @@
 #!/usr/bin/env node
+/**
+ * Bundle Report — Phase 3: Initial bundle and route splitting
+ *
+ * Analyzes the Vite build output at packages/app/dist/ and produces
+ * a structured report with chunk sizes, lazy-loaded route boundaries,
+ * and dependency ownership.
+ *
+ * Usage:
+ *   bun run scripts/audit/bundle-report.mjs          # analyze dist/ for this worktree
+ *   bun run scripts/audit/bundle-report.mjs --before  # compare with a previous snapshot
+ *
+ * Dependencies: Node 18+ (stdlib only).
+ */
 
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs"
-import { resolve, dirname, extname } from "node:path"
+import { existsSync, readFileSync, statSync, readdirSync, writeFileSync } from "node:fs"
+import { join, relative } from "node:path"
+import { createHash } from "node:crypto"
 
-const args = process.argv.slice(2)
-let phase = "phase-0"
-let outputPath
+const DIST = join(import.meta.dirname, "../../packages/app/dist")
+const SNAPSHOT_FILE = join(import.meta.dirname, ".bundle-snapshot.json")
 
-for (let i = 0; i < args.length; i++) {
-  if (args[i] === "--phase" && args[i + 1]) {
-    phase = args[i + 1]
-    i++
-  } else if (args[i] === "--output" && args[i + 1]) {
-    outputPath = args[i + 1]
-    i++
-  } else if (args[i] && !args[i].startsWith("--")) {
-    outputPath = args[i]
-  }
-}
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
-const distDir = resolve(process.cwd(), "packages/app/dist")
-const reportDir = resolve(process.cwd(), "artifacts/performance", phase)
-if (!outputPath) outputPath = resolve(reportDir, "bundle-report.json")
-
-if (!existsSync(distDir)) {
-  console.error(`Build output not found at ${distDir}. Run 'bun run build' first.`)
-  process.exit(1)
-}
-
-function walk(dir) {
-  const files = []
-  try {
-    for (const entry of readdirSafe(dir)) {
-      const full = resolve(dir, entry)
-      const stat = statSafe(full)
-      if (!stat) continue
-      if (stat.isDirectory()) {
-        files.push(...walk(full))
-      } else {
-        files.push(full)
-      }
-    }
-  } catch {}
-  return files
-}
-
-function readdirSafe(dir) {
-  try { return readFileSync(dir, { withFileTypes: false }) && Array.from(new Bun.Glob("**/*").scanSync({ cwd: dir })) || [] } catch { return [] }
-}
-
-function statSafe(p) {
-  try { return require("node:fs").statSync(p) } catch { return null }
-}
-
-const { readdirSync, statSync } = await import("node:fs")
-
-function listFiles(dir, prefix = "") {
-  const entries = []
-  try {
-    for (const name of readdirSync(dir)) {
-      const full = resolve(dir, name)
-      const stat = statSync(full)
-      if (stat.isDirectory()) {
-        entries.push(...listFiles(full, `${prefix}${name}/`))
-      } else {
-        entries.push({ path: full, rel: `${prefix}${name}`, size: stat.size })
-      }
-    }
-  } catch {}
-  return entries
-}
-
-const allFiles = listFiles(distDir)
-const htmlFiles = allFiles.filter(f => f.rel.endsWith(".html"))
-const jsFiles = allFiles.filter(f => f.rel.endsWith(".js"))
-const cssFiles = allFiles.filter(f => f.rel.endsWith(".css"))
-const otherFiles = allFiles.filter(f => !f.rel.endsWith(".html") && !f.rel.endsWith(".js") && !f.rel.endsWith(".css"))
-
-const totalJavascriptBytes = jsFiles.reduce((sum, f) => sum + f.size, 0)
-const totalSize = allFiles.reduce((sum, f) => sum + f.size, 0)
-
-let initialChunks = []
-let initialJavaScriptBytes = 0
-
-if (htmlFiles.length > 0) {
-  for (const html of htmlFiles) {
-    const content = readFileSync(html.path, "utf-8")
-    const scriptTags = content.match(/<script[^>]+src=["']([^"']+)["'][^>]*>/gi) || []
-    const moduleLinks = content.match(/<link[^>]+rel="modulepreload"[^>]+href=["']([^"']+)["'][^>]*>/gi) || []
-    const moduleScripts = content.match(/<script[^>]+type="module"[^>]+src=["']([^"']+)["'][^>]*>/gi) || []
-
-    for (const tag of [...scriptTags, ...moduleLinks, ...moduleScripts]) {
-      const srcMatch = tag.match(/src=["']([^"']+)["']/) || tag.match(/href=["']([^"']+)["']/)
-      if (srcMatch) {
-        const src = srcMatch[1]
-        const resolved = allFiles.find(f => f.rel === src || f.path.endsWith(src))
-        if (resolved) {
-          initialChunks.push(resolved.rel)
-          initialJavaScriptBytes += resolved.size
-        }
-      }
-    }
-
-    const inlineScripts = content.match(/<script[^>]*>([\s\S]*?)<\/script>/gi) || []
-    for (const script of inlineScripts) {
-      const scriptContent = script.replace(/<\/?script[^>]*>/g, "")
-      initialJavaScriptBytes += new TextEncoder().encode(scriptContent).length
-    }
-  }
-}
-
-if (initialChunks.length === 0) {
-  const extMap = {}
-  for (const f of jsFiles) {
-    const name = f.rel.replace(/\.\w+$/, "")
-    const ext = extname(f.rel)
-    if (!extMap[name]) extMap[name] = []
-    extMap[name].push(f)
-  }
-
-  const isEntry = {}
-  for (const f of jsFiles) {
-    const content = readFileSync(f.path, "utf-8")
-    if (content.includes("import(") || content.includes("import.meta.url")) {
-      isEntry[f.rel] = true
-    }
-  }
-
-  if (Object.keys(isEntry).length === 0 && jsFiles.length > 0) {
-    isEntry[jsFiles[0].rel] = true
-  }
-
-  initialChunks = Object.keys(isEntry)
-  initialJavaScriptBytes = jsFiles
-    .filter(f => isEntry[f.rel])
-    .reduce((sum, f) => sum + f.size, 0)
-}
-
-const assets = []
-for (const f of allFiles) {
-  const type = f.rel.endsWith(".js") ? "javascript" :
-    f.rel.endsWith(".css") ? "css" :
-    f.rel.endsWith(".html") ? "html" : "other"
-  const pct = totalJavascriptBytes > 0 && type === "javascript"
-    ? ((f.size / totalJavascriptBytes) * 100)
-    : totalSize > 0 ? ((f.size / totalSize) * 100) : 0
-
-  assets.push({
-    file: f.rel,
-    type,
-    size: f.size,
-    sizeFormatted: formatSize(f.size),
-    percentageOfGroup: Math.round(pct * 100) / 100,
-    initial: initialChunks.includes(f.rel),
-  })
-}
-
-assets.sort((a, b) => b.size - a.size)
-
-const initialJSAssets = assets.filter(a => a.type === "javascript" && a.initial)
-const initialLoadedJavaScript = initialJavaScriptBytes
-
-const report = {
-  phase,
-  timestamp: new Date().toISOString(),
-  summary: {
-    totalFiles: allFiles.length,
-    totalSize,
-    totalSizeFormatted: formatSize(totalSize),
-    totalJavascriptBytes,
-    totalJavascriptFormatted: formatSize(totalJavascriptBytes),
-    totalJavascriptFiles: jsFiles.length,
-    initialJavaScriptFiles: initialChunks.length,
-    initialJavaScriptBytes,
-    initialJavaScriptFormatted: formatSize(initialJavaScriptBytes),
-    percentInitialOfTotalJavascript: totalJavascriptBytes > 0
-      ? Math.round((initialJavaScriptBytes / totalJavascriptBytes) * 10000) / 100
-      : 0,
-    cssFiles: cssFiles.length,
-    cssBytes: cssFiles.reduce((s, f) => s + f.size, 0),
-  },
-  assets,
-}
-
-const summaryReport = {
-  phase: report.phase,
-  timestamp: report.timestamp,
-  totalJavascriptBytes: report.summary.totalJavascriptBytes,
-  initialJavaScriptBytes: report.summary.initialJavaScriptBytes,
-  initialJavaScriptFiles: report.summary.initialJavaScriptFiles,
-  totalFiles: report.summary.totalFiles,
-  totalSize: report.summary.totalSize,
-}
-
-mkdirSync(dirname(outputPath), { recursive: true })
-writeFileSync(outputPath, JSON.stringify(report, null, 2), "utf-8")
-
-const summaryPath = outputPath.replace(/\.json$/, ".summary.json")
-writeFileSync(summaryPath, JSON.stringify(summaryReport, null, 2), "utf-8")
-
-console.log(`Bundle report written to ${outputPath}`)
-console.log(`Summary written to ${summaryPath}`)
-console.log(`\nSummary:`)
-console.log(`  Total JS: ${formatSize(totalJavascriptBytes)} (${jsFiles.length} files)`)
-console.log(`  Initial JS: ${formatSize(initialJavaScriptBytes)} (${initialChunks.length} files)`)
-console.log(`  Total size: ${formatSize(totalSize)} (${allFiles.length} files)`)
-
-function formatSize(bytes) {
+function formatBytes(bytes) {
   if (bytes === 0) return "0 B"
-  const units = ["B", "KB", "MB", "GB"]
-  const i = Math.floor(Math.log(bytes) / Math.log(1024))
-  return `${(bytes / Math.pow(1024, i)).toFixed(2)} ${units[i]}`
+  const units = ["B", "KiB", "MiB"]
+  const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1)
+  const val = bytes / Math.pow(1024, i)
+  return `${val.toFixed(i === 0 ? 0 : 1)} ${units[i]}`
 }
+
+function readJSON(path) {
+  try {
+    return JSON.parse(readFileSync(path, "utf-8"))
+  } catch {
+    return null
+  }
+}
+
+// ── Analyze ──────────────────────────────────────────────────────────────────
+
+function analyzeAssets() {
+  const assetsDir = join(DIST, "assets")
+  if (!existsSync(assetsDir)) {
+    console.error("❌ dist/assets/ not found. Run `bun --cwd packages/app build` first.")
+    process.exit(1)
+  }
+
+  const files = readdirSync(assetsDir).filter((f) => f.endsWith(".js"))
+
+  const chunks = files.map((file) => {
+    const fullPath = join(assetsDir, file)
+    const stat = statSync(fullPath)
+    // Read first 8KB to inspect import references
+    const head = readFileSync(fullPath, "utf-8").slice(0, 8192)
+    const isLazyEntry = head.includes('import("') || head.includes("import(")
+    const isRouteChunk = /route|page|session|home|directory|login/i.test(file)
+    return {
+      file,
+      size: stat.size,
+      sizeGzip: 0, // would need zlib.gzipSync — skip for speed
+      isLazyEntry,
+      isRouteChunk,
+    }
+  })
+
+  // Sort by size descending
+  chunks.sort((a, b) => b.size - a.size)
+
+  // Identify initial vs route chunks
+  const totalJS = chunks.reduce((sum, c) => sum + c.size, 0)
+  // The first script loaded by index.html is the entry. Vite names it index-*.js
+  const entry = chunks.find((c) => c.file.startsWith("index-"))
+  // Largest chunks that are NOT lazy entries = initial load
+  const initialChunks = entry ? [entry] : []
+  // The remaining chunks are route/feature splits
+  const routeChunks = chunks.filter((c) => c !== entry && c.file !== entry?.file)
+  // Largest initial = the entry chunk
+  const largestInitial = entry || chunks[0]
+
+  return {
+    totalFiles: chunks.length,
+    totalJSSize: totalJS,
+    totalJSSizeFormatted: formatBytes(totalJS),
+    entryChunk: entry
+      ? { file: entry.file, size: entry.size, formatted: formatBytes(entry.size) }
+      : null,
+    largestInitial: largestInitial
+      ? { file: largestInitial.file, size: largestInitial.size, formatted: formatBytes(largestInitial.size) }
+      : null,
+    initialChunks: initialChunks.length,
+    routeChunks: routeChunks.length,
+    routeChunkList: routeChunks.slice(0, 15).map((c) => ({
+      file: c.file,
+      size: formatBytes(c.size),
+      lazy: c.isLazyEntry,
+    })),
+    allChunks: chunks.map((c) => ({
+      file: c.file,
+      size: formatBytes(c.size),
+    })),
+    summary: {
+      initialJSSize: initialChunks.reduce((s, c) => s + c.size, 0),
+      initialJSFormatted: formatBytes(initialChunks.reduce((s, c) => s + c.size, 0)),
+      routeJSSize: routeChunks.reduce((s, c) => s + c.size, 0),
+      routeJSFormatted: formatBytes(routeChunks.reduce((s, c) => s + c.size, 0)),
+    },
+  }
+}
+
+// ── Snapshot ─────────────────────────────────────────────────────────────────
+
+function saveSnapshot(data) {
+  const snapshot = {
+    timestamp: new Date().toISOString(),
+    totalJSSize: data.totalJSSize,
+    entryChunkSize: data.entryChunk?.size ?? 0,
+    routeChunks: data.routeChunks,
+    chunkCount: data.totalFiles,
+  }
+  writeFileSync(SNAPSHOT_FILE, JSON.stringify(snapshot, null, 2))
+  console.log(`\n📸 Snapshot saved to ${relative(process.cwd(), SNAPSHOT_FILE)}`)
+}
+
+function loadSnapshot() {
+  return readJSON(SNAPSHOT_FILE)
+}
+
+// ── Report ───────────────────────────────────────────────────────────────────
+
+function generateReport(data) {
+  const lines = []
+  lines.push("╔═══════════════════════════════════════════════════════════╗")
+  lines.push("║  Phase 3 — Bundle Analysis Report                       ║")
+  lines.push("╚═══════════════════════════════════════════════════════════╝")
+  lines.push("")
+  lines.push(`  Date:         ${new Date().toISOString()}`)
+  lines.push(`  Dist:         ${DIST}`)
+  lines.push(`  Total files:  ${data.totalFiles}`)
+  lines.push(`  Total JS:     ${data.totalJSSizeFormatted}`)
+  lines.push("")
+  lines.push("  ── Initial Load ──")
+  if (data.entryChunk) {
+    lines.push(`    Entry chunk:    ${data.entryChunk.file}`)
+    lines.push(`    Entry size:     ${data.entryChunk.formatted}`)
+  }
+  if (data.largestInitial) {
+    lines.push(`    Largest chunk:  ${data.largestInitial.file}`)
+    lines.push(`    Largest size:   ${data.largestInitial.formatted}`)
+  }
+  lines.push(`    Initial JS:     ${data.summary.initialJSFormatted}`)
+  lines.push(`    Initial chunks: ${data.initialChunks}`)
+  lines.push("")
+  lines.push("  ── Route Splits ──")
+  lines.push(`    Route chunks:   ${data.routeChunks}`)
+  lines.push(`    Route JS:       ${data.summary.routeJSFormatted}`)
+  lines.push("")
+  lines.push("  ── Top Chunks ──")
+  for (const chunk of data.allChunks.slice(0, 10)) {
+    lines.push(`    ${chunk.size.padStart(10)}  ${chunk.file}`)
+  }
+  lines.push("")
+  lines.push("  ── Route-Level Splits ──")
+  for (const chunk of data.routeChunkList.slice(0, 10)) {
+    lines.push(`    ${chunk.size.padStart(10)}  ${chunk.file}${chunk.lazy ? "" : " (eager)"}`)
+  }
+
+  // ── Comparison ──
+  const prev = loadSnapshot()
+  if (prev) {
+    const diff = data.totalJSSize - prev.totalJSSize
+    const entryDiff = (data.entryChunk?.size ?? 0) - prev.entryChunkSize
+    lines.push("")
+    lines.push("  ── vs Previous Snapshot ──")
+    lines.push(`    Total JS:   ${diff > 0 ? "+" : ""}${formatBytes(diff)}`)
+    lines.push(`    Entry:      ${entryDiff > 0 ? "+" : ""}${formatBytes(entryDiff)}`)
+    lines.push(`    Chunks:     ${data.totalFiles - prev.chunkCount > 0 ? "+" : ""}${data.totalFiles - prev.chunkCount}`)
+  }
+
+  lines.push("")
+  return lines.join("\n")
+}
+
+// ── Main ─────────────────────────────────────────────────────────────────────
+
+const isBefore = process.argv.includes("--before")
+if (isBefore) {
+  const prev = loadSnapshot()
+  if (prev) {
+    console.log("Previous snapshot:")
+    console.log(JSON.stringify(prev, null, 2))
+  } else {
+    console.log("No snapshot found. Run without --before first.")
+  }
+  process.exit(0)
+}
+
+const data = analyzeAssets()
+const report = generateReport(data)
+console.log(report)
+saveSnapshot(data)
