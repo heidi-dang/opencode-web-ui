@@ -85,5 +85,6 @@ export default defineConfig({
   build: {
     target: "esnext",
     sourcemap: !!sentry,
+    manifest: true,
   },
 })
