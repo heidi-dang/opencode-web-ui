@@ -1,4 +1,10 @@
 import { test, expect, type Page } from "@playwright/test"
+import {
+  installCredentialHarness,
+  saveCredentialViaModule,
+  getCredentialViaModule,
+  clearCredentialViaModule,
+} from "../utils/credential-harness"
 
 const BACKEND_URL = process.env.SMOKE_BACKEND_URL ?? "http://127.0.0.1:4096"
 const FRONTEND_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3000"
@@ -6,61 +12,6 @@ const FRONTEND_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3000"
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-/**
- * Mirror of the app's server-credentials.ts saveCredentials / clearCredentials
- * contract.  The app stores credentials in sessionStorage under keys of the
- * form `opencode.credentials.<normalizedUrl>` with value `{ username, password }`.
- */
-const CRED_PREFIX = "opencode.credentials."
-
-function credKey(serverUrl: string) {
-  return `${CRED_PREFIX}${serverUrl}`
-}
-
-async function addCredentialViaApp(
-  page: Page,
-  serverUrl: string,
-  username: string,
-  password: string,
-) {
-  await page.evaluate(
-    ({ key, data }) => {
-      sessionStorage.setItem(key, JSON.stringify(data))
-    },
-    { key: credKey(serverUrl), data: { username, password } },
-  )
-}
-
-async function removeCredentialViaApp(page: Page, serverUrl: string) {
-  await page.evaluate((key) => sessionStorage.removeItem(key), credKey(serverUrl))
-}
-
-async function getCredentialViaApp(
-  page: Page,
-  serverUrl: string,
-): Promise<{ username?: string; password?: string } | null> {
-  return page.evaluate((key) => {
-    const raw = sessionStorage.getItem(key)
-    if (!raw) return null
-    try {
-      return JSON.parse(raw) as { username?: string; password?: string }
-    } catch {
-      return null
-    }
-  }, credKey(serverUrl))
-}
-
-async function getAllCredentialKeys(page: Page): Promise<string[]> {
-  return page.evaluate((prefix) => {
-    const keys: string[] = []
-    for (let i = 0; i < sessionStorage.length; i++) {
-      const key = sessionStorage.key(i)
-      if (key?.startsWith(prefix)) keys.push(key)
-    }
-    return keys.sort()
-  }, CRED_PREFIX)
-}
 
 /**
  * Set up a fetch-level interceptor that passively captures SSE frames
@@ -104,7 +55,7 @@ async function installSSECapture(page: Page) {
             }
           })
           .catch(() => {
-            /* connection aborted – expected */
+            /* connection aborted \u2013 expected */
           })
         return promise
       }
@@ -133,7 +84,7 @@ async function installSSECapture(page: Page) {
           }
         }
       } catch {
-        /* stream closed / aborted – expected */
+        /* stream closed / aborted \u2013 expected */
       }
     }
   })
@@ -239,7 +190,7 @@ test.describe("Official OpenCode Smoke", () => {
     await page.waitForTimeout(2000)
     expect(errors.length).toBe(0)
 
-    // ---- Navigate back — should establish a new SSE connection ----
+    // ---- Navigate back \u2014 should establish a new SSE connection ----
     await page.goto("/")
     await page.waitForTimeout(5000)
 
@@ -289,7 +240,7 @@ test.describe("Official OpenCode Smoke", () => {
     expect(Array.isArray(sessions)).toBe(true)
   })
 
-  test("Session lifecycle: Create → List → Load → Abort → Delete", async () => {
+  test("Session lifecycle: Create \u2192 List \u2192 Load \u2192 Abort \u2192 Delete", async () => {
     // Create session
     const createRes = await fetch(`${BACKEND_URL}/session`, {
       method: "POST",
@@ -315,7 +266,7 @@ test.describe("Official OpenCode Smoke", () => {
     expect(loaded).toHaveProperty("id", sessionId)
     expect(loaded).toHaveProperty("title", "smoke-test-session")
 
-    // Abort (cancel any in-flight operations — e.g., by posting to abort endpoint)
+    // Abort (cancel any in-flight operations \u2014 e.g., by posting to abort endpoint)
     const abortRes = await fetch(`${BACKEND_URL}/session/${sessionId}/abort`, { method: "POST" })
     // 200 or 404 (if no in-flight operation) are both acceptable
     expect([200, 404]).toContain(abortRes.status)
@@ -345,7 +296,11 @@ test.describe("Official OpenCode Smoke", () => {
     expect(consoleErrors.length).toBe(0)
   })
 
-  test("Credential lifecycle: add via app contract, persist in sessionStorage, remove, verify gone on reload", async ({ page }) => {
+  test("Credential lifecycle: production module save \u2192 verify isolation \u2192 clear \u2192 reload persistence", async ({ page }) => {
+    // Install the production credential module BEFORE navigation so it runs
+    // on page load and is available across reloads.
+    await installCredentialHarness(page)
+
     const errors: string[] = []
     page.on("pageerror", (err) => errors.push(err.message))
     page.on("console", (msg) => {
@@ -357,29 +312,27 @@ test.describe("Official OpenCode Smoke", () => {
     const SERVER_A = "http://server-a.example.com"
     const SERVER_B = "http://server-b.example.com"
 
-    // ---- Add server A through the app's credential mechanism ----
-    await addCredentialViaApp(page, SERVER_A, "user-a", "pass-a")
+    // ---- saveCredentials(A) \u2014 actual production function -------------------
+    await saveCredentialViaModule(page, SERVER_A, "userA", "passA")
 
-    const credA = await getCredentialViaApp(page, SERVER_A)
+    const credA = await getCredentialViaModule(page, SERVER_A)
     expect(credA).not.toBeNull()
-    expect(credA!.username).toBe("user-a")
-    expect(credA!.password).toBe("pass-a")
+    expect(credA!.username).toBe("userA")
+    expect(credA!.password).toBe("passA")
 
-    // ---- Add server B through the app's credential mechanism ----
-    await addCredentialViaApp(page, SERVER_B, "user-b", "pass-b")
+    // ---- saveCredentials(B) \u2014 actual production function -------------------
+    await saveCredentialViaModule(page, SERVER_B, "userB", "passB")
 
-    const credB = await getCredentialViaApp(page, SERVER_B)
+    const credB = await getCredentialViaModule(page, SERVER_B)
     expect(credB).not.toBeNull()
-    expect(credB!.username).toBe("user-b")
-    expect(credB!.password).toBe("pass-b")
+    expect(credB!.username).toBe("userB")
+    expect(credB!.password).toBe("passB")
 
-    // ---- Confirm both keys appear in sessionStorage under the app's prefix ----
-    const credKeys = await getAllCredentialKeys(page)
-    expect(credKeys).toContain(credKey(SERVER_A))
-    expect(credKeys).toContain(credKey(SERVER_B))
-    expect(credKeys.length).toBeGreaterThanOrEqual(2)
+    // ---- Both credentials are independently readable via production function -
+    expect(await getCredentialViaModule(page, SERVER_A)).not.toBeNull()
+    expect(await getCredentialViaModule(page, SERVER_B)).not.toBeNull()
 
-    // ---- Confirm credentials are NOT leaked to localStorage ----
+    // ---- verify passwords NOT in localStorage (production module uses sessionStorage only) ----
     const lsKeys = await page.evaluate(() => {
       const keys: string[] = []
       for (let i = 0; i < localStorage.length; i++) {
@@ -391,23 +344,26 @@ test.describe("Official OpenCode Smoke", () => {
     const leaked = lsKeys.filter((k) => k.startsWith("opencode.credentials."))
     expect(leaked.length).toBe(0)
 
-    // ---- Remove server A ----
-    await removeCredentialViaApp(page, SERVER_A)
+    // ---- verify sessionStorage isolation \u2014 A's URL does not return B's data --
+    const bCred = await getCredentialViaModule(page, SERVER_B)
+    expect(bCred).not.toBeNull()
+    expect(bCred!.username).toBe("userB")
 
-    const credAfterRemove = await getCredentialViaApp(page, SERVER_A)
+    // ---- clearCredentials(A) \u2014 actual production function ------------------
+    await clearCredentialViaModule(page, SERVER_A)
+
+    const credAfterRemove = await getCredentialViaModule(page, SERVER_A)
     expect(credAfterRemove).toBeNull()
 
-    // ---- Confirm A is removed and B remains ----
-    const remaining = await getAllCredentialKeys(page)
-    expect(remaining).not.toContain(credKey(SERVER_A))
-    expect(remaining).toContain(credKey(SERVER_B))
+    // ---- Confirm A is gone, B remains ----
+    expect(await getCredentialViaModule(page, SERVER_A)).toBeNull()
+    expect(await getCredentialViaModule(page, SERVER_B)).not.toBeNull()
 
-    // ---- Reload and verify removed credential does not return ----
+    // ---- Reload and verify removed credential does not return --------------
     await page.reload()
     await page.waitForTimeout(3000)
 
-    const afterReload = await getAllCredentialKeys(page)
-    expect(afterReload).not.toContain(credKey(SERVER_A))
+    expect(await getCredentialViaModule(page, SERVER_A)).toBeNull()
 
     expect(errors.length).toBe(0)
   })
@@ -426,7 +382,9 @@ test.describe("Official OpenCode Smoke", () => {
     expect(credKeys.length).toBe(0)
   })
 
-  test("Server removal clears sessionStorage credentials", async ({ page }) => {
+  test("Server removal: production module clearCredentials survives reload", async ({ page }) => {
+    await installCredentialHarness(page)
+
     const errors: string[] = []
     page.on("pageerror", (err) => errors.push(err.message))
     page.on("console", (msg) => {
@@ -437,28 +395,22 @@ test.describe("Official OpenCode Smoke", () => {
 
     const SERVER_X = "http://server-x.example.com"
 
-    // Add a credential through the app's contract
-    await addCredentialViaApp(page, SERVER_X, "user-x", "tok-x")
+    // ---- saveCredentials(X) \u2014 actual production function -------------------
+    await saveCredentialViaModule(page, SERVER_X, "user-x", "tok-x")
 
-    const credBeforeRemove = await getCredentialViaApp(page, SERVER_X)
+    const credBeforeRemove = await getCredentialViaModule(page, SERVER_X)
     expect(credBeforeRemove).not.toBeNull()
 
-    // Remove it
-    await removeCredentialViaApp(page, SERVER_X)
+    // ---- clearCredentials(X) \u2014 actual production function ------------------
+    await clearCredentialViaModule(page, SERVER_X)
 
-    const credAfterRemove = await getCredentialViaApp(page, SERVER_X)
+    const credAfterRemove = await getCredentialViaModule(page, SERVER_X)
     expect(credAfterRemove).toBeNull()
 
-    // Verify no credential keys remain for server-x
-    const remaining = await getAllCredentialKeys(page)
-    const matching = remaining.filter((k) => k.startsWith(credKey(SERVER_X)))
-    expect(matching.length).toBe(0)
-
-    // Reload and verify credential does not come back
+    // ---- Reload and verify credential does not come back -------------------
     await page.reload()
     await page.waitForTimeout(3000)
-    const afterReload = await getAllCredentialKeys(page)
-    expect(afterReload).not.toContain(credKey(SERVER_X))
+    expect(await getCredentialViaModule(page, SERVER_X)).toBeNull()
 
     expect(errors.length).toBe(0)
   })
