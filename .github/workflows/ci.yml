@@ -217,7 +217,7 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun --cwd packages/app build
       - name: Install Playwright browsers
-        run: bunx playwright install --with-deps chromium chrome
+        run: npx playwright install --with-deps
       - name: Run timeline stability tests
         working-directory: packages/app
         run: bun test ./e2e/performance/unit/visual-stability.test.ts 2>&1 | tail -20
@@ -347,7 +347,7 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun --cwd packages/app build
       - name: Install Playwright browsers
-        run: bunx playwright install --with-deps chromium chrome
+        run: npx playwright install --with-deps
       - name: Run performance benchmarks
         working-directory: packages/app
         run: bunx playwright test --config e2e/performance/playwright.config.ts 2>&1 | tail -30
@@ -370,7 +370,7 @@ jobs:
           bun-version: 1.3.14
       - run: bun install --frozen-lockfile
       - run: bun --cwd packages/app build
-      - run: bunx playwright install --with-deps chromium chrome
+      - run: npx playwright install --with-deps
       - name: Run production network tests with dynamic port
         working-directory: packages/app
         run: |
