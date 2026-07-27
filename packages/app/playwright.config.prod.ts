@@ -52,5 +52,5 @@ export default defineConfig({
     screenshot: "only-on-failure",
     video: "retain-on-failure",
   },
-  projects: [{ name: "chromium", use: { channel: "chromium" } }],
+  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
 })
