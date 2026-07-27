@@ -1,6 +1,7 @@
 import { test, expect, type Page } from "@playwright/test"
 import { readFileSync } from "fs"
-import { resolve } from "path"
+import { resolve, dirname } from "path"
+import { fileURLToPath } from "url"
 import { mockOpenCodeServer } from "../utils/mock-server"
 import { trackPageErrors } from "../utils/errors"
 
@@ -26,7 +27,7 @@ const mockConfig = {
 // Chunk filenames contain content hashes that change between builds, so we
 // must NOT hardcode them — resolve everything through manifest.json.
 // ---------------------------------------------------------------------------
-const distRoot = resolve(__dirname, "../..")
+const distRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..")
 const manifest: Record<
   string,
   { file: string; css?: string[]; isEntry?: boolean; isDynamicEntry?: boolean; imports?: string[] }
