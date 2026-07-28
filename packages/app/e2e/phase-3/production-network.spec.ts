@@ -107,19 +107,22 @@ const STATIC_IMPORTS = (manifest["index.html"]?.imports ?? [])
 // Common setup — shared by all tests
 // ---------------------------------------------------------------------------
 async function setupTest(page: Page) {
-  await page.addInitScript(() => {
-    localStorage.setItem(
-      "settings.v3",
-      JSON.stringify({ general: { newLayoutDesigns: true } }),
-    )
-    localStorage.setItem(
-      "opencode.global.dat:server",
-      JSON.stringify({
-        projects: { local: [{ worktree: DIRECTORY, expanded: true }] },
-        lastProject: { local: DIRECTORY },
-      }),
-    )
-  })
+  await page.addInitScript(
+    ({ directory }) => {
+      localStorage.setItem(
+        "settings.v3",
+        JSON.stringify({ general: { newLayoutDesigns: true } }),
+      )
+      localStorage.setItem(
+        "opencode.global.dat:server",
+        JSON.stringify({
+          projects: { local: [{ worktree: directory, expanded: true }] },
+          lastProject: { local: directory },
+        }),
+      )
+    },
+    { directory: DIRECTORY },
+  )
   await mockOpenCodeServer(page, mockConfig)
 }
 
@@ -277,10 +280,12 @@ test.describe("Phase 3: Production Network", () => {
   }) => {
     const errors = trackPageErrors(page)
 
-    // Block the resolved hashed URL for the home chunk (not a dev-module path).
-    // Playwright glob patterns match against the full URL, so we use "**" as
-    // a prefix to match any origin on the same path.
-    await page.route(`**${HOME_CHUNK}`, (route) => route.abort("blockedbyclient"))
+    // Block the session chunk so the SessionRouteErrorBoundary handles it
+    // (shows Retry). Blocking the home chunk would be caught by the root
+    // ErrorBoundary which shows Restart, not Retry.
+    await page.route(`**${SESSION_CHUNK}`, (route) => route.abort("blockedbyclient"))
+    // Navigate to the session route so the session chunk is requested
+    await page.goto("/")
 
     await setupTest(page)
     await page.goto("/")
@@ -293,7 +298,7 @@ test.describe("Phase 3: Production Network", () => {
     ).toBeVisible({ timeout: 20_000 })
 
     // Unblock the chunk so the retry can succeed
-    await page.unroute(`**${HOME_CHUNK}`)
+    await page.unroute(`**${SESSION_CHUNK}`)
 
     // Click retry
     await retryButton.click()
