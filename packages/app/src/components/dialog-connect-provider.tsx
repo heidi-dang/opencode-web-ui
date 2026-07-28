@@ -318,7 +318,7 @@ function ProviderPickerV2(props: {
             {(group) => (
               <Show when={group.items().length > 0}>
                 <section class="flex flex-col">
-                  <div class="px-3 pb-2 text-[13px] font-[440] leading-none tracking-[-0.04px] text-v2-text-text-muted">
+                  <div class="px-3 pb-2 text-[13px] font-body leading-none tracking-v2 text-v2-text-text-muted">
                     {group.title}
                   </div>
                   <For each={group.items()}>
@@ -326,7 +326,7 @@ function ProviderPickerV2(props: {
                       <button
                         type="button"
                         data-provider-id={provider.id}
-                        class="flex min-h-9 w-full items-center gap-2 rounded-md px-3 py-2.5 text-left text-[13px] leading-none tracking-[-0.04px] hover:bg-v2-overlay-simple-overlay-hover focus:bg-v2-overlay-simple-overlay-hover focus:outline-none"
+                        class="flex min-h-9 w-full items-center gap-2 rounded-md px-3 py-2.5 text-left text-[13px] leading-none tracking-v2 hover:bg-v2-overlay-simple-overlay-hover focus:bg-v2-overlay-simple-overlay-hover focus:outline-none"
                         classList={{ "bg-v2-overlay-simple-overlay-hover": store.active === provider.id }}
                         onMouseEnter={() => setStore("active", provider.id)}
                         disabled={store.connecting !== undefined}
@@ -334,21 +334,21 @@ function ProviderPickerV2(props: {
                         onClick={() => connect(provider.id)}
                       >
                         <ProviderIcon id={provider.id} class="size-4 shrink-0 text-v2-icon-icon-base" />
-                        <span class="min-w-0 truncate font-[530] text-v2-text-text-base">{provider.name}</span>
+                        <span class="min-w-0 truncate font-emphasis text-v2-text-text-base">{provider.name}</span>
                         <Show when={provider.id === "opencode" || provider.id === "opencode-go"}>
-                          <span class="min-w-0 truncate font-[440] text-v2-text-text-muted">
+                          <span class="min-w-0 truncate font-body text-v2-text-text-muted">
                             {language.t(
                               provider.id === "opencode"
                                 ? "dialog.provider.opencode.tagline"
                                 : "dialog.provider.opencodeGo.tagline",
                             )}
                           </span>
-                          <span class="flex h-4 shrink-0 items-center rounded-xs border-[0.5px] border-v2-border-border-base bg-v2-background-bg-layer-03 px-1 text-[11px] font-[530] leading-none tracking-[0.05px] text-v2-text-text-muted">
+                          <span class="flex h-4 shrink-0 items-center rounded-xs border-[0.5px] border-v2-border-border-base bg-v2-background-bg-layer-03 px-1 text-[11px] font-emphasis leading-none tracking-[0.05px] text-v2-text-text-muted">
                             {language.t("dialog.provider.tag.recommended")}
                           </span>
                         </Show>
                         <Show when={provider.id === CUSTOM_ID}>
-                          <span class="flex h-4 shrink-0 items-center rounded-xs border-[0.5px] border-v2-border-border-base bg-v2-background-bg-layer-03 px-1 text-[11px] font-[530] leading-none tracking-[0.05px] text-v2-text-text-muted">
+                          <span class="flex h-4 shrink-0 items-center rounded-xs border-[0.5px] border-v2-border-border-base bg-v2-background-bg-layer-03 px-1 text-[11px] font-emphasis leading-none tracking-[0.05px] text-v2-text-text-muted">
                             {language.t("settings.providers.tag.custom")}
                           </span>
                         </Show>
@@ -363,7 +363,7 @@ function ProviderPickerV2(props: {
             )}
           </For>
           <Show when={rows().length === 0}>
-            <div class="flex h-24 items-center justify-center text-[13px] font-[440] text-v2-text-text-muted">
+            <div class="flex h-24 items-center justify-center text-[13px] font-body text-v2-text-text-muted">
               {language.t("dialog.provider.empty")}
             </div>
           </Show>
@@ -734,7 +734,7 @@ function ProviderConnection(props: {
     if (newLayout())
       return (
         <div class="flex flex-col gap-2">
-          <div class="px-3 text-[13px] font-[440] leading-5 tracking-[-0.04px] text-v2-text-text-muted">
+          <div class="px-3 text-[13px] font-body leading-5 tracking-v2 text-v2-text-text-muted">
             {language.t("provider.connect.selectMethod", { provider: provider().name })}
           </div>
           <div class="flex flex-col">
@@ -744,15 +744,15 @@ function ProviderConnection(props: {
                 return (
                   <button
                     type="button"
-                    class="group flex h-9 w-full items-center gap-2 rounded-md px-3 text-left text-[13px] leading-5 tracking-[-0.04px] hover:bg-v2-overlay-simple-overlay-hover focus-visible:bg-v2-overlay-simple-overlay-hover focus-visible:outline-none"
+                    class="group flex h-9 w-full items-center gap-2 rounded-md px-3 text-left text-[13px] leading-5 tracking-v2 hover:bg-v2-overlay-simple-overlay-hover focus-visible:bg-v2-overlay-simple-overlay-hover focus-visible:outline-none"
                     onClick={() => void selectMethod(index())}
                   >
                     <span class="flex h-2 w-4 shrink-0 items-center justify-center rounded-[1px] bg-v2-background-bg-base shadow-[var(--v2-elevation-button-neutral)]">
                       <span class="hidden h-0.5 w-2.5 bg-v2-icon-icon-base group-hover:block group-focus-visible:block" />
                     </span>
-                    <span class="font-[530] text-v2-text-text-base">{details().label}</span>
+                    <span class="font-emphasis text-v2-text-text-base">{details().label}</span>
                     <Show when={details().hint}>
-                      {(hint) => <span class="font-[440] text-v2-text-text-muted">{hint()}</span>}
+                      {(hint) => <span class="font-body text-v2-text-text-muted">{hint()}</span>}
                     </Show>
                   </button>
                 )
@@ -830,7 +830,7 @@ function ProviderConnection(props: {
 
     if (newLayout())
       return (
-        <div class="flex flex-col gap-5 px-3 text-[13px] font-[440] leading-5 tracking-[-0.04px] text-v2-text-text-muted">
+        <div class="flex flex-col gap-5 px-3 text-[13px] font-body leading-5 tracking-v2 text-v2-text-text-muted">
           <Show
             when={provider().id === "opencode"}
             fallback={language.t("provider.connect.apiKey.description", { provider: provider().name })}
@@ -851,7 +851,7 @@ function ProviderConnection(props: {
             </div>
           </Show>
           <form onSubmit={handleSubmit} class="flex flex-col items-start gap-5 self-stretch">
-            <label class="flex w-full flex-col gap-1 font-[530] leading-4 text-v2-text-text-base">
+            <label class="flex w-full flex-col gap-1 font-emphasis leading-4 text-v2-text-text-base">
               {language.t("provider.connect.apiKey.label", { provider: provider().name })}
               <TextInputV2
                 ref={apiKey}
@@ -967,7 +967,7 @@ function ProviderConnection(props: {
 
     if (newLayout())
       return (
-        <div class="flex flex-col gap-5 px-3 text-[13px] font-[440] leading-5 tracking-[-0.04px] text-v2-text-text-muted">
+        <div class="flex flex-col gap-5 px-3 text-[13px] font-body leading-5 tracking-v2 text-v2-text-text-muted">
           <div>
             {language.t("provider.connect.oauth.code.visit.prefix")}
             <Link href={store.authorization!.url} class="text-v2-text-text-base">
@@ -976,7 +976,7 @@ function ProviderConnection(props: {
             {language.t("provider.connect.oauth.code.visit.suffix", { provider: provider().name })}
           </div>
           <form onSubmit={handleSubmit} class="flex flex-col items-start gap-5 self-stretch">
-            <label class="flex w-full flex-col gap-1 font-[530] leading-4 text-v2-text-text-base">
+            <label class="flex w-full flex-col gap-1 font-emphasis leading-4 text-v2-text-text-base">
               {language.t("provider.connect.oauth.code.label", { method: method()?.label ?? "" })}
               <TextInputV2
                 ref={codeInput}
@@ -1108,7 +1108,7 @@ function ProviderConnection(props: {
         <div
           class={
             newLayout()
-              ? "text-[15px] font-[530] leading-5 tracking-[-0.13px] text-v2-text-text-base"
+              ? "text-[15px] font-emphasis leading-5 tracking-[-0.13px] text-v2-text-text-base"
               : "text-16-medium text-text-strong"
           }
         >

@@ -730,7 +730,7 @@ function TitlebarUpdateIconButton(props: { state: TitlebarUpdatePillState }) {
         aria-busy={props.state.installing}
         aria-label={props.state.ariaLabel}
       >
-        <span class="shrink-0 ml-[8px] mr-px text-[11px] text-v2-text-text-accent [font-weight:530] opacity-0 translate-x-2 motion-safe:transition-all duration-150 ease-out group-hover:opacity-100 group-hover:translate-x-0 group-focus-within:opacity-100 group-focus-within:translate-x-0 motion-reduce:translate-x-0">
+        <span class="shrink-0 ml-[8px] mr-px text-[11px] text-v2-text-text-accent font-emphasis opacity-0 translate-x-2 motion-safe:transition-all duration-150 ease-out group-hover:opacity-100 group-hover:translate-x-0 group-focus-within:opacity-100 group-focus-within:translate-x-0 motion-reduce:translate-x-0">
           Update
         </span>
         <span class="flex size-5 shrink-0 items-center justify-center">
@@ -754,7 +754,7 @@ function ChannelIndicator(props: { debugTools?: { visible: boolean; toggle: () =
     return (
       <button
         type="button"
-        class="bg-icon-interactive-base text-[#FFF] font-medium px-2 rounded-sm uppercase font-mono cursor-pointer"
+        class="bg-icon-interactive-base text-v2-text-text-contrast font-medium px-2 rounded-sm uppercase font-mono cursor-pointer"
         onClick={props.debugTools.toggle}
         aria-label="Toggle debug tools"
         aria-pressed={props.debugTools.visible}
@@ -767,7 +767,7 @@ function ChannelIndicator(props: { debugTools?: { visible: boolean; toggle: () =
   return (
     <>
       {["beta", "dev"].includes(channel) && (
-        <div class="bg-icon-interactive-base text-[#FFF] font-medium px-2 rounded-sm uppercase font-mono">
+        <div class="bg-icon-interactive-base text-v2-text-text-contrast font-medium px-2 rounded-sm uppercase font-mono">
           {channel.toUpperCase()}
         </div>
       )}

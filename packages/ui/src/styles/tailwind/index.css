@@ -47,6 +47,8 @@
 
   --font-weight-regular: var(--font-weight-regular);
   --font-weight-medium: var(--font-weight-medium);
+  --font-weight-body: 440;
+  --font-weight-emphasis: 530;
 
   --leading-lg: var(--line-height-large);
   --leading-xl: var(--line-height-x-large);
@@ -55,6 +57,7 @@
   --tracking-normal: var(--letter-spacing-normal);
   --tracking-tight: var(--letter-spacing-tight);
   --tracking-tightest: var(--letter-spacing-tightest);
+  --tracking-v2: -0.04px;
 
   --radius-xs: 0.125rem;
   --radius-sm: 0.25rem;
