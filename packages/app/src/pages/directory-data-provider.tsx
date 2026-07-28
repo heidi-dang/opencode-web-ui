@@ -1,6 +1,7 @@
+import { DataProvider } from "@opencode-ai/session-ui/context"
 import { base64Encode } from "@opencode-ai/core/util/encode"
 import { useLocation, useNavigate, useParams } from "@solidjs/router"
-import { type Accessor, createEffect, createMemo, createResource, onCleanup, type ParentProps } from "solid-js"
+import { type Accessor, createEffect, createMemo, createResource, onCleanup, type ParentProps, Show } from "solid-js"
 import { LocalProvider } from "@/context/local"
 import { useSync } from "@/context/sync"
 import type { ServerConnection } from "@/context/server"
@@ -19,8 +20,19 @@ export function DirectoryDataProvider(
   const params = useParams()
   const sync = useSync()
   const serverSync = useServerSync()
-  const directory = () => (typeof props.directory === "function" ? props.directory() : props.directory)
+
+  const directory = () =>
+    typeof props.directory === "function"
+      ? props.directory()
+      : props.directory
+
   const slug = createMemo(() => base64Encode(directory()))
+
+  const href = (sessionID: string) => {
+    const server = props.server?.()
+    if (server) return sessionHref(server, sessionID)
+    return `/${slug()}/session/${sessionID}`
+  }
 
   createEffect(() => {
     // A draft lives at /new-session?draftId=… and has no directory segment to normalize.
@@ -46,5 +58,18 @@ export function DirectoryDataProvider(
     onCleanup(() => serverSync().session.unpin(sessionID))
   })
 
-  return <LocalProvider directory={directory}>{props.children}</LocalProvider>
+  return (
+    <Show when={directory()} keyed>
+      {(resolvedDirectory) => (
+        <DataProvider
+          data={sync().data}
+          directory={resolvedDirectory}
+          onNavigateToSession={(sessionID) => navigate(href(sessionID))}
+          onSessionHref={href}
+        >
+          <LocalProvider>{props.children}</LocalProvider>
+        </DataProvider>
+      )}
+    </Show>
+  )
 }

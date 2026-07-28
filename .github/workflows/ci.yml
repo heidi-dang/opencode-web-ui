@@ -317,9 +317,9 @@ jobs:
             e2e/utils/mock-server.ts \
             e2e/utils/visual-stability/probe.ts; do
             if [ -f "$f" ]; then
-              echo "  ✓ $f"
+              echo "  OK $f"
             else
-              echo "  ✗ $f MISSING"
+              echo "  FAIL $f MISSING"
               errors=$((errors + 1))
             fi
           done
