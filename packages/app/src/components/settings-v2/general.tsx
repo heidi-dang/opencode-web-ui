@@ -122,19 +122,17 @@ export const SettingsGeneralV2: Component<{
   const themeOptions = createMemo<ThemeOption[]>(() => theme.ids().map((id) => ({ id, name: theme.name(id) })))
 
   const [shells] = createResource(
-    async () => {
+    async (): Promise<ShellOption[]> => {
       try {
         const sdk = serverSdk()
-        if ((await sdk.protocol) === "v1") {
-          const res = await sdk.client.pty.shells().catch(() => null)
-          return res?.data ?? []
-        }
-        return [] as ShellOption[]
+        if ((await sdk.protocol) !== "v1") return []
+        const res = await sdk.client.pty.shells().catch(() => null)
+        return Array.isArray(res?.data) ? res.data : []
       } catch {
-        return [] as ShellOption[]
+        return []
       }
     },
-    { initialValue: [] as ShellOption[] },
+    { initialValue: [] },
   )
 
   const [pinchZoom, { mutate: setPinchZoom }] = createResource(
@@ -151,27 +149,38 @@ export const SettingsGeneralV2: Component<{
   const currentShell = createMemo(() => serverSync().data.config.shell ?? "")
 
   const shellOptions = createMemo<ShellSelectOption[]>(() => {
-    const list = shells.latest
+    const raw = shells.latest
+    const list: ShellOption[] = Array.isArray(raw) ? raw : []
     const current = serverSync().data.config.shell
 
     const nameCounts = new Map<string, number>()
-    for (const s of list) {
-      nameCounts.set(s.name, (nameCounts.get(s.name) || 0) + 1)
+    for (const shell of list) {
+      if (!shell || typeof shell.name !== "string") continue
+      nameCounts.set(shell.name, (nameCounts.get(shell.name) ?? 0) + 1)
     }
 
-    const options = [
+    const options: ShellSelectOption[] = [
       autoOption,
-      ...list.map((s) => {
-        const ambiguousName = (nameCounts.get(s.name) || 0) > 1
-        const text = ambiguousName ? s.path : s.name
-        const label = s.acceptable ? text : `${text} (${language.t("settings.general.row.shell.terminalOnly")})`
-        return {
-          id: s.path,
-          // Prefer name over path - "bash" is much cleaner than the explicit full route even when it may change due to PATH.
-          value: ambiguousName ? s.path : s.name,
-          label,
-        }
-      }),
+      ...list
+        .filter(
+          (shell): shell is ShellOption =>
+            !!shell &&
+            typeof shell.path === "string" &&
+            typeof shell.name === "string" &&
+            typeof shell.acceptable === "boolean",
+        )
+        .map((shell) => {
+          const ambiguousName = (nameCounts.get(shell.name) ?? 0) > 1
+          const text = ambiguousName ? shell.path : shell.name
+
+          return {
+            id: shell.path,
+            value: ambiguousName ? shell.path : shell.name,
+            label: shell.acceptable
+              ? text
+              : `${text} (${language.t("settings.general.row.shell.terminalOnly")})`,
+          }
+        }),
     ]
 
     if (current && !options.some((o) => o.value === current)) {
