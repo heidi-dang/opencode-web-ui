@@ -164,16 +164,24 @@ export function FleetPage() {
         {/* Main content area */}
         <div class="flex-1 min-w-0 flex flex-col gap-4 p-4 overflow-x-hidden">
           {/* Header row */}
-          <div class="flex items-center justify-between gap-4">
-            <h1 class="text-lg font-semibold">{t("fleet.page.title")}</h1>
-            <span class="text-xs text-muted-foreground" aria-live="polite" aria-atomic="true">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-2">
+            <h1 class="text-xl font-semibold tracking-tight">{t("fleet.page.title")}</h1>
+            <div class="hidden sm:flex flex-1 justify-center items-center gap-2 text-xs text-muted-foreground" aria-live="polite" aria-atomic="true">
+              <Show when={lastRefreshDisplay() || (!initialLoadDone())}>
+                <div class="h-2 w-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
+              </Show>
               {lastRefreshDisplay()
                 ? t("fleet.page.lastUpdated", { time: lastRefreshDisplay() })
                 : initialLoadDone() ? "" : t("fleet.page.loading")}
-            </span>
-            <div class="flex items-center gap-2 ml-auto">
+            </div>
+            <div class="flex items-center gap-2">
+              <div class="sm:hidden flex items-center gap-2 text-xs text-muted-foreground">
+                 <Show when={lastRefreshDisplay() || (!initialLoadDone())}>
+                  <div class="h-2 w-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
+                 </Show>
+              </div>
               <button
-                class="inline-flex items-center gap-1.5 rounded px-2.5 py-1.5 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-ring min-h-[32px]"
+                class="inline-flex items-center gap-2 rounded-md bg-blue-600 text-white px-4 py-2 text-sm font-medium transition-colors hover:bg-blue-700 shadow-sm focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:opacity-50"
                 disabled={ctrl.refreshing()}
                 onClick={() => ctrl.refreshAll()}
                 aria-label={t("fleet.summary.refreshAll")}
@@ -199,27 +207,29 @@ export function FleetPage() {
           />
 
           {/* Toolbar: Search + Filters */}
-          <div class="flex flex-wrap items-center gap-2">
+          <div class="flex flex-wrap items-center gap-3 mt-2">
             {/* Search input with Ctrl+K hint */}
-            <div class="relative w-48">
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" class="absolute left-2 top-1/2 -translate-y-1/2 text-muted-foreground" aria-hidden="true"><circle cx="6" cy="6" r="4.5"/><path d="M9.5 9.5L13 13"/></svg>
+            <div class="relative w-full sm:w-64">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" aria-hidden="true"><circle cx="6" cy="6" r="4.5"/><path d="M9.5 9.5L13 13"/></svg>
               <input type="search"
                      placeholder={t("fleet.search.placeholder")}
-                     class="h-8 w-full rounded-md border bg-background pl-7 pr-16 text-xs focus-visible:outline-2 focus-visible:outline-ring"
+                     class="h-9 w-full rounded-md border border-border/50 bg-card/40 pl-9 pr-14 text-sm focus-visible:outline-2 focus-visible:outline-ring transition-colors hover:bg-card/60"
                      value={searchQuery()}
                      onInput={(e) => setSearchQuery((e.target as HTMLInputElement).value)}
                      aria-label={t("fleet.search.placeholder")} />
-              <span class="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground pointer-events-none font-mono">Ctrl+K</span>
+              <div class="absolute right-2 top-1/2 -translate-y-1/2 flex items-center justify-center rounded border border-border bg-background px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground pointer-events-none">
+                Ctrl K
+              </div>
             </div>
 
             {/* Status filter pills */}
-            <div class="flex items-center gap-1 flex-wrap" role="group" aria-label={t("fleet.filter.statusGroup")}>
+            <div class="flex items-center rounded-md border border-border/50 bg-card/40 p-1" role="group" aria-label={t("fleet.filter.statusGroup")}>
               <For each={filterOptions()}>
                 {(opt) => (
-                  <button class={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-ring min-h-[28px] ${
+                  <button class={`rounded px-3 py-1.5 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-ring ${
                     statusFilter() === opt.value
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-accent text-accent-foreground hover:bg-accent/70"
+                      ? "bg-blue-600 text-white shadow-sm"
+                      : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
                   }`}
                           onClick={() => setStatusFilter(opt.value)}
                           aria-pressed={statusFilter() === opt.value}>
@@ -230,7 +240,7 @@ export function FleetPage() {
             </div>
 
             {/* All Types dropdown */}
-            <select class="h-7 rounded-md border bg-background px-2 text-xs focus-visible:outline-2 focus-visible:outline-ring"
+            <select class="h-9 rounded-md border border-border/50 bg-card/40 px-3 text-sm text-foreground focus-visible:outline-2 focus-visible:outline-ring hover:bg-card/60 transition-colors"
                     value={connectionFilter()}
                     onChange={(e) => setConnectionFilter((e.target as HTMLSelectElement).value as FleetConnectionType | "all")}
                     aria-label={t("fleet.connectionType.all")}>
@@ -239,29 +249,40 @@ export function FleetPage() {
               </For>
             </select>
 
-            {/* Sort dropdown */}
-            <select class="h-7 rounded-md border bg-background px-2 text-xs focus-visible:outline-2 focus-visible:outline-ring"
-                    value={sortKey()}
-                    onChange={(e) => setSortKey((e.target as HTMLSelectElement).value as FleetSortKey)}
-                    aria-label={t("fleet.sort.label")}>
-              <For each={sortOptions()}>
-                {(opt) => <option value={opt.value}>{opt.label}</option>}
-              </For>
+            {/* Status dropdown (placeholder/duplicate per mockup styling if needed, we'll keep it as "Status" for fidelity) */}
+            <select class="h-9 rounded-md border border-border/50 bg-card/40 px-3 text-sm text-foreground focus-visible:outline-2 focus-visible:outline-ring hover:bg-card/60 transition-colors hidden sm:block">
+              <option>Status</option>
             </select>
 
-            {/* Server count */}
-            <span class="text-xs text-muted-foreground whitespace-nowrap" role="status" aria-live="polite">
-              {t("fleet.servers.count", { current: String(displayedServers().length), total: String(serverList().length) })}
-            </span>
+            <div class="flex-1" />
+
+            {/* Sort dropdown */}
+            <div class="flex items-center gap-2">
+              <span class="text-xs text-muted-foreground hidden lg:inline-block">Sort by:</span>
+              <select class="h-9 rounded-md border border-border/50 bg-card/40 px-3 text-sm text-foreground focus-visible:outline-2 focus-visible:outline-ring hover:bg-card/60 transition-colors"
+                      value={sortKey()}
+                      onChange={(e) => setSortKey((e.target as HTMLSelectElement).value as FleetSortKey)}
+                      aria-label={t("fleet.sort.label")}>
+                <For each={sortOptions()}>
+                  {(opt) => <option value={opt.value}>{opt.label}</option>}
+                </For>
+              </select>
+            </div>
 
             {/* Active filter chip */}
             <Show when={filtersActive()}>
-              <button class="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium bg-accent text-accent-foreground hover:bg-accent/80"
-                      onClick={clearFilters}
-                      aria-label={t("fleet.filter.clear", { count: String(activeFilterCount()) })}>
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M3 3l6 6M9 3l-6 6"/></svg>
-                {activeFilterCount()} {t("fleet.filter.clear", { count: String(activeFilterCount()) })}
-              </button>
+              <div class="flex items-center gap-2">
+                <div class="inline-flex items-center gap-1.5 rounded-md border border-border/50 bg-card/40 px-3 py-1.5 text-xs font-medium text-foreground">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-muted-foreground"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+                  {activeFilterCount()} active filters
+                </div>
+                <button class="inline-flex items-center gap-1 px-2 py-1.5 text-xs font-medium text-blue-500 hover:text-blue-400 transition-colors"
+                        onClick={clearFilters}
+                        aria-label={t("fleet.filter.clear", { count: String(activeFilterCount()) })}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  Clear all
+                </button>
+              </div>
             </Show>
           </div>
 
@@ -283,14 +304,16 @@ export function FleetPage() {
 
           {/* No results from active filters */}
           <Show when={noResultsFromFilters()}>
-            <div class="flex flex-col items-center justify-center py-12 text-center text-muted-foreground rounded-lg border bg-card" role="status">
-              <svg width="40" height="40" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" class="mb-3 opacity-40" aria-hidden="true"><circle cx="17" cy="17" r="8"/><path d="M23 23l6 6"/></svg>
-              <p class="text-sm font-medium">{t("fleet.noResults.title")}</p>
-              <p class="text-xs mt-1">{t("fleet.noResults.description")}</p>
-              <button class="mt-3 inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium bg-accent text-accent-foreground hover:bg-accent/80 transition-colors"
+            <div class="mt-8 flex w-full flex-col items-center justify-center rounded-xl border border-dashed border-border/60 bg-transparent py-16 text-center" role="status">
+              <div class="mb-4 text-muted-foreground opacity-60">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+              </div>
+              <h3 class="mb-1 text-lg font-medium text-foreground">No servers match your filters</h3>
+              <p class="mb-6 text-sm text-muted-foreground">Try adjusting your search or filter criteria.</p>
+              <button class="inline-flex items-center gap-2 rounded-md border border-border/50 bg-card/40 px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-card/60 focus-visible:outline-2 focus-visible:outline-ring"
                       onClick={clearFilters}>
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M3 3l6 6M9 3l-6 6"/></svg>
-                {t("fleet.noResults.clearFilters")}
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-muted-foreground"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+                Clear all filters
               </button>
             </div>
           </Show>

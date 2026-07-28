@@ -11,18 +11,6 @@ interface DetailDrawerProps {
   variant?: "sidebar" | "overlay"
 }
 
-type DrawerTab = "overview" | "connection" | "health" | "projects" | "providers" | "sessions" | "actions"
-
-const TABS: { id: DrawerTab; labelKey: string }[] = [
-  { id: "overview", labelKey: "fleet.drawer.overview" },
-  { id: "connection", labelKey: "fleet.drawer.connection" },
-  { id: "health", labelKey: "fleet.drawer.health" },
-  { id: "projects", labelKey: "fleet.drawer.projects" },
-  { id: "providers", labelKey: "fleet.drawer.providers" },
-  { id: "sessions", labelKey: "fleet.drawer.sessions" },
-  { id: "actions", labelKey: "fleet.drawer.actions" },
-]
-
 function SectionHeading(props: { title: string }) {
   return <h4 class="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">{props.title}</h4>
 }
@@ -81,7 +69,6 @@ export function FleetDetailDrawer(props: DetailDrawerProps) {
   const { t } = useLanguage()
   const isOpen = createMemo(() => props.server() !== null)
   const serverName = createMemo(() => props.server()?.name ?? "")
-  const [activeTab, setActiveTab] = createSignal<DrawerTab>("overview")
   const variant = () => props.variant ?? "overlay"
 
   let panelRef: HTMLDivElement | undefined
@@ -142,153 +129,125 @@ export function FleetDetailDrawer(props: DetailDrawerProps) {
     const snap = props.server()
     if (!snap) return null
 
-    const tab = activeTab()
-
     return (
       <>
         {/* Header */}
-        <div class="flex items-center justify-between border-b px-4 py-3 shrink-0">
-          <h3 class="truncate text-sm font-semibold">{serverName()}</h3>
+        <div class="flex items-center justify-between border-b border-border/50 bg-card/50 px-5 py-4 shrink-0">
+          <h3 class="truncate text-base font-semibold tracking-tight">{serverName()}</h3>
           <button ref={closeBtnRef}
-                  class="inline-flex items-center justify-center rounded p-1.5 text-muted-foreground hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring min-h-[36px] min-w-[36px]"
+                  class="inline-flex items-center justify-center rounded-md p-2 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors focus-visible:outline-2 focus-visible:outline-ring min-h-[36px] min-w-[36px]"
                   onClick={onClose}
                   aria-label={t("fleet.drawer.close")}>
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
-              <path d="M4 4l8 8M12 4l-8 8"/>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <path d="M18 6L6 18M6 6l12 12"/>
             </svg>
           </button>
         </div>
 
-        {/* Tabs */}
-        <div class="flex overflow-x-auto border-b shrink-0 px-2 gap-0" role="tablist" aria-label={t("fleet.drawer.title")}>
-          <For each={TABS}>
-            {(tabDef) => (
-              <button
-                role="tab"
-                aria-selected={tab === tabDef.id}
-                class={`shrink-0 px-3 py-2 text-xs font-medium border-b-2 transition-colors focus-visible:outline-2 focus-visible:outline-ring ${
-                  tab === tabDef.id
-                    ? "border-primary text-foreground"
-                    : "border-transparent text-muted-foreground hover:text-foreground"
-                }`}
-                onClick={() => setActiveTab(tabDef.id)}
-              >
-                {t(tabDef.labelKey)}
+        {/* Scrollable Content */}
+        <div class="flex-1 overflow-y-auto p-5 space-y-8 text-sm">
+          {/* Status & Quick Actions */}
+          <section aria-labelledby="drawer-section-quick-actions" class="space-y-4">
+            <div class="flex items-center gap-2">
+              <FleetStatusBadge state={snap.health.state} latencyMs={snap.health.latencyMs} />
+            </div>
+            <div class="flex flex-col sm:flex-row gap-2">
+              <button class="inline-flex flex-1 items-center gap-2 justify-center rounded-md border border-border/50 bg-card/40 px-3 py-2 text-xs font-medium hover:bg-accent transition-colors focus-visible:outline-2 focus-visible:outline-ring shadow-sm"
+                      onClick={() => props.onRefresh(snap.key)}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                {t("fleet.drawer.refresh")}
               </button>
-            )}
-          </For>
-        </div>
+              <button class="inline-flex flex-1 items-center gap-2 justify-center rounded-md border border-border/50 bg-card/40 px-3 py-2 text-xs font-medium hover:bg-accent transition-colors focus-visible:outline-2 focus-visible:outline-ring shadow-sm"
+                      onClick={() => window.open(snap.url, '_blank', 'noopener')}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                {t("fleet.drawer.openInNewTab")}
+              </button>
+            </div>
+          </section>
 
-        {/* Tab content */}
-        <div class="flex-1 overflow-y-auto p-4 space-y-5 text-sm">
-          {/* Overview */}
-          <Show when={tab === "overview"}>
-            <section aria-labelledby="drawer-tab-overview">
-              <div class="flex items-center gap-2 mb-3">
-                <FleetStatusBadge state={snap.health.state} latencyMs={snap.health.latencyMs} />
-              </div>
-              <table class="w-full">
-                <tbody>
-                  <DetailRow label={t("fleet.label.url")} value={snap.url} />
-                  <DetailRow label={t("fleet.label.connection")} value={snap.connectionType.toUpperCase()} />
-                  <DetailRow label={t("fleet.label.protocol")} value={snap.protocol.kind ? `v${snap.protocol.kind}` : t("fleet.value.unavailable")} />
-                  <DetailRow label={t("fleet.label.version")} value={formatVersion(snap.health.version)} />
-                  <DetailRow label={t("fleet.label.lastCheck")} value={snap.health.checkedAt ? formatRelativeTime(snap.health.checkedAt) : t("fleet.value.unavailable")} />
-                  <DetailRow label={t("fleet.label.latency")} value={snap.health.latencyMs !== undefined ? formatLatency(snap.health.latencyMs) : t("fleet.value.unavailable")} monospace />
+          {/* Details */}
+          <section aria-labelledby="drawer-section-details">
+            <SectionHeading title={t("fleet.drawer.overview")} />
+            <div class="rounded-xl border border-border/50 bg-card/20 overflow-hidden">
+              <table class="w-full text-sm">
+                <tbody class="divide-y divide-border/30">
+                  <tr class="hover:bg-accent/30 transition-colors">
+                    <td class="py-2.5 pl-4 pr-2 text-muted-foreground w-1/3 text-xs align-middle">{t("fleet.label.url")}</td>
+                    <td class="py-2.5 pr-4 text-xs font-mono tabular-nums break-all align-middle text-foreground">{snap.url}</td>
+                  </tr>
+                  <tr class="hover:bg-accent/30 transition-colors">
+                    <td class="py-2.5 pl-4 pr-2 text-muted-foreground w-1/3 text-xs align-middle">{t("fleet.label.connection")}</td>
+                    <td class="py-2.5 pr-4 text-xs font-medium align-middle text-foreground">{snap.connectionType.toUpperCase()}</td>
+                  </tr>
+                  <tr class="hover:bg-accent/30 transition-colors">
+                    <td class="py-2.5 pl-4 pr-2 text-muted-foreground w-1/3 text-xs align-middle">{t("fleet.label.protocol")}</td>
+                    <td class="py-2.5 pr-4 text-xs font-medium align-middle text-foreground">{snap.protocol.kind ? `v${snap.protocol.kind}` : t("fleet.value.unavailable")}</td>
+                  </tr>
+                  <tr class="hover:bg-accent/30 transition-colors">
+                    <td class="py-2.5 pl-4 pr-2 text-muted-foreground w-1/3 text-xs align-middle">{t("fleet.label.version")}</td>
+                    <td class="py-2.5 pr-4 text-xs font-mono tabular-nums align-middle text-foreground">{formatVersion(snap.health.version)}</td>
+                  </tr>
+                  <tr class="hover:bg-accent/30 transition-colors">
+                    <td class="py-2.5 pl-4 pr-2 text-muted-foreground w-1/3 text-xs align-middle">{t("fleet.label.lastCheck")}</td>
+                    <td class="py-2.5 pr-4 text-xs align-middle text-foreground">{snap.health.checkedAt ? formatRelativeTime(snap.health.checkedAt) : t("fleet.value.unavailable")}</td>
+                  </tr>
+                  <tr class="hover:bg-accent/30 transition-colors">
+                    <td class="py-2.5 pl-4 pr-2 text-muted-foreground w-1/3 text-xs align-middle">{t("fleet.label.latency")}</td>
+                    <td class="py-2.5 pr-4 text-xs font-mono tabular-nums align-middle text-green-500">{snap.health.latencyMs !== undefined ? formatLatency(snap.health.latencyMs) : t("fleet.value.unavailable")}</td>
+                  </tr>
                 </tbody>
               </table>
-            </section>
-          </Show>
+            </div>
+          </section>
 
-          {/* Connection */}
-          <Show when={tab === "connection"}>
-            <section aria-labelledby="drawer-tab-connection">
-              <SectionHeading title={t("fleet.drawer.connection")} />
-              <table class="w-full">
-                <tbody>
-                  <DetailRow label={t("fleet.label.connection")} value={snap.connectionType.toUpperCase()} />
-                  <DetailRow label={t("fleet.label.protocol")} value={snap.protocol.kind ? `v${snap.protocol.kind}` : t("fleet.value.unavailable")} />
-                </tbody>
-              </table>
-              <div class="mt-2">
-                <CopyButton value={snap.url} label={t("fleet.label.url")} />
+          {/* Workload */}
+          <section aria-labelledby="drawer-section-workload">
+            <SectionHeading title="Workload & Resources" />
+            <div class="rounded-xl border border-border/50 bg-card/20 overflow-hidden">
+              <div class="divide-y divide-border/30">
+                <div class="flex items-center justify-between py-2.5 px-4 hover:bg-accent/30 transition-colors">
+                  <span class="text-xs text-muted-foreground">{t("fleet.drawer.projects")}</span>
+                  <span class="text-xs font-mono tabular-nums text-foreground">{snap.projects.open} / {snap.projects.known}</span>
+                </div>
+                <div class="flex items-center justify-between py-2.5 px-4 hover:bg-accent/30 transition-colors">
+                  <span class="text-xs text-muted-foreground">{t("fleet.drawer.providers")}</span>
+                  <span class="text-xs font-mono tabular-nums text-foreground">{snap.providers.connected} / {snap.providers.configured}</span>
+                </div>
+                <div class="py-2.5 px-4 hover:bg-accent/30 transition-colors">
+                  <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-medium text-foreground">{t("fleet.drawer.sessions")}</span>
+                    <span class="text-xs font-mono tabular-nums font-semibold text-foreground">{snap.sessions.totalActive} Active</span>
+                  </div>
+                  <div class="space-y-1.5 pl-2 border-l-2 border-border/50">
+                    <div class="flex justify-between text-xs">
+                      <span class="text-muted-foreground">{t("fleet.drawer.running")}</span>
+                      <span class="font-mono tabular-nums text-foreground">{snap.sessions.running}</span>
+                    </div>
+                    <div class="flex justify-between text-xs">
+                      <span class="text-muted-foreground">{t("fleet.drawer.busy")}</span>
+                      <span class="font-mono tabular-nums text-foreground">{snap.sessions.busy}</span>
+                    </div>
+                    {snap.sessions.permissionBlocked > 0 && (
+                      <div class="flex justify-between text-xs text-amber-500">
+                        <span>{t("fleet.drawer.permissionBlocked")}</span>
+                        <span class="font-mono tabular-nums">{snap.sessions.permissionBlocked}</span>
+                      </div>
+                    )}
+                    {snap.sessions.questionBlocked > 0 && (
+                      <div class="flex justify-between text-xs text-amber-500">
+                        <span>{t("fleet.drawer.questionBlocked")}</span>
+                        <span class="font-mono tabular-nums">{snap.sessions.questionBlocked}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
-            </section>
-          </Show>
+            </div>
+          </section>
 
-          {/* Health */}
-          <Show when={tab === "health"}>
-            <section aria-labelledby="drawer-tab-health">
-              <SectionHeading title={t("fleet.drawer.health")} />
-              <div class="mb-3">
-                <FleetStatusBadge state={snap.health.state} latencyMs={snap.health.latencyMs} />
-              </div>
-              <table class="w-full">
-                <tbody>
-                  <DetailRow label={t("fleet.label.version")} value={formatVersion(snap.health.version)} />
-                  <DetailRow label={t("fleet.label.latency")} value={snap.health.latencyMs !== undefined ? formatLatency(snap.health.latencyMs) : t("fleet.value.unavailable")} monospace />
-                  <DetailRow label={t("fleet.label.lastCheck")} value={snap.health.checkedAt ? formatRelativeTime(snap.health.checkedAt) : t("fleet.value.unavailable")} />
-                </tbody>
-              </table>
-            </section>
-          </Show>
-
-          {/* Projects */}
-          <Show when={tab === "projects"}>
-            <section aria-labelledby="drawer-tab-projects">
-              <SectionHeading title={t("fleet.drawer.projects")} />
-              <div class="flex items-center justify-between py-1 text-xs">
-                <span class="text-muted-foreground">{t("fleet.drawer.projectsCount", { open: String(snap.projects.open), known: String(snap.projects.known) })}</span>
-              </div>
-            </section>
-          </Show>
-
-          {/* Providers */}
-          <Show when={tab === "providers"}>
-            <section aria-labelledby="drawer-tab-providers">
-              <SectionHeading title={t("fleet.drawer.providers")} />
-              <div class="flex items-center justify-between py-1 text-xs">
-                <span class="text-muted-foreground">{t("fleet.drawer.providersCount", { connected: String(snap.providers.connected), configured: String(snap.providers.configured) })}</span>
-              </div>
-            </section>
-          </Show>
-
-          {/* Sessions */}
-          <Show when={tab === "sessions"}>
-            <section aria-labelledby="drawer-tab-sessions">
-              <SectionHeading title={t("fleet.drawer.sessions")} />
-              <div class="space-y-1.5 text-xs">
-                <div class="flex justify-between"><span class="text-muted-foreground">{t("fleet.drawer.running")}</span><span class="font-mono tabular-nums">{snap.sessions.running}</span></div>
-                <div class="flex justify-between"><span class="text-muted-foreground">{t("fleet.drawer.busy")}</span><span class="font-mono tabular-nums">{snap.sessions.busy}</span></div>
-                {snap.sessions.permissionBlocked > 0 && (
-                  <div class="flex justify-between text-amber-500"><span>{t("fleet.drawer.permissionBlocked")}</span><span class="font-mono tabular-nums">{snap.sessions.permissionBlocked}</span></div>
-                )}
-                {snap.sessions.questionBlocked > 0 && (
-                  <div class="flex justify-between text-amber-500"><span>{t("fleet.drawer.questionBlocked")}</span><span class="font-mono tabular-nums">{snap.sessions.questionBlocked}</span></div>
-                )}
-                <div class="flex justify-between font-medium border-t pt-1.5 mt-1.5"><span>{t("fleet.drawer.totalActive")}</span><span class="font-mono tabular-nums">{snap.sessions.totalActive}</span></div>
-              </div>
-            </section>
-          </Show>
-
-          {/* Actions */}
-          <Show when={tab === "actions"}>
-            <section aria-labelledby="drawer-tab-actions">
-              <SectionHeading title={t("fleet.drawer.actions")} />
-              <div class="flex flex-col gap-2">
-                <button class="inline-flex items-center gap-1.5 justify-center rounded-md px-3 py-1.5 text-xs font-medium bg-accent hover:bg-accent/80 transition-colors focus-visible:outline-2 focus-visible:outline-ring min-h-[36px]"
-                        onClick={() => props.onRefresh(snap.key)}>
-                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 6a5 5 0 019.5-2.5M11 6a5 5 0 01-9.5 2.5"/><path d="M11 1.5V4.5H8M1 10.5V7.5H4"/></svg>
-                  {t("fleet.drawer.refresh")}
-                </button>
-                <button class="inline-flex items-center gap-1.5 justify-center rounded-md px-3 py-1.5 text-xs font-medium bg-accent hover:bg-accent/80 transition-colors focus-visible:outline-2 focus-visible:outline-ring min-h-[36px]"
-                        onClick={() => window.open(snap.url, '_blank', 'noopener')}>
-                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 2H2v8h8V7M6.5 5.5L10 2M8 2h2v2"/></svg>
-                  {t("fleet.drawer.openInNewTab")}
-                </button>
-              </div>
-            </section>
-          </Show>
+          <div class="pb-4">
+             <CopyButton value={snap.url} label={t("fleet.label.url")} />
+          </div>
         </div>
       </>
     )
