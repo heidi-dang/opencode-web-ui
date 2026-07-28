@@ -116,6 +116,24 @@ type ProjectApi = {
   readonly current: (input?: ProjectCurrentInput) => Promise<ProjectCurrentOutput>
 }
 
+/** Wrap a v2 SDK client's project.list() into a ProjectApi-compatible shape.
+ *  The v2 client uses \`GET /project\` (correct endpoint) while the v1 client
+ *  uses \`GET /api/project\` which returns the SPA page on modern servers.        */
+function createV2ProjectApi(sdk: OpencodeClient): ProjectApi {
+  return {
+    list: () =>
+      sdk.project.list().then((res) => {
+        const data = res[200] ?? (res as unknown as Array<Project>)
+        return Array.isArray(data) ? data : []
+      }) as Promise<ProjectListOutput>,
+    current: () =>
+      sdk.project.current().then((res) => {
+        const data = res[200] ?? (res as unknown)
+        return data as ProjectCurrentOutput
+      }),
+  }
+}
+
 type McpApi = ServerApi["mcp"]
 type PermissionApi = ServerApi["permission"]
 type QuestionApi = ServerApi["question"]
@@ -157,7 +175,7 @@ export async function bootstrapGlobal(input: {
     () => input.queryClient.fetchQuery(loadPathQuery(input.scope, null, input.serverSDK, input.protocol)),
     () =>
       input.queryClient
-        .fetchQuery(loadProjectsQuery(input.scope, input.serverAPI.project))
+        .fetchQuery(loadProjectsQuery(input.scope, createV2ProjectApi(input.serverSDK)))
         .then((data) => input.setGlobalStore("project", data)),
   ]
   await runAll(slow)
