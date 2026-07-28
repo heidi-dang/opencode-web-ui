@@ -1,0 +1,1 @@
+Bun 1.3.14 as package manager and runtime, SolidJS 1.9.10 with @solidjs/start and @solidjs/router, Vite 7 with vite-plugin-solid and TailwindCSS 4, TypeScript 5.8 via @tsconfig/bun, Effect 4 for functional programming, Hono + Zod for validation, Drizzle ORM with SQLite, Sentry for error tracking, Playwright for testing, and SST for infrastructure.

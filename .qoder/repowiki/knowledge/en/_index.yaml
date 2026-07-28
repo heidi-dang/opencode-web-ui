@@ -1,0 +1,21 @@
+# 知识卡导出索引文件
+schema_version: 1
+locale: en-US
+branch: Phase3/Initial-bundle-and-route-splitting
+nodes_managed: true
+exported_at: "2026-07-27T07:33:49Z"
+modules:
+    "":
+        dir_name: OpenCode Web UI Root Workspace
+        title: OpenCode Web UI Root Workspace
+        scope:
+            - README.md
+            - .gitignore
+            - package.json
+            - bun.lock
+            - bunfig.toml
+            - tsconfig.json
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []

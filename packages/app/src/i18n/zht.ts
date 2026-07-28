@@ -1184,6 +1184,7 @@ export const dict = {
   "better-harness.regenerate": "Regenerate",
   "better-harness.cancel": "Cancel",
   "better-harness.findings": "Findings",
+<<<<<<< HEAD
   "better-harness.history": "History",
   "better-harness.empty": "No report yet. Run an analysis to get started.",
   "better-harness.score.overall": "Overall Score",
@@ -1194,6 +1195,8 @@ export const dict = {
   "better-harness.unavailable.not-enabled": "Better Harness is not enabled for this project.",
   "better-harness.error.load": "Failed to load report.",
   "better-harness.error.regenerate": "Failed to start analysis.",
+=======
+>>>>>>> 638a3b5 (fix: complete Better Harness production integration)
   "better-harness.finding.detail": "Finding Detail",
   "better-harness.finding.priority": "Priority",
   "better-harness.finding.status": "Status",
@@ -1222,6 +1225,7 @@ export const dict = {
   "better-harness.priority.high": "High",
   "better-harness.priority.medium": "Medium",
   "better-harness.priority.low": "Low",
+<<<<<<< HEAD
   "better-harness.score.dimension": "Dimension Score",
   "better-harness.progress.stage": "Stage",
   "better-harness.progress.percent": "Progress",
@@ -1229,9 +1233,32 @@ export const dict = {
   "better-harness.unsupported-schema": "The report schema is not supported by this version.",
   "better-harness.session.open": "Open Session",
   "better-harness.session.id": "Session ID",
+=======
+  "better-harness.score.overall": "Overall Score",
+  "better-harness.score.dimension": "Dimension Score",
+  "better-harness.progress.running": "Running analysis...",
+  "better-harness.progress.stage": "Stage",
+  "better-harness.progress.percent": "Progress",
+  "better-harness.history": "History",
+  "better-harness.history.view": "View History",
+  "better-harness.empty": "No report yet.",
+  "better-harness.unsupported-schema": "The report schema is not supported by this version.",
+  "better-harness.unavailable.title": "Better Harness Unavailable",
+  "better-harness.unavailable.description": "Not available on this server.",
+  "better-harness.unavailable.no-flowdeck": "FlowDeck not installed.",
+  "better-harness.unavailable.not-enabled": "Not enabled for this project.",
+  "better-harness.session.open": "Open Session",
+  "better-harness.session.id": "Session ID",
+  "better-harness.error.load": "Failed to load report.",
+  "better-harness.error.regenerate": "Failed to start analysis.",
+  "better-harness.error.cancel": "Failed to cancel analysis.",
+>>>>>>> 638a3b5 (fix: complete Better Harness production integration)
   "better-harness.error.plan-fix": "Plan Fix failed.",
   "better-harness.error.verify": "Verification failed.",
   "better-harness.error.ignore": "Failed to ignore finding.",
   "better-harness.error.batch": "Batch operation partially failed.",
+<<<<<<< HEAD
   "better-harness.error.cancel": "Failed to cancel analysis.",
+=======
+>>>>>>> 638a3b5 (fix: complete Better Harness production integration)
 } satisfies Partial<Record<Keys, string>>

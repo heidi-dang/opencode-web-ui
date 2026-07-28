@@ -1,0 +1,1 @@
+Install with `bun install` (uses Bun workspaces + catalog). Development: `bun dev` starts Vite at http://localhost:3000. Production build: `bun build` outputs to `packages/app/dist`. Tests are intentionally disabled from this root directory (`bunfig.toml [test].root = ./do-not-run-tests-from-root`), so they must be run inside individual packages.

@@ -1,0 +1,1 @@
+Bun workspace root for the standalone OpenCode Web UI, a SolidJS/Vite frontend that connects to an external opencode server via HTTP.

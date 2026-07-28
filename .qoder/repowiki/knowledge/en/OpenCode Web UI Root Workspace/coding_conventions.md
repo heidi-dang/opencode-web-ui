@@ -1,0 +1,4 @@
+- Dependency versions are centralized in the `workspaces.catalog` field and consumed via `catalog:` references rather than inline version strings.
+- All runtime scripts are thin wrappers that `cd` into `packages/app` and forward to that package's own scripts, keeping the root free of implementation logic.
+- Third-party patches are declared declaratively in `patchedDependencies` with URL-encoded package specifiers pointing to files under `patches/`.
+- Bun install enforces exact versions and a 3-day minimum release age, with explicit exclusions for pre-release AI SDKs and platform-specific binaries.
