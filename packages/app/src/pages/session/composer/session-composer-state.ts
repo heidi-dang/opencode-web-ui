@@ -120,7 +120,7 @@ export function createSessionComposerController(options?: { closeMs?: number | (
     // Record what we dismissed so server re-sends don't re-open the dock.
     const current = serverSync().session.data.todo[id]
     if (current && current.length > 0) {
-      dismissed = { count: current.length, key: current.map((t) => t.id).join(",") }
+      dismissed = { count: current.length, key: current.map((t) => t.content).join(",") }
     }
     sync().set("todo", id, [])
   }
@@ -131,7 +131,7 @@ export function createSessionComposerController(options?: { closeMs?: number | (
     if (list.length !== dismissed.count) return false
     // Only treat as dismissed if every item is terminal (completed/cancelled).
     if (!list.every((t) => t.status === "completed" || t.status === "cancelled")) return false
-    return list.map((t) => t.id).join(",") === dismissed.key
+    return list.map((t) => t.content).join(",") === dismissed.key
   }
 
   createEffect(

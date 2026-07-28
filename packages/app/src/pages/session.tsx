@@ -96,6 +96,7 @@ const SessionReviewTab = lazy(() => import("@/pages/session/review-tab").then((m
 const ReviewPanelV2 = lazy(() => import("@/pages/session/v2/review-panel-v2").then((m) => ({ default: m.ReviewPanelV2 })))
 const TerminalPanel = lazy(() => import("@/pages/session/terminal-panel").then((m) => ({ default: m.TerminalPanel })))
 const TerminalPanelV2 = lazy(() => import("@/pages/session/terminal-panel-v2").then((m) => ({ default: m.TerminalPanelV2 })))
+const PreviewPanel = lazy(() => import("@/pages/session/preview-panel").then((m) => ({ default: m.PreviewPanel })))
 import { Identifier } from "@/utils/id"
 import { diffs as list } from "@/utils/diffs"
 import { Persist, persisted } from "@/utils/persist"
@@ -115,7 +116,7 @@ type VcsMode = "git" | "branch"
 
 const sessionViewState = () => ({
   messageId: undefined as string | undefined,
-  mobileTab: "session" as "session" | "changes",
+  mobileTab: "session" as "session" | "changes" | "preview",
 })
 
 function isCurrentSessionNotFoundError(error: unknown, sessionID: string | undefined) {
@@ -391,8 +392,10 @@ export default function Page() {
   const desktopV2ReviewOpen = createMemo(() => newSessionDesign() && desktopReviewOpen() && !!params.id)
   const terminalOpen = createMemo(() => view().terminal.opened())
   const desktopTerminalOpen = createMemo(() => isDesktop() && terminalOpen())
+  const previewPanelOpen = createMemo(() => view().previewPanel.opened())
+  const desktopPreviewPanelOpen = createMemo(() => isDesktop() && previewPanelOpen())
   const desktopInlineTerminalOnlyOpen = createMemo(
-    () => newSessionDesign() && desktopTerminalOpen() && !desktopV2ReviewOpen(),
+    () => newSessionDesign() && desktopTerminalOpen() && !desktopV2ReviewOpen() && !desktopPreviewPanelOpen(),
   )
   const desktopFileTreeOpen = createMemo(
     () =>
@@ -403,7 +406,7 @@ export default function Page() {
       }),
   )
   const desktopSessionResizeOpen = createMemo(() =>
-    newSessionDesign() ? desktopV2ReviewOpen() || desktopTerminalOpen() : desktopReviewOpen(),
+    newSessionDesign() ? desktopV2ReviewOpen() || desktopTerminalOpen() || desktopPreviewPanelOpen() : desktopReviewOpen(),
   )
   const desktopSidePanelOpen = createMemo(() => desktopSessionResizeOpen() || desktopFileTreeOpen())
   let panelRow: HTMLDivElement | undefined
@@ -447,6 +450,7 @@ export default function Page() {
       review: desktopV2ReviewOpen(),
       terminal: desktopTerminalOpen(),
       files: desktopFileTreeOpen(),
+      preview: desktopPreviewPanelOpen(),
     }),
   )
 
@@ -606,6 +610,7 @@ export default function Page() {
     return list
   })
   const mobileChanges = createMemo(() => !isDesktop() && store.mobileTab === "changes")
+  const mobilePreview = createMemo(() => !isDesktop() && store.mobileTab === "preview")
   const wantsReview = createMemo(() =>
     isDesktop()
       ? desktopFileTreeOpen() ||
@@ -1961,7 +1966,7 @@ export default function Page() {
         <Tabs.Trigger
           value="session"
           classList={{
-            "!w-1/2 !max-w-none": true,
+            "!w-1/3 !max-w-none": true,
             "!border-b-0 !border-t !border-border-weak-base [&:has([data-selected])]:!border-t-transparent": bottom,
           }}
           classes={{ button: compact ? "w-full !py-2" : "w-full" }}
@@ -1972,7 +1977,7 @@ export default function Page() {
         <Tabs.Trigger
           value="changes"
           classList={{
-            "!w-1/2 !max-w-none !border-r-0": true,
+            "!w-1/3 !max-w-none !border-r-0": true,
             "!border-b-0 !border-t !border-border-weak-base [&:has([data-selected])]:!border-t-transparent": bottom,
           }}
           classes={{ button: compact ? "w-full !py-2" : "w-full" }}
@@ -1981,6 +1986,17 @@ export default function Page() {
           {hasReview()
             ? language.t("session.review.filesChanged", { count: reviewCount() })
             : language.t("session.review.change.other")}
+        </Tabs.Trigger>
+        <Tabs.Trigger
+          value="preview"
+          classList={{
+            "!w-1/3 !max-w-none !border-r-0": true,
+            "!border-b-0 !border-t !border-border-weak-base [&:has([data-selected])]:!border-t-transparent": bottom,
+          }}
+          classes={{ button: compact ? "w-full !py-2" : "w-full" }}
+          onClick={() => setStore("mobileTab", "preview")}
+        >
+          Preview
         </Tabs.Trigger>
       </Tabs.List>
     </Tabs>
@@ -2014,6 +2030,11 @@ export default function Page() {
                 loadingClass: "px-4 py-4 text-text-weak",
                 emptyClass: "h-full pb-64 -mt-4 flex flex-col items-center justify-center text-center gap-6",
               })}
+            </div>
+          </Match>
+          <Match when={params.id && mobilePreview()}>
+            <div class="relative h-full overflow-hidden flex flex-col">
+              <PreviewPanel />
             </div>
           </Match>
           <Match when={params.id}>
@@ -2257,7 +2278,7 @@ export default function Page() {
           />
         </Show>
         <Show when={newSessionDesign()}>
-          <Show when={isDesktop() ? desktopV2PanelLayout().visible : terminalOpen()}>
+          <Show when={isDesktop() ? desktopV2PanelLayout().visible : (terminalOpen() || previewPanelOpen())}>
             <div class="min-w-0 h-full flex flex-1 flex-col">
               <Show when={isDesktop() && (desktopV2ReviewOpen() || desktopFileTreeOpen())}>
                 <div class="min-h-0 flex-1">
@@ -2286,7 +2307,7 @@ export default function Page() {
                   />
                 </div>
               </Show>
-              <Show when={desktopV2PanelLayout().stacked}>
+              <Show when={desktopV2PanelLayout().stacked && terminalOpen()}>
                 <div class="relative h-2 shrink-0" onPointerDown={() => size.start()}>
                   <ResizeHandle
                     class="!relative !inset-auto !h-full !w-full !transform-none"
@@ -2311,6 +2332,33 @@ export default function Page() {
                   }}
                 >
                   <TerminalPanelV2 stacked={desktopV2PanelLayout().stacked} />
+                </div>
+              </Show>
+              <Show when={desktopV2PanelLayout().stacked && previewPanelOpen()}>
+                <div class="relative h-2 shrink-0" onPointerDown={() => size.start()}>
+                  <ResizeHandle
+                    class="!relative !inset-auto !h-full !w-full !transform-none"
+                    direction="vertical"
+                    size={view().previewPanel.height()}
+                    min={100}
+                    max={typeof window === "undefined" ? 600 : window.innerHeight * 0.6}
+                    collapseThreshold={50}
+                    onResize={(height) => {
+                      size.touch()
+                      view().previewPanel.setHeight(height)
+                    }}
+                    onCollapse={() => view().previewPanel.close()}
+                  />
+                </div>
+              </Show>
+              <Show when={previewPanelOpen()}>
+                <div
+                  classList={{
+                    "min-h-0 shrink-0": desktopV2PanelLayout().stacked,
+                    "min-h-0 flex-1": !desktopV2PanelLayout().stacked,
+                  }}
+                >
+                  <PreviewPanel stacked={desktopV2PanelLayout().stacked} />
                 </div>
               </Show>
             </div>
