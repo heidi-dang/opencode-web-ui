@@ -74,6 +74,7 @@ const NewHome = lazy(() => import("@/pages/home").then((m) => ({ default: m.NewH
 const LegacyHome = lazy(() => import("@/pages/home/legacy-home").then((m) => ({ default: m.LegacyHome })))
 const FleetPage = lazy(() => import("@/pages/fleet").then((m) => ({ default: m.FleetPage })))
 const NewSession = lazy(() => import("@/pages/new-session"))
+const FlowdeckDashboard = lazy(() => import("@/pages/flowdeck"))
 
 const SessionRoute = () => {
   const settings = useSettings()
@@ -637,6 +638,7 @@ function Routes(props: { serverScoped?: JSX.Element }) {
       <Show when={settings.general.newLayoutDesigns()}>
         <Route path="/" component={NewHome} />
         <Route path="/fleet" component={FleetPage} />
+        <Route path="/flowdeck" component={FlowdeckDashboard} />
         <Route path="/:dir/session/:id" component={NewLayoutLegacySessionRedirect} />
         <Route path="/server/:serverKey/session/:id" component={TargetSessionRoute} />
       </Show>
