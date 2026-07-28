@@ -2246,6 +2246,8 @@ export default function LegacyLayout(props: ParentProps) {
       settingsLabel={() => language.t("sidebar.settings")}
       settingsKeybind={() => command.keybind("settings.open")}
       onOpenSettings={openSettings}
+      onOpenFleet={() => navigate("/fleet")}
+      onOpenFlowdeck={() => navigate("/flowdeck")}
       helpLabel={() => language.t("sidebar.help")}
       onOpenHelp={() => platform.openLink("https://opencode.ai/desktop-feedback")}
       renderPanel={() =>

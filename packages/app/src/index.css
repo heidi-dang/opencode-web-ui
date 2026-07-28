@@ -2,6 +2,98 @@
 @import "@opencode-ai/session-ui/styles";
 @import "@opencode-ai/ui/v2/styles/tailwind.css";
 @import "tw-animate-css";
+/* ─── Missing design-token aliases ──────────────────────────────────────────
+   The UI-library @theme maps most tokens but omits some common aliases used
+   by Fleet, FlowDeck, and other pages.  We fill the gaps here so that any
+   component class (shadcn-style or v2-style) resolves to a real CSS variable.
+──────────────────────────────────────────────────────────────────────────── */
+@theme {
+  /* Shadcn-style aliases used by Fleet */
+  --color-card: var(--surface-raised-strong);
+  --color-card-foreground: var(--text-strong);
+  --color-muted: var(--surface-weak);
+  --color-muted-foreground: var(--text-weak);
+  --color-accent: var(--surface-base-hover);
+  --color-accent-foreground: var(--text-base);
+  --color-background: var(--background-base);
+  --color-foreground: var(--text-strong);
+  --color-border: var(--border-weak-base);
+  --color-ring: var(--border-focus);
+  --color-primary: #3b82f6;
+  --color-primary-foreground: #ffffff;
+  --color-destructive: var(--surface-critical-strong);
+  --color-destructive-foreground: #ffffff;
+  --color-input: var(--input-base);
+
+  /* v2 token aliases used by FlowDeck */
+  --color-v2-background-bg-raised: var(--v2-background-bg-layer-01);
+  --color-v2-background-bg-sunken: var(--v2-background-bg-deep);
+  --color-v2-border-border-default: var(--v2-border-border-base);
+  --color-v2-interactive-interactive-primary: #3b82f6;
+  --color-v2-interactive-interactive-primary-bg: rgba(59, 130, 246, 0.12);
+  --color-v2-status-danger-fg: var(--v2-state-fg-danger);
+}
+
+
+
+
+/* ─── v2 typography utility classes used by FlowDeck dashboard ────────── */
+.text-11-regular {
+  font-family: var(--v2-font-family-sans, "Inter", sans-serif);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: var(--font-weight-body, 440);
+  line-height: 16px;
+  letter-spacing: var(--v2-tracking-body, -0.04px);
+}
+.text-12-regular {
+  font-family: var(--v2-font-family-sans, "Inter", sans-serif);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: var(--font-weight-body, 440);
+  line-height: 16px;
+  letter-spacing: var(--v2-tracking-body, -0.04px);
+}
+.text-12-emphasis {
+  font-family: var(--v2-font-family-sans, "Inter", sans-serif);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: var(--font-weight-emphasis, 530);
+  line-height: 16px;
+  letter-spacing: var(--v2-tracking-body, -0.04px);
+}
+.text-14-regular {
+  font-family: var(--v2-font-family-sans, "Inter", sans-serif);
+  font-size: 14px;
+  font-style: normal;
+  font-weight: var(--font-weight-body, 440);
+  line-height: 20px;
+  letter-spacing: var(--v2-tracking-body, -0.04px);
+}
+.text-14-emphasis {
+  font-family: var(--v2-font-family-sans, "Inter", sans-serif);
+  font-size: 14px;
+  font-style: normal;
+  font-weight: var(--font-weight-emphasis, 530);
+  line-height: 20px;
+  letter-spacing: var(--v2-tracking-body, -0.04px);
+}
+.text-16-emphasis {
+  font-family: var(--v2-font-family-sans, "Inter", sans-serif);
+  font-size: 16px;
+  font-style: normal;
+  font-weight: var(--font-weight-emphasis, 530);
+  line-height: 24px;
+  letter-spacing: var(--v2-tracking-body, -0.04px);
+}
+.text-22-emphasis {
+  font-family: var(--v2-font-family-sans, "Inter", sans-serif);
+  font-size: 22px;
+  font-style: normal;
+  font-weight: var(--font-weight-emphasis, 530);
+  line-height: 28px;
+  letter-spacing: var(--v2-tracking-body, -0.04px);
+}
 
 @font-face {
   font-family: "JetBrainsMono Nerd Font Mono";
@@ -9,6 +101,65 @@
   font-weight: normal;
   font-style: normal;
   font-display: swap;
+}
+
+
+/* ─── v2 typography utility classes used by FlowDeck dashboard ────────── */
+.text-11-regular {
+  font-family: var(--v2-font-family-sans, "Inter", sans-serif);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: var(--font-weight-body, 440);
+  line-height: 16px;
+  letter-spacing: var(--v2-tracking-body, -0.04px);
+}
+.text-12-regular {
+  font-family: var(--v2-font-family-sans, "Inter", sans-serif);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: var(--font-weight-body, 440);
+  line-height: 16px;
+  letter-spacing: var(--v2-tracking-body, -0.04px);
+}
+.text-12-emphasis {
+  font-family: var(--v2-font-family-sans, "Inter", sans-serif);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: var(--font-weight-emphasis, 530);
+  line-height: 16px;
+  letter-spacing: var(--v2-tracking-body, -0.04px);
+}
+.text-14-regular {
+  font-family: var(--v2-font-family-sans, "Inter", sans-serif);
+  font-size: 14px;
+  font-style: normal;
+  font-weight: var(--font-weight-body, 440);
+  line-height: 20px;
+  letter-spacing: var(--v2-tracking-body, -0.04px);
+}
+.text-14-emphasis {
+  font-family: var(--v2-font-family-sans, "Inter", sans-serif);
+  font-size: 14px;
+  font-style: normal;
+  font-weight: var(--font-weight-emphasis, 530);
+  line-height: 20px;
+  letter-spacing: var(--v2-tracking-body, -0.04px);
+}
+.text-16-emphasis {
+  font-family: var(--v2-font-family-sans, "Inter", sans-serif);
+  font-size: 16px;
+  font-style: normal;
+  font-weight: var(--font-weight-emphasis, 530);
+  line-height: 24px;
+  letter-spacing: var(--v2-tracking-body, -0.04px);
+}
+.text-22-emphasis {
+  font-family: var(--v2-font-family-sans, "Inter", sans-serif);
+  font-size: 22px;
+  font-style: normal;
+  font-weight: var(--font-weight-emphasis, 530);
+  line-height: 28px;
+  letter-spacing: var(--v2-tracking-body, -0.04px);
 }
 
 @font-face {
