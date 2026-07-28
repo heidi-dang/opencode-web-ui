@@ -1014,4 +1014,12 @@ export const dict = {
   "error.childStore.persistedProjectIconCreateFailed": "永続プロジェクトアイコンの作成に失敗しました",
   "error.childStore.storeCreateFailed": "ストアの作成に失敗しました",
   "terminal.connectionLost.abnormalClose": "WebSocket が異常終了しました: {{code}}",
+
+  "fleet.page.title": "Fleet Dashboard",
+  "fleet.status.checking": "Checking...",
+  "fleet.status.online": "Online",
+  "fleet.status.degraded": "Degraded",
+  "fleet.status.offline": "Offline",
+  "fleet.status.authRequired": "Auth Required",
+  "fleet.status.authFailed": "Auth Failed",
 }

@@ -1,3 +1,4 @@
+
 import { type FleetServerState } from "../fleet-types"
 
 interface StatusBadgeProps {
@@ -14,16 +15,19 @@ const BADGE_CLASS: Record<FleetServerState, string> = {
   "auth-failed": "badge badge-outline text-red-700 dark:text-red-300",
 }
 
-export function FleetStatusBadge(props: StatusBadgeProps) {
-  const label = props.state === "checking"
-    ? "Checking..."
-    : props.state === "online"
-      ? props.latencyMs !== undefined ? `~${props.latencyMs}ms` : "Online"
-      : props.state.charAt(0).toUpperCase() + props.state.slice(1)
+const STATUS_LABELS: Record<FleetServerState, string> = {
+  checking: "fleet.status.checking",
+  online: "fleet.status.online",
+  degraded: "fleet.status.degraded",
+  offline: "fleet.status.offline",
+  "auth-required": "fleet.status.authRequired",
+  "auth-failed": "fleet.status.authFailed",
+}
 
-  return (
-    <span class={BADGE_CLASS[props.state]}>
-      {label}
-    </span>
-  )
+export function FleetStatusBadge(props: StatusBadgeProps) {
+  const label = props.state === "online" && props.latencyMs !== undefined
+    ? `~${props.latencyMs}ms`
+    : STATUS_LABELS[props.state]
+
+  return <span class={BADGE_CLASS[props.state]}>{label}</span>
 }

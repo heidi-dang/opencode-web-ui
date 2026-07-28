@@ -1022,4 +1022,12 @@ export const dict = {
   "error.childStore.persistedProjectIconCreateFailed": "Falha ao criar ícone de projeto persistente",
   "error.childStore.storeCreateFailed": "Falha ao criar armazenamento",
   "terminal.connectionLost.abnormalClose": "WebSocket fechado anormalmente: {{code}}",
+
+  "fleet.page.title": "Fleet Dashboard",
+  "fleet.status.checking": "Checking...",
+  "fleet.status.online": "Online",
+  "fleet.status.degraded": "Degraded",
+  "fleet.status.offline": "Offline",
+  "fleet.status.authRequired": "Auth Required",
+  "fleet.status.authFailed": "Auth Failed",
 }

@@ -1101,4 +1101,12 @@ export const dict = {
   "error.childStore.persistedProjectIconCreateFailed": "Не удалось создать постоянный значок проекта",
   "error.childStore.storeCreateFailed": "Не удалось создать хранилище",
   "terminal.connectionLost.abnormalClose": "WebSocket закрыт аварийно: {{code}}",
+
+  "fleet.page.title": "Fleet Dashboard",
+  "fleet.status.checking": "Checking...",
+  "fleet.status.online": "Online",
+  "fleet.status.degraded": "Degraded",
+  "fleet.status.offline": "Offline",
+  "fleet.status.authRequired": "Auth Required",
+  "fleet.status.authFailed": "Auth Failed",
 }

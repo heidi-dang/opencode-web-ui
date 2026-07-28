@@ -1103,4 +1103,12 @@ export const dict = {
   "workspace.reset.archived.one": "1 сесію буде заархівовано.",
   "workspace.reset.archived.many": "{{count}} сесій буде заархівовано.",
   "workspace.reset.note": "Це скине робочу область, щоб вона відповідала гілці за замовчуванням.",
+
+  "fleet.page.title": "Fleet Dashboard",
+  "fleet.status.checking": "Checking...",
+  "fleet.status.online": "Online",
+  "fleet.status.degraded": "Degraded",
+  "fleet.status.offline": "Offline",
+  "fleet.status.authRequired": "Auth Required",
+  "fleet.status.authFailed": "Auth Failed",
 }

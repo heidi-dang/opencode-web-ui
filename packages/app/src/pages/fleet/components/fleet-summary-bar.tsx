@@ -1,4 +1,3 @@
-import { batch } from "solid-js"
 
 interface SummaryBarProps {
   online: number
@@ -40,12 +39,10 @@ export function FleetSummaryBar(props: SummaryBarProps) {
           </span>
         )}
       </div>
-      <button
-        class="inline-flex items-center justify-center rounded px-2 py-1 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-40"
-        disabled={props.refreshing}
-        onClick={props.onRefreshAll}
-        title="Refresh all servers"
-      >
+      <button class="inline-flex items-center justify-center rounded px-2 py-1 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-40"
+              disabled={props.refreshing}
+              onClick={props.onRefreshAll}
+              title="Refresh all servers">
         {props.refreshing ? "Refreshing..." : "Refresh All"}
       </button>
     </div>
