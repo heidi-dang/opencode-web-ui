@@ -12,13 +12,13 @@ interface DetailDrawerProps {
 }
 
 function SectionHeading(props: { title: string }) {
-  return <h4 class="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">{props.title}</h4>
+  return <h4 class="text-xs font-semibold uppercase tracking-wide text-v2-text-text-muted mb-2">{props.title}</h4>
 }
 
 function DetailRow(props: { label: string; value: string; monospace?: boolean }) {
   return (
     <tr>
-      <td class="py-1 pr-3 text-muted-foreground w-28 align-top text-xs">{props.label}</td>
+      <td class="py-1 pr-3 text-v2-text-text-muted w-28 align-top text-xs">{props.label}</td>
       <td class={`text-xs ${props.monospace ? "font-mono tabular-nums" : ""} break-all`}>{props.value}</td>
     </tr>
   )
@@ -34,7 +34,7 @@ function CopyButton(props: { value: string; label: string }) {
     } catch { /* clipboard not available */ }
   }
   return (
-    <button class="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors focus-visible:outline-2 focus-visible:outline-ring"
+    <button class="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-v2-text-text-muted hover:text-v2-text-text-base hover:bg-v2-background-bg-layer-02 transition-colors focus-visible:outline-2 focus-visible:outline-ring"
             onClick={copy}
             aria-label={`Copy ${props.label}`}>
       {copied() ? (
@@ -132,10 +132,10 @@ export function FleetDetailDrawer(props: DetailDrawerProps) {
     return (
       <>
         {/* Header */}
-        <div class="flex items-center justify-between border-b border-border/50 bg-card/50 px-5 py-4 shrink-0">
+        <div class="flex items-center justify-between border-b border-v2-border-border-base/50 bg-v2-background-bg-layer-01/50 px-5 py-4 shrink-0">
           <h3 class="truncate text-base font-semibold tracking-tight">{serverName()}</h3>
           <button ref={closeBtnRef}
-                  class="inline-flex items-center justify-center rounded-md p-2 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors focus-visible:outline-2 focus-visible:outline-ring min-h-[36px] min-w-[36px]"
+                  class="inline-flex items-center justify-center rounded-md p-2 text-v2-text-text-muted hover:bg-v2-background-bg-layer-02 hover:text-v2-text-text-base transition-colors focus-visible:outline-2 focus-visible:outline-ring min-h-[36px] min-w-[36px]"
                   onClick={onClose}
                   aria-label={t("fleet.drawer.close")}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
@@ -152,12 +152,12 @@ export function FleetDetailDrawer(props: DetailDrawerProps) {
               <FleetStatusBadge state={snap.health.state} latencyMs={snap.health.latencyMs} />
             </div>
             <div class="flex flex-col sm:flex-row gap-2">
-              <button class="inline-flex flex-1 items-center gap-2 justify-center rounded-md border border-border/50 bg-card/40 px-3 py-2 text-xs font-medium hover:bg-accent transition-colors focus-visible:outline-2 focus-visible:outline-ring shadow-sm"
+              <button class="inline-flex flex-1 items-center gap-2 justify-center rounded-md border border-v2-border-border-base/50 bg-v2-background-bg-layer-01/40 px-3 py-2 text-xs font-medium hover:bg-v2-background-bg-layer-02 transition-colors focus-visible:outline-2 focus-visible:outline-ring shadow-sm"
                       onClick={() => props.onRefresh(snap.key)}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
                 {t("fleet.drawer.refresh")}
               </button>
-              <button class="inline-flex flex-1 items-center gap-2 justify-center rounded-md border border-border/50 bg-card/40 px-3 py-2 text-xs font-medium hover:bg-accent transition-colors focus-visible:outline-2 focus-visible:outline-ring shadow-sm"
+              <button class="inline-flex flex-1 items-center gap-2 justify-center rounded-md border border-v2-border-border-base/50 bg-v2-background-bg-layer-01/40 px-3 py-2 text-xs font-medium hover:bg-v2-background-bg-layer-02 transition-colors focus-visible:outline-2 focus-visible:outline-ring shadow-sm"
                       onClick={() => window.open(snap.url, '_blank', 'noopener')}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
                 {t("fleet.drawer.openInNewTab")}
@@ -168,31 +168,31 @@ export function FleetDetailDrawer(props: DetailDrawerProps) {
           {/* Details */}
           <section aria-labelledby="drawer-section-details">
             <SectionHeading title={t("fleet.drawer.overview")} />
-            <div class="rounded-xl border border-border/50 bg-card/20 overflow-hidden">
+            <div class="rounded-xl border border-v2-border-border-base/50 bg-v2-background-bg-layer-01/20 overflow-hidden">
               <table class="w-full text-sm">
                 <tbody class="divide-y divide-border/30">
-                  <tr class="hover:bg-accent/30 transition-colors">
-                    <td class="py-2.5 pl-4 pr-2 text-muted-foreground w-1/3 text-xs align-middle">{t("fleet.label.url")}</td>
-                    <td class="py-2.5 pr-4 text-xs font-mono tabular-nums break-all align-middle text-foreground">{snap.url}</td>
+                  <tr class="hover:bg-v2-background-bg-layer-02/30 transition-colors">
+                    <td class="py-2.5 pl-4 pr-2 text-v2-text-text-muted w-1/3 text-xs align-middle">{t("fleet.label.url")}</td>
+                    <td class="py-2.5 pr-4 text-xs font-mono tabular-nums break-all align-middle text-v2-text-text-base">{snap.url}</td>
                   </tr>
-                  <tr class="hover:bg-accent/30 transition-colors">
-                    <td class="py-2.5 pl-4 pr-2 text-muted-foreground w-1/3 text-xs align-middle">{t("fleet.label.connection")}</td>
-                    <td class="py-2.5 pr-4 text-xs font-medium align-middle text-foreground">{snap.connectionType.toUpperCase()}</td>
+                  <tr class="hover:bg-v2-background-bg-layer-02/30 transition-colors">
+                    <td class="py-2.5 pl-4 pr-2 text-v2-text-text-muted w-1/3 text-xs align-middle">{t("fleet.label.connection")}</td>
+                    <td class="py-2.5 pr-4 text-xs font-medium align-middle text-v2-text-text-base">{snap.connectionType.toUpperCase()}</td>
                   </tr>
-                  <tr class="hover:bg-accent/30 transition-colors">
-                    <td class="py-2.5 pl-4 pr-2 text-muted-foreground w-1/3 text-xs align-middle">{t("fleet.label.protocol")}</td>
-                    <td class="py-2.5 pr-4 text-xs font-medium align-middle text-foreground">{snap.protocol.kind ? `v${snap.protocol.kind}` : t("fleet.value.unavailable")}</td>
+                  <tr class="hover:bg-v2-background-bg-layer-02/30 transition-colors">
+                    <td class="py-2.5 pl-4 pr-2 text-v2-text-text-muted w-1/3 text-xs align-middle">{t("fleet.label.protocol")}</td>
+                    <td class="py-2.5 pr-4 text-xs font-medium align-middle text-v2-text-text-base">{snap.protocol.kind ? `v${snap.protocol.kind}` : t("fleet.value.unavailable")}</td>
                   </tr>
-                  <tr class="hover:bg-accent/30 transition-colors">
-                    <td class="py-2.5 pl-4 pr-2 text-muted-foreground w-1/3 text-xs align-middle">{t("fleet.label.version")}</td>
-                    <td class="py-2.5 pr-4 text-xs font-mono tabular-nums align-middle text-foreground">{formatVersion(snap.health.version)}</td>
+                  <tr class="hover:bg-v2-background-bg-layer-02/30 transition-colors">
+                    <td class="py-2.5 pl-4 pr-2 text-v2-text-text-muted w-1/3 text-xs align-middle">{t("fleet.label.version")}</td>
+                    <td class="py-2.5 pr-4 text-xs font-mono tabular-nums align-middle text-v2-text-text-base">{formatVersion(snap.health.version)}</td>
                   </tr>
-                  <tr class="hover:bg-accent/30 transition-colors">
-                    <td class="py-2.5 pl-4 pr-2 text-muted-foreground w-1/3 text-xs align-middle">{t("fleet.label.lastCheck")}</td>
-                    <td class="py-2.5 pr-4 text-xs align-middle text-foreground">{snap.health.checkedAt ? formatRelativeTime(snap.health.checkedAt) : t("fleet.value.unavailable")}</td>
+                  <tr class="hover:bg-v2-background-bg-layer-02/30 transition-colors">
+                    <td class="py-2.5 pl-4 pr-2 text-v2-text-text-muted w-1/3 text-xs align-middle">{t("fleet.label.lastCheck")}</td>
+                    <td class="py-2.5 pr-4 text-xs align-middle text-v2-text-text-base">{snap.health.checkedAt ? formatRelativeTime(snap.health.checkedAt) : t("fleet.value.unavailable")}</td>
                   </tr>
-                  <tr class="hover:bg-accent/30 transition-colors">
-                    <td class="py-2.5 pl-4 pr-2 text-muted-foreground w-1/3 text-xs align-middle">{t("fleet.label.latency")}</td>
+                  <tr class="hover:bg-v2-background-bg-layer-02/30 transition-colors">
+                    <td class="py-2.5 pl-4 pr-2 text-v2-text-text-muted w-1/3 text-xs align-middle">{t("fleet.label.latency")}</td>
                     <td class="py-2.5 pr-4 text-xs font-mono tabular-nums align-middle text-green-500">{snap.health.latencyMs !== undefined ? formatLatency(snap.health.latencyMs) : t("fleet.value.unavailable")}</td>
                   </tr>
                 </tbody>
@@ -203,29 +203,29 @@ export function FleetDetailDrawer(props: DetailDrawerProps) {
           {/* Workload */}
           <section aria-labelledby="drawer-section-workload">
             <SectionHeading title="Workload & Resources" />
-            <div class="rounded-xl border border-border/50 bg-card/20 overflow-hidden">
+            <div class="rounded-xl border border-v2-border-border-base/50 bg-v2-background-bg-layer-01/20 overflow-hidden">
               <div class="divide-y divide-border/30">
-                <div class="flex items-center justify-between py-2.5 px-4 hover:bg-accent/30 transition-colors">
-                  <span class="text-xs text-muted-foreground">{t("fleet.drawer.projects")}</span>
-                  <span class="text-xs font-mono tabular-nums text-foreground">{snap.projects.open} / {snap.projects.known}</span>
+                <div class="flex items-center justify-between py-2.5 px-4 hover:bg-v2-background-bg-layer-02/30 transition-colors">
+                  <span class="text-xs text-v2-text-text-muted">{t("fleet.drawer.projects")}</span>
+                  <span class="text-xs font-mono tabular-nums text-v2-text-text-base">{snap.projects.open} / {snap.projects.known}</span>
                 </div>
-                <div class="flex items-center justify-between py-2.5 px-4 hover:bg-accent/30 transition-colors">
-                  <span class="text-xs text-muted-foreground">{t("fleet.drawer.providers")}</span>
-                  <span class="text-xs font-mono tabular-nums text-foreground">{snap.providers.connected} / {snap.providers.configured}</span>
+                <div class="flex items-center justify-between py-2.5 px-4 hover:bg-v2-background-bg-layer-02/30 transition-colors">
+                  <span class="text-xs text-v2-text-text-muted">{t("fleet.drawer.providers")}</span>
+                  <span class="text-xs font-mono tabular-nums text-v2-text-text-base">{snap.providers.connected} / {snap.providers.configured}</span>
                 </div>
-                <div class="py-2.5 px-4 hover:bg-accent/30 transition-colors">
+                <div class="py-2.5 px-4 hover:bg-v2-background-bg-layer-02/30 transition-colors">
                   <div class="flex items-center justify-between mb-2">
-                    <span class="text-xs font-medium text-foreground">{t("fleet.drawer.sessions")}</span>
-                    <span class="text-xs font-mono tabular-nums font-semibold text-foreground">{snap.sessions.totalActive} Active</span>
+                    <span class="text-xs font-medium text-v2-text-text-base">{t("fleet.drawer.sessions")}</span>
+                    <span class="text-xs font-mono tabular-nums font-semibold text-v2-text-text-base">{snap.sessions.totalActive} Active</span>
                   </div>
-                  <div class="space-y-1.5 pl-2 border-l-2 border-border/50">
+                  <div class="space-y-1.5 pl-2 border-l-2 border-v2-border-border-base/50">
                     <div class="flex justify-between text-xs">
-                      <span class="text-muted-foreground">{t("fleet.drawer.running")}</span>
-                      <span class="font-mono tabular-nums text-foreground">{snap.sessions.running}</span>
+                      <span class="text-v2-text-text-muted">{t("fleet.drawer.running")}</span>
+                      <span class="font-mono tabular-nums text-v2-text-text-base">{snap.sessions.running}</span>
                     </div>
                     <div class="flex justify-between text-xs">
-                      <span class="text-muted-foreground">{t("fleet.drawer.busy")}</span>
-                      <span class="font-mono tabular-nums text-foreground">{snap.sessions.busy}</span>
+                      <span class="text-v2-text-text-muted">{t("fleet.drawer.busy")}</span>
+                      <span class="font-mono tabular-nums text-v2-text-text-base">{snap.sessions.busy}</span>
                     </div>
                     {snap.sessions.permissionBlocked > 0 && (
                       <div class="flex justify-between text-xs text-amber-500">
@@ -258,7 +258,7 @@ export function FleetDetailDrawer(props: DetailDrawerProps) {
     return (
       <div
         ref={panelRef}
-        class="h-full flex flex-col bg-background"
+        class="h-full flex flex-col bg-v2-background-bg-base"
         role="dialog"
         aria-modal="false"
         aria-label={t("fleet.drawer.title")}
@@ -280,7 +280,7 @@ export function FleetDetailDrawer(props: DetailDrawerProps) {
       <div class="absolute inset-0 bg-black/30" onClick={onBackdropClick} />
       <div
         ref={panelRef}
-        class="absolute inset-y-0 right-0 w-full max-w-md bg-background shadow-xl flex flex-col border-l safe-area-padding"
+        class="absolute inset-y-0 right-0 w-full max-w-md bg-v2-background-bg-base shadow-xl flex flex-col border-l safe-area-padding"
       >
         {drawerContent()}
       </div>

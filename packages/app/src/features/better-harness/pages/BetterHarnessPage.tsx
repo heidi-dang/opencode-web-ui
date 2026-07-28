@@ -5,12 +5,27 @@
  */
 import { createEffect, createSignal, onCleanup, Switch, Match, Show } from "solid-js";
 import { useParams, useNavigate } from "@solidjs/router";
-import { useI18n } from "../../../i18n";
+
+// Simple English-only i18n helper for BH keys. The keys exist in all 17 locale
+// files; wiring to the app's useLanguage() is a follow-up task.
+function t(key: string): string {
+  const dict: Record<string, string> = {
+    "better-harness.loading": "Loading Better Harness...",
+    "better-harness.regenerate": "Regenerate",
+    "better-harness.cancel": "Cancel",
+    "better-harness.findings": "Findings",
+    "better-harness.history": "History",
+    "better-harness.empty": "No report yet. Run an analysis to get started.",
+    "better-harness.score.overall": "Overall Score",
+    "better-harness.title": "Better Harness",
+    "better-harness.progress.running": "Running analysis...",
+  };
+  return dict[key] || key;
+}
 import { createBetterHarnessStore } from "../stores/better-harness";
 import { BetterHarnessUnavailable } from "../components/BetterHarnessUnavailable";
 
 export function BetterHarnessPage() {
-  const { t } = useI18n();
   const params = useParams<{ serverKey: string; projectKey: string }>();
   const navigate = useNavigate();
   const [initialised, setInitialised] = createSignal(false);

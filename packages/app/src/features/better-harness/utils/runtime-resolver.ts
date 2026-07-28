@@ -56,7 +56,7 @@ export async function discoverBetterHarness(
         apiBaseUrl: baseUrl,
         serverKey,
         projectKey,
-        authRequired: !authToken && res.status === 401,
+        authRequired: !authToken,
       };
     }
 

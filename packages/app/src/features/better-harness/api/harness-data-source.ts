@@ -10,6 +10,7 @@ import {
   validatePlanFixResponse,
 } from "../schemas/harness-api";
 import type { HarnessReport, HarnessRunProgress } from "../types";
+import { HarnessRunProgressSchema } from "../schemas/harness-api";
 
 export type ValidatedHttpResult<T> =
   | { kind: "value"; value: T }
@@ -123,8 +124,7 @@ export class HttpHarnessDataSource implements HarnessDataSource {
 
   async getReport(): Promise<HarnessReport | undefined> {
     const result = await this.validatedRequest("GET", "/report", (data) => {
-      const schema = (await import("../schemas/harness-api")).HarnessRunProgressSchema;
-      const r = schema.safeParse(data);
+      const r = HarnessRunProgressSchema.safeParse(data);
       return r.success ? { valid: true, value: r.data as unknown as HarnessReport } : { valid: false, error: r.error.message };
     });
     if (result.kind === "empty") return undefined;
@@ -143,9 +143,8 @@ export class HttpHarnessDataSource implements HarnessDataSource {
   async getRunProgress(runId?: string): Promise<HarnessRunProgress | undefined> {
     const path = runId ? `/runs/${encodeURIComponent(runId)}` : "/runs/current";
     const result = await this.validatedRequest("GET", path, (data) => {
-      const r = HarnessReport.safeParse(data);
+      const r = HarnessRunProgressSchema.safeParse(data);
       if (r.success) return { valid: true, value: r.data as unknown as HarnessRunProgress };
-      // Try run progress schema
       return { valid: true, value: data as HarnessRunProgress };
     });
     if (result.kind === "empty") return undefined;

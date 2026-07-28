@@ -72,7 +72,7 @@ export const SSESupportedEventEnum = z.enum([
 export const SSEEnvelopeSchema = z.object({
   type: SSESupportedEventEnum,
   timestamp: z.string(),
-  data: z.record(z.unknown()).optional(),
+  data: z.record(z.string(), z.unknown()).optional(),
 }).strict();
 
 export const RunProgressPayloadSchema = z.object({

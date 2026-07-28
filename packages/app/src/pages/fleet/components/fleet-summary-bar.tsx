@@ -51,14 +51,14 @@ interface KpiCardProps {
 
 function KpiCard(props: KpiCardProps) {
   return (
-    <div class="flex flex-col gap-1.5 rounded-lg border bg-card p-3 text-card-foreground shadow-xs min-h-[88px]">
+    <div class="flex flex-col gap-1.5 rounded-lg border bg-v2-background-bg-layer-01 p-3 text-card-foreground shadow-xs min-h-[88px]">
       <div class="flex items-center gap-2">
-        <span class={`shrink-0 ${props.iconAccent ?? "text-muted-foreground"}`}>{props.icon}</span>
-        <span class="text-xs text-muted-foreground truncate">{props.label}</span>
+        <span class={`shrink-0 ${props.iconAccent ?? "text-v2-text-text-muted"}`}>{props.icon}</span>
+        <span class="text-xs text-v2-text-text-muted truncate">{props.label}</span>
       </div>
       <span class={`text-2xl font-bold tabular-nums leading-none ${props.accent ?? ""}`}>{props.value}</span>
       {props.secondary ? (
-        <span class="text-xs text-muted-foreground">{props.secondary}</span>
+        <span class="text-xs text-v2-text-text-muted">{props.secondary}</span>
       ) : null}
     </div>
   )

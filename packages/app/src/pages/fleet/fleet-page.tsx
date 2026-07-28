@@ -38,7 +38,7 @@ const SORT_OPTIONS = (t: (key: string, params?: Record<string, string | number |
 /* Skeleton card for initial loading */
 function SkeletonCard() {
   return (
-    <div class="flex flex-col gap-2 rounded-lg border bg-card p-3 animate-pulse" aria-hidden="true">
+    <div class="flex flex-col gap-2 rounded-lg border bg-v2-background-bg-layer-01 p-3 animate-pulse" aria-hidden="true">
       <div class="flex justify-between"><div class="h-4 w-32 rounded bg-muted" /><div class="h-4 w-16 rounded bg-muted" /></div>
       <div class="h-3 w-48 rounded bg-muted" />
       <div class="h-3 w-40 rounded bg-muted" />
@@ -166,7 +166,7 @@ export function FleetPage() {
           {/* Header row */}
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-2">
             <h1 class="text-xl font-semibold tracking-tight">{t("fleet.page.title")}</h1>
-            <div class="hidden sm:flex flex-1 justify-center items-center gap-2 text-xs text-muted-foreground" aria-live="polite" aria-atomic="true">
+            <div class="hidden sm:flex flex-1 justify-center items-center gap-2 text-xs text-v2-text-text-muted" aria-live="polite" aria-atomic="true">
               <Show when={lastRefreshDisplay() || (!initialLoadDone())}>
                 <div class="h-2 w-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
               </Show>
@@ -175,7 +175,7 @@ export function FleetPage() {
                 : initialLoadDone() ? "" : t("fleet.page.loading")}
             </div>
             <div class="flex items-center gap-2">
-              <div class="sm:hidden flex items-center gap-2 text-xs text-muted-foreground">
+              <div class="sm:hidden flex items-center gap-2 text-xs text-v2-text-text-muted">
                  <Show when={lastRefreshDisplay() || (!initialLoadDone())}>
                   <div class="h-2 w-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
                  </Show>
@@ -210,26 +210,26 @@ export function FleetPage() {
           <div class="flex flex-wrap items-center gap-3 mt-2">
             {/* Search input with Ctrl+K hint */}
             <div class="relative w-full sm:w-64">
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" class="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" aria-hidden="true"><circle cx="6" cy="6" r="4.5"/><path d="M9.5 9.5L13 13"/></svg>
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" class="absolute left-3 top-1/2 -translate-y-1/2 text-v2-text-text-muted" aria-hidden="true"><circle cx="6" cy="6" r="4.5"/><path d="M9.5 9.5L13 13"/></svg>
               <input type="search"
                      placeholder={t("fleet.search.placeholder")}
-                     class="h-9 w-full rounded-md border border-border/50 bg-card/40 pl-9 pr-14 text-sm focus-visible:outline-2 focus-visible:outline-ring transition-colors hover:bg-card/60"
+                     class="h-9 w-full rounded-md border border-v2-border-border-base/50 bg-v2-background-bg-layer-01/40 pl-9 pr-14 text-sm focus-visible:outline-2 focus-visible:outline-ring transition-colors hover:bg-v2-background-bg-layer-01/60"
                      value={searchQuery()}
                      onInput={(e) => setSearchQuery((e.target as HTMLInputElement).value)}
                      aria-label={t("fleet.search.placeholder")} />
-              <div class="absolute right-2 top-1/2 -translate-y-1/2 flex items-center justify-center rounded border border-border bg-background px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground pointer-events-none">
+              <div class="absolute right-2 top-1/2 -translate-y-1/2 flex items-center justify-center rounded border border-v2-border-border-base bg-v2-background-bg-base px-1.5 py-0.5 text-[10px] font-medium text-v2-text-text-muted pointer-events-none">
                 Ctrl K
               </div>
             </div>
 
             {/* Status filter pills */}
-            <div class="flex items-center rounded-md border border-border/50 bg-card/40 p-1" role="group" aria-label={t("fleet.filter.statusGroup")}>
+            <div class="flex items-center rounded-md border border-v2-border-border-base/50 bg-v2-background-bg-layer-01/40 p-1" role="group" aria-label={t("fleet.filter.statusGroup")}>
               <For each={filterOptions()}>
                 {(opt) => (
                   <button class={`rounded px-3 py-1.5 text-xs font-medium transition-colors focus-visible:outline-2 focus-visible:outline-ring ${
                     statusFilter() === opt.value
                       ? "bg-blue-600 text-white shadow-sm"
-                      : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
+                      : "text-v2-text-text-muted hover:text-v2-text-text-base hover:bg-v2-background-bg-layer-02/50"
                   }`}
                           onClick={() => setStatusFilter(opt.value)}
                           aria-pressed={statusFilter() === opt.value}>
@@ -240,7 +240,7 @@ export function FleetPage() {
             </div>
 
             {/* All Types dropdown */}
-            <select class="h-9 rounded-md border border-border/50 bg-card/40 px-3 text-sm text-foreground focus-visible:outline-2 focus-visible:outline-ring hover:bg-card/60 transition-colors"
+            <select class="h-9 rounded-md border border-v2-border-border-base/50 bg-v2-background-bg-layer-01/40 px-3 text-sm text-v2-text-text-base focus-visible:outline-2 focus-visible:outline-ring hover:bg-v2-background-bg-layer-01/60 transition-colors"
                     value={connectionFilter()}
                     onChange={(e) => setConnectionFilter((e.target as HTMLSelectElement).value as FleetConnectionType | "all")}
                     aria-label={t("fleet.connectionType.all")}>
@@ -250,7 +250,7 @@ export function FleetPage() {
             </select>
 
             {/* Status dropdown (placeholder/duplicate per mockup styling if needed, we'll keep it as "Status" for fidelity) */}
-            <select class="h-9 rounded-md border border-border/50 bg-card/40 px-3 text-sm text-foreground focus-visible:outline-2 focus-visible:outline-ring hover:bg-card/60 transition-colors hidden sm:block">
+            <select class="h-9 rounded-md border border-v2-border-border-base/50 bg-v2-background-bg-layer-01/40 px-3 text-sm text-v2-text-text-base focus-visible:outline-2 focus-visible:outline-ring hover:bg-v2-background-bg-layer-01/60 transition-colors hidden sm:block">
               <option>Status</option>
             </select>
 
@@ -258,8 +258,8 @@ export function FleetPage() {
 
             {/* Sort dropdown */}
             <div class="flex items-center gap-2">
-              <span class="text-xs text-muted-foreground hidden lg:inline-block">Sort by:</span>
-              <select class="h-9 rounded-md border border-border/50 bg-card/40 px-3 text-sm text-foreground focus-visible:outline-2 focus-visible:outline-ring hover:bg-card/60 transition-colors"
+              <span class="text-xs text-v2-text-text-muted hidden lg:inline-block">Sort by:</span>
+              <select class="h-9 rounded-md border border-v2-border-border-base/50 bg-v2-background-bg-layer-01/40 px-3 text-sm text-v2-text-text-base focus-visible:outline-2 focus-visible:outline-ring hover:bg-v2-background-bg-layer-01/60 transition-colors"
                       value={sortKey()}
                       onChange={(e) => setSortKey((e.target as HTMLSelectElement).value as FleetSortKey)}
                       aria-label={t("fleet.sort.label")}>
@@ -272,8 +272,8 @@ export function FleetPage() {
             {/* Active filter chip */}
             <Show when={filtersActive()}>
               <div class="flex items-center gap-2">
-                <div class="inline-flex items-center gap-1.5 rounded-md border border-border/50 bg-card/40 px-3 py-1.5 text-xs font-medium text-foreground">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-muted-foreground"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+                <div class="inline-flex items-center gap-1.5 rounded-md border border-v2-border-border-base/50 bg-v2-background-bg-layer-01/40 px-3 py-1.5 text-xs font-medium text-v2-text-text-base">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-v2-text-text-muted"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
                   {activeFilterCount()} active filters
                 </div>
                 <button class="inline-flex items-center gap-1 px-2 py-1.5 text-xs font-medium text-blue-500 hover:text-blue-400 transition-colors"
@@ -295,7 +295,7 @@ export function FleetPage() {
 
           {/* No servers configured */}
           <Show when={initialLoadDone() && !hasServers() && !filtersActive()}>
-            <div class="flex flex-col items-center justify-center py-16 text-center text-muted-foreground rounded-lg border bg-card" role="status">
+            <div class="flex flex-col items-center justify-center py-16 text-center text-v2-text-text-muted rounded-lg border bg-v2-background-bg-layer-01" role="status">
               <svg width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="mb-4 opacity-40" aria-hidden="true"><rect x="8" y="8" width="32" height="12" rx="2"/><rect x="8" y="28" width="32" height="12" rx="2"/><circle cx="14" cy="14" r="1.5" fill="currentColor"/><circle cx="14" cy="34" r="1.5" fill="currentColor"/></svg>
               <p class="text-sm font-medium">{t("fleet.empty.title")}</p>
               <p class="text-xs mt-1">{t("fleet.empty.description")}</p>
@@ -304,15 +304,15 @@ export function FleetPage() {
 
           {/* No results from active filters */}
           <Show when={noResultsFromFilters()}>
-            <div class="mt-8 flex w-full flex-col items-center justify-center rounded-xl border border-dashed border-border/60 bg-transparent py-16 text-center" role="status">
-              <div class="mb-4 text-muted-foreground opacity-60">
+            <div class="mt-8 flex w-full flex-col items-center justify-center rounded-xl border border-dashed border-v2-border-border-base/60 bg-transparent py-16 text-center" role="status">
+              <div class="mb-4 text-v2-text-text-muted opacity-60">
                 <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
               </div>
-              <h3 class="mb-1 text-lg font-medium text-foreground">No servers match your filters</h3>
-              <p class="mb-6 text-sm text-muted-foreground">Try adjusting your search or filter criteria.</p>
-              <button class="inline-flex items-center gap-2 rounded-md border border-border/50 bg-card/40 px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-card/60 focus-visible:outline-2 focus-visible:outline-ring"
+              <h3 class="mb-1 text-lg font-medium text-v2-text-text-base">No servers match your filters</h3>
+              <p class="mb-6 text-sm text-v2-text-text-muted">Try adjusting your search or filter criteria.</p>
+              <button class="inline-flex items-center gap-2 rounded-md border border-v2-border-border-base/50 bg-v2-background-bg-layer-01/40 px-4 py-2 text-sm font-medium text-v2-text-text-base transition-colors hover:bg-v2-background-bg-layer-01/60 focus-visible:outline-2 focus-visible:outline-ring"
                       onClick={clearFilters}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-muted-foreground"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-v2-text-text-muted"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
                 Clear all filters
               </button>
             </div>
@@ -344,7 +344,7 @@ export function FleetPage() {
 
         {/* Desktop sidebar drawer - always rendered when open, sits beside main content */}
         <Show when={drawerOpen()}>
-          <div class="hidden lg:block w-[400px] shrink-0 border-l border-border bg-background">
+          <div class="hidden lg:block w-[400px] shrink-0 border-l border-v2-border-border-base bg-v2-background-bg-base">
             <FleetDetailDrawer
               server={selectedServer}
               onClose={() => setSelectedKey(null)}
