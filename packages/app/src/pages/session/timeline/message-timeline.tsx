@@ -1112,7 +1112,7 @@ export function MessageTimeline(props: {
                     {(comment) => (
                       <div
                         classList={{
-                          "shrink-0 max-w-[260px] rounded-[6px] border-border-weak-base bg-background-stronger px-2.5 py-2": true,
+                          "shrink-0 max-w-[260px] rounded-md border-border-weak-base bg-background-stronger px-2.5 py-2": true,
                           "border-[0.5px]": settings.general.newLayoutDesigns(),
                           border: !settings.general.newLayoutDesigns(),
                         }}
@@ -1344,11 +1344,7 @@ export function MessageTimeline(props: {
               onClick={props.onResumeScroll}
             >
               <div
-                class="flex items-center justify-center w-8 h-6 rounded-[6px] border border-border-weaker-base bg-[color-mix(in_srgb,var(--surface-raised-stronger-non-alpha)_80%,transparent)] backdrop-blur-[0.75px] transition-colors group-hover:border-[var(--border-weak-base)] group-hover:[--icon-base:var(--icon-hover)]"
-                style={{
-                  "box-shadow":
-                    "0 51px 60px 0 rgba(0,0,0,0.10), 0 15px 18px 0 rgba(0,0,0,0.12), 0 6.386px 7.513px 0 rgba(0,0,0,0.12), 0 2.31px 2.717px 0 rgba(0,0,0,0.20)",
-                }}
+                class="flex items-center justify-center w-8 h-6 rounded-md border border-border-weaker-base bg-[color-mix(in_srgb,var(--surface-raised-stronger-non-alpha)_80%,transparent)] backdrop-blur-[0.75px] transition-colors group-hover:border-[var(--border-weak-base)] group-hover:[--icon-base:var(--icon-hover)] shadow-[var(--v2-elevation-floating)]"
               >
                 <Icon name="arrow-down-to-line" size="small" />
               </div>
@@ -1421,7 +1417,7 @@ export function MessageTimeline(props: {
                     <button
                       type="button"
                       data-slot="session-title-parent"
-                      class="min-w-0 max-w-[40%] truncate pl-2 text-[13px] font-[530] leading-4 tracking-[-0.04px] text-v2-text-text-faint transition-colors hover:text-v2-text-text-muted"
+                      class="min-w-0 max-w-[40%] truncate pl-2 text-[13px] font-emphasis leading-4 tracking-v2 text-v2-text-text-faint transition-colors hover:text-v2-text-text-muted"
                       onClick={navigateParent}
                     >
                       {parentTitle()}
@@ -1441,8 +1437,8 @@ export function MessageTimeline(props: {
                         <h1
                           data-slot="session-title-child"
                           classList={{
-                            "truncate text-[13px] font-[530] leading-4 tracking-[-0.04px] text-v2-text-text-base": true,
-                            "w-fit rounded-[6px] px-2 py-1 hover:bg-v2-overlay-simple-overlay-hover":
+                            "truncate text-[13px] font-emphasis leading-4 tracking-v2 text-v2-text-text-base": true,
+                            "w-fit rounded-md px-2 py-1 hover:bg-v2-overlay-simple-overlay-hover":
                               settings.general.newLayoutDesigns(),
                             "grow-1 min-w-0": !settings.general.newLayoutDesigns(),
                           }}
@@ -1460,9 +1456,9 @@ export function MessageTimeline(props: {
                         value={title.draft}
                         disabled={titleMutation.isPending}
                         classList={{
-                          "block text-[13px] font-[530] leading-4 tracking-[-0.04px] text-v2-text-text-base": true,
-                          "w-full flex-1 grow-1 min-w-0 pl-1 -ml-1 rounded-[6px]": !settings.general.newLayoutDesigns(),
-                          "field-sizing-content self-start rounded-[6px] px-2 py-1 ":
+                          "block text-[13px] font-emphasis leading-4 tracking-v2 text-v2-text-text-base": true,
+                          "w-full flex-1 grow-1 min-w-0 pl-1 -ml-1 rounded-md": !settings.general.newLayoutDesigns(),
+                          "field-sizing-content self-start rounded-md px-2 py-1 ":
                             settings.general.newLayoutDesigns(),
                         }}
                         style={{
@@ -1754,10 +1750,10 @@ export function MessageTimeline(props: {
                               }
                             >
                               <div class="flex w-full flex-col gap-1.5 px-0.5 pt-0.5">
-                                <div class="select-none text-[13px] font-[530] leading-none tracking-[-0.04px] text-v2-text-text-base [font-variation-settings:'slnt'_0]">
+                                <div class="select-none text-[13px] font-emphasis leading-none tracking-v2 text-v2-text-text-base [font-variation-settings:'slnt'_0]">
                                   {language.t("session.share.popover.title")}
                                 </div>
-                                <div class="select-none text-[13px] font-[440] leading-5 tracking-[-0.04px] text-v2-text-text-muted [font-variation-settings:'slnt'_0]">
+                                <div class="select-none text-[13px] font-body leading-5 tracking-v2 text-v2-text-text-muted [font-variation-settings:'slnt'_0]">
                                   {shareUrl()
                                     ? language.t("session.share.popover.description.shared")
                                     : language.t("session.share.popover.description.unshared")}
@@ -1781,14 +1777,14 @@ export function MessageTimeline(props: {
                                 >
                                   <div class="flex flex-col gap-2">
                                     <div
-                                      class="flex h-8 w-full items-center gap-1.5 rounded-[6px] py-1 pl-2.5 pr-1.5 shadow-[var(--v2-elevation-button-neutral)]"
+                                      class="flex h-8 w-full items-center gap-1.5 rounded-md py-1 pl-2.5 pr-1.5 shadow-[var(--v2-elevation-button-neutral)]"
                                       style={{
                                         background:
                                           "linear-gradient(180deg, var(--v2-alpha-light-2) 0%, var(--v2-alpha-light-0) 100%), var(--v2-background-bg-button-neutral)",
                                       }}
                                     >
                                       <div
-                                        class="min-w-0 flex-1 truncate select-text cursor-text text-[13px] font-[440] leading-5 tracking-[-0.04px] text-v2-text-text-base [font-variation-settings:'slnt'_0]"
+                                        class="min-w-0 flex-1 truncate select-text cursor-text text-[13px] font-body leading-5 tracking-v2 text-v2-text-text-base [font-variation-settings:'slnt'_0]"
                                         onClick={selectShareUrlText}
                                       >
                                         {shareUrl()}

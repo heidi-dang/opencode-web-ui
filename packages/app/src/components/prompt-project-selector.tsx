@@ -316,7 +316,7 @@ export function PromptProjectSelector(props: {
                 aria-autocomplete="list"
                 aria-controls="prompt-project-menu"
                 aria-activedescendant={props.controller.active() || undefined}
-                class="h-7 min-w-0 flex-1 border-0 bg-transparent text-[13px] font-[440] leading-5 tracking-[-0.04px] text-v2-text-text-base outline-none placeholder:text-v2-text-text-faint"
+                class="h-7 min-w-0 flex-1 border-0 bg-transparent text-[13px] font-body leading-5 tracking-v2 text-v2-text-text-base outline-none placeholder:text-v2-text-text-faint"
                 onInput={(event) => props.controller.setSearch(event.currentTarget.value)}
                 onKeyDown={(event) => {
                   if (event.key === "Tab") {
@@ -385,7 +385,7 @@ export function PromptProjectSelector(props: {
               >
                 {(server) => (
                   <div>
-                    <div class="flex h-7 select-none items-center pl-1.5 pr-3 text-[11px] font-[530] leading-none tracking-[0.05px] text-v2-text-text-faint">
+                    <div class="flex h-7 select-none items-center pl-1.5 pr-3 text-[11px] font-emphasis leading-none tracking-[0.05px] text-v2-text-text-faint">
                       {server!.name}
                     </div>
                     <DropdownMenu.RadioGroup value={selectedValue()}>
@@ -449,7 +449,7 @@ export function PromptProjectAddButton(props: { controller: PromptProjectControl
     <button
       data-action="prompt-project"
       type="button"
-      class="flex h-7 min-w-0 max-w-[160px] items-center gap-1.5 rounded-sm px-2 text-[13px] font-[440] leading-5 tracking-[-0.04px] text-v2-text-text-faint transition-colors hover:bg-v2-overlay-simple-overlay-hover focus-visible:bg-v2-overlay-simple-overlay-hover focus-visible:outline-none"
+      class="flex h-7 min-w-0 max-w-[160px] items-center gap-1.5 rounded-sm px-2 text-[13px] font-body leading-5 tracking-v2 text-v2-text-text-faint transition-colors hover:bg-v2-overlay-simple-overlay-hover focus-visible:bg-v2-overlay-simple-overlay-hover focus-visible:outline-none"
       onClick={() => props.controller.add()}
     >
       <Icon name="folder-add-left" size="small" class="shrink-0 text-v2-icon-icon-muted" />
@@ -515,7 +515,7 @@ function ProjectItem(props: {
       id={key()}
       value={key()}
       data-option-key={key()}
-      class="h-7 gap-2 rounded-sm px-3 text-[13px] font-[440] leading-5 tracking-[-0.04px] text-v2-text-text-base data-[highlighted]:!bg-v2-overlay-simple-overlay-hover"
+      class="h-7 gap-2 rounded-sm px-3 text-[13px] font-body leading-5 tracking-v2 text-v2-text-text-base data-[highlighted]:!bg-v2-overlay-simple-overlay-hover"
       classList={{ "!bg-v2-overlay-simple-overlay-hover": props.controller.active() === key() }}
       style={{
         "font-family": "var(--v2-font-family-sans)",
@@ -547,7 +547,7 @@ function ProjectItem(props: {
 }
 
 const projectActionClass =
-  "h-7 gap-2 rounded-sm px-3 text-[13px] font-[440] leading-5 tracking-[-0.04px] text-v2-text-text-base [font-family:var(--v2-font-family-sans)] data-[highlighted]:!bg-v2-overlay-simple-overlay-hover"
+  "h-7 gap-2 rounded-sm px-3 text-[13px] font-body leading-5 tracking-v2 text-v2-text-text-base [font-family:var(--v2-font-family-sans)] data-[highlighted]:!bg-v2-overlay-simple-overlay-hover"
 
 function ProjectAction(props: {
   server?: string
@@ -559,7 +559,7 @@ function ProjectAction(props: {
     <DropdownMenu.Item
       id={key()}
       data-option-key={key()}
-      class="h-7 gap-2 rounded-sm px-3 text-[13px] font-[440] leading-5 tracking-[-0.04px] text-v2-text-text-base data-[highlighted]:!bg-v2-overlay-simple-overlay-hover"
+      class="h-7 gap-2 rounded-sm px-3 text-[13px] font-body leading-5 tracking-v2 text-v2-text-text-base data-[highlighted]:!bg-v2-overlay-simple-overlay-hover"
       classList={{ "!bg-v2-overlay-simple-overlay-hover": props.controller.active() === key() }}
       style={{
         "font-family": "var(--v2-font-family-sans)",

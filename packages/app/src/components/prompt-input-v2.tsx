@@ -523,7 +523,7 @@ function PromptInputV2ModelControl(props: {
               data-action="prompt-model"
               variant="ghost-muted"
               size="normal"
-              class="min-w-0 max-w-[220px] justify-start ![font-weight:440] group"
+              class="min-w-0 max-w-[220px] justify-start !font-body group"
               classList={{ "animate-in fade-in": shouldAnimate() }}
               style={{ height: "28px" }}
               onClick={props.onUnpaidClick}
@@ -539,7 +539,7 @@ function PromptInputV2ModelControl(props: {
               variant: "ghost-muted",
               size: "normal",
               style: { height: "28px" },
-              class: "min-w-0 max-w-[220px] justify-start ![font-weight:440] group",
+              class: "min-w-0 max-w-[220px] justify-start !font-body group",
               classList: { "animate-in fade-in": shouldAnimate() },
               "data-action": "prompt-model",
             }}
