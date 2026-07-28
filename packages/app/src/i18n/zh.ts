@@ -814,6 +814,23 @@ export const dict = {
   "fleet.drawer.copied": "Copied!",
   "fleet.drawer.copyToClipboard": "Copy to clipboard",
   "fleet.value.unavailable": "Unavailable",
+  /* --- KPI Grid --- */
+  "fleet.kpi.totalServers": "Total Servers",
+  "fleet.kpi.online": "Online",
+  "fleet.kpi.degraded": "Degraded",
+  "fleet.kpi.offline": "Offline",
+  "fleet.kpi.authIssue": "Auth Issue",
+  "fleet.kpi.projects": "Projects",
+  "fleet.kpi.providers": "Providers",
+  "fleet.kpi.activeSessions": "Active Sessions",
+
+  /* --- Drawer extras --- */
+  "fleet.drawer.openInNewTab": "Open in New Tab",
+
+  /* --- Server card row labels --- */
+  "fleet.card.version": "Version",
+  "fleet.card.lastCheck": "Last check",
+  "fleet.card.latency": "Latency",
   "sidebar.help": "帮助",
   "sidebar.workspaces.enable": "启用工作区",
   "sidebar.workspaces.disable": "禁用工作区",

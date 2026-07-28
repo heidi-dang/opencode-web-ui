@@ -102,6 +102,24 @@ export function FleetDetailDrawer(props: DetailDrawerProps) {
     setTimeout(() => triggerRef?.focus(), 0)
   }
 
+  // Lock body scroll when overlay drawer is open
+  createEffect(() => {
+    const open = isOpen()
+    const v = variant()
+    if (typeof document !== "undefined") {
+      if (open && v === "overlay") {
+        document.body.style.overflow = "hidden"
+      } else if (v === "overlay") {
+        document.body.style.overflow = ""
+      }
+    }
+    onCleanup(() => {
+      if (typeof document !== "undefined" && v === "overlay") {
+        document.body.style.overflow = ""
+      }
+    })
+  })
+
   function onKeyDown(e: KeyboardEvent) {
     if (e.key === "Escape" && isOpen()) {
       e.preventDefault()
@@ -262,6 +280,11 @@ export function FleetDetailDrawer(props: DetailDrawerProps) {
                         onClick={() => props.onRefresh(snap.key)}>
                   <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 6a5 5 0 019.5-2.5M11 6a5 5 0 01-9.5 2.5"/><path d="M11 1.5V4.5H8M1 10.5V7.5H4"/></svg>
                   {t("fleet.drawer.refresh")}
+                </button>
+                <button class="inline-flex items-center gap-1.5 justify-center rounded-md px-3 py-1.5 text-xs font-medium bg-accent hover:bg-accent/80 transition-colors focus-visible:outline-2 focus-visible:outline-ring min-h-[36px]"
+                        onClick={() => window.open(snap.url, '_blank', 'noopener')}>
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 2H2v8h8V7M6.5 5.5L10 2M8 2h2v2"/></svg>
+                  {t("fleet.drawer.openInNewTab")}
                 </button>
               </div>
             </section>
