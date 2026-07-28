@@ -269,8 +269,18 @@ describe("fleet i18n keys", () => {
       "fleet.announce.refreshComplete",
     ]
     for (const key of required) {
-      expect(mod.dict).toHaveProperty(key)
+      // Use array path to prevent dot-delimited nesting interpretation
+      expect(mod.dict).toHaveProperty([key])
     }
+  })
+
+  test("toHaveProperty with dotted i18n keys uses array path", () => {
+    // Regression: toHaveProperty("fleet.page.title") interprets dots as
+    // nested-object delimiters. Must pass [key] to match flat dotted keys.
+    const flat = { "fleet.page.title": "FT" }
+    // This would fail: expect(flat).toHaveProperty("fleet.page.title")
+    expect(flat).toHaveProperty(["fleet.page.title"])
+    expect(flat["fleet.page.title"]).toBe("FT")
   })
 })
 
