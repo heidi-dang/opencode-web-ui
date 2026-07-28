@@ -10,6 +10,7 @@ import { ServerConnection } from "@/context/server"
 import { closeHomeProject, errorMessage, homeProjectDirectories } from "@/pages/layout/helpers"
 import { Persist, persisted } from "@/utils/persist"
 import { showToast } from "@/utils/toast"
+import { handleNotificationClick } from "@/utils/notification-click"
 import { useDialog } from "@opencode-ai/ui/context/dialog"
 import { createResource } from "solid-js"
 import { createStore } from "solid-js/store"
@@ -120,6 +121,7 @@ export function createHomeProjectsController(home: HomeController) {
     },
     utility: {
       settings: openSettings,
+      fleet: () => handleNotificationClick("/fleet"),
       help: () => platform.openLink("https://opencode.ai/desktop-feedback"),
     },
   }
