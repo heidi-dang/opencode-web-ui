@@ -731,6 +731,7 @@ export const dict = {
   "sidebar.menu.toggle": "Skift menu",
   "sidebar.nav.projectsAndSessions": "Projekter og sessioner",
   "sidebar.settings": "Indstillinger",
+  "sidebar.fleet": "Fleet",
   "sidebar.help": "Hjælp",
   "sidebar.workspaces.enable": "Aktiver arbejdsområder",
   "sidebar.workspaces.disable": "Deaktiver arbejdsområder",

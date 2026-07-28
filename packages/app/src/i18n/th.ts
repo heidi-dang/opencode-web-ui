@@ -728,6 +728,7 @@ export const dict = {
   "sidebar.menu.toggle": "สลับเมนู",
   "sidebar.nav.projectsAndSessions": "โปรเจกต์และเซสชัน",
   "sidebar.settings": "การตั้งค่า",
+  "sidebar.fleet": "Fleet",
   "sidebar.help": "ช่วยเหลือ",
   "sidebar.workspaces.enable": "เปิดใช้งานพื้นที่ทำงาน",
   "sidebar.workspaces.disable": "ปิดใช้งานพื้นที่ทำงาน",

@@ -670,6 +670,7 @@ export const dict = {
   "sidebar.menu.toggle": "メニューを切り替え",
   "sidebar.nav.projectsAndSessions": "プロジェクトとセッション",
   "sidebar.settings": "設定",
+  "sidebar.fleet": "Fleet",
   "sidebar.help": "ヘルプ",
   "sidebar.workspaces.enable": "ワークスペースを有効化",
   "sidebar.workspaces.disable": "ワークスペースを無効化",

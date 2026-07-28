@@ -18,9 +18,20 @@
     "outDir": "node_modules/.ts-dist",
     "isolatedModules": true,
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": [
+        "./src/*"
+      ]
     }
   },
-  "include": ["src", "package.json"],
-  "exclude": ["dist", "ts-dist"]
+  "include": [
+    "src",
+    "package.json"
+  ],
+  "exclude": [
+    "dist",
+    "ts-dist",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/*.spec.ts"
+  ]
 }

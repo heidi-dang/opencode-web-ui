@@ -27,8 +27,12 @@ function resolveModulePath(importPath: string): string | null {
   const relative = importPath.replace("@/", "")
   const tsxPath = `${SRC}/${relative}.tsx`
   const tsPath = `${SRC}/${relative}.ts`
+  const indexPath = `${SRC}/${relative}/index.ts`
+  const indexTsxPath = `${SRC}/${relative}/index.tsx`
   if (require("fs").existsSync(tsxPath)) return tsxPath
   if (require("fs").existsSync(tsPath)) return tsPath
+  if (require("fs").existsSync(indexTsxPath)) return indexTsxPath
+  if (require("fs").existsSync(indexPath)) return indexPath
   return null
 }
 

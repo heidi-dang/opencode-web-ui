@@ -665,6 +665,7 @@ export const dict = {
   "sidebar.menu.toggle": "تبديل القائمة",
   "sidebar.nav.projectsAndSessions": "المشاريع والجلسات",
   "sidebar.settings": "الإعدادات",
+  "sidebar.fleet": "أسطول",
   "sidebar.help": "مساعدة",
   "sidebar.workspaces.enable": "تمكين مساحات العمل",
   "sidebar.workspaces.disable": "تعطيل مساحات العمل",
