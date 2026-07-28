@@ -27,12 +27,23 @@ function InfoIcon() {
 }
 
 const STATE_BORDER: Record<string, string> = {
-  online: "border-l-green-500 dark:border-l-green-600",
-  degraded: "border-l-amber-500 dark:border-l-amber-600",
-  offline: "border-l-red-500 dark:border-l-red-600",
-  "auth-required": "border-l-yellow-500 dark:border-l-yellow-600",
-  "auth-failed": "border-l-red-700 dark:border-l-red-500",
+  online: "border-l-green-500",
+  degraded: "border-l-amber-500",
+  offline: "border-l-red-500",
+  "auth-required": "border-l-purple-500",
+  "auth-failed": "border-l-red-700",
   checking: "border-l-muted-foreground",
+}
+
+// Additional mockup icons
+function UsersIcon() {
+  return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+}
+function FolderMockupIcon() {
+  return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>
+}
+function UsersGroupIcon() {
+  return <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 19a6 6 0 0 0-12 0"/><circle cx="8" cy="9" r="4"/><path d="M22 19a6 6 0 0 0-6-6 4 4 0 1 0 0-8"/></svg>
 }
 
 export function FleetServerCard(props: ServerCardProps) {
@@ -48,7 +59,7 @@ export function FleetServerCard(props: ServerCardProps) {
 
   return (
     <div
-      class={`flex flex-col gap-2.5 rounded-lg border border-l-2 bg-card p-4 text-card-foreground shadow-xs transition h-full ${borderClass()}`}
+      class={`flex flex-col gap-4 rounded-xl border border-border/50 border-l-4 bg-card/40 p-5 text-card-foreground shadow-sm transition-colors hover:bg-card/60 h-full ${borderClass()}`}
       data-server-key={s().key}
       data-server-state={s().health.state}
       role="article"
@@ -56,24 +67,24 @@ export function FleetServerCard(props: ServerCardProps) {
     >
       {/* Header row: URL + external link icon + latency + health badge */}
       <div class="flex items-center gap-2">
-        <span class="text-xs text-muted-foreground truncate flex-1 min-w-0" title={s().url}>{s().url}</span>
-        <span class="shrink-0 text-muted-foreground" aria-hidden="true"><ExternalLinkIcon /></span>
-        {s().health.latencyMs !== undefined ? (
-          <span class="shrink-0 text-xs font-mono tabular-nums text-muted-foreground">{formatLatency(s().health.latencyMs)}</span>
-        ) : null}
-        <div class="shrink-0">
+        <span class="text-base font-medium truncate flex-1 min-w-0" title={s().url}>{s().url}</span>
+        <span class="shrink-0 text-muted-foreground cursor-pointer hover:text-foreground transition-colors" aria-hidden="true" onClick={() => props.onOpen(s().key)}><ExternalLinkIcon /></span>
+        <div class="shrink-0 flex items-center gap-1.5 ml-2">
+          {s().health.latencyMs !== undefined ? (
+            <span class="text-xs font-mono tabular-nums text-green-500">{formatLatency(s().health.latencyMs)}</span>
+          ) : null}
           <FleetStatusBadge state={s().health.state} latencyMs={s().health.latencyMs} />
         </div>
       </div>
 
       {/* Badges row: Online + HTTP + v1 */}
-      <div class="flex items-center gap-1.5 flex-wrap">
-        <span class={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ${
-          s().health.state === "online" ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400" :
-          s().health.state === "degraded" ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400" :
-          s().health.state === "offline" || s().health.state === "auth-failed" ? "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400" :
-          s().health.state === "auth-required" ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400" :
-          "bg-muted text-muted-foreground"
+      <div class="flex items-center gap-2 flex-wrap">
+        <span class={`inline-flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+          s().health.state === "online" ? "bg-green-500/20 text-green-400" :
+          s().health.state === "degraded" ? "bg-amber-500/20 text-amber-400" :
+          s().health.state === "offline" || s().health.state === "auth-failed" ? "bg-red-500/20 text-red-400" :
+          s().health.state === "auth-required" ? "bg-purple-500/20 text-purple-400" :
+          "bg-muted/50 text-muted-foreground"
         }`} role="status">
           {s().health.state === "online" ? "Online" :
            s().health.state === "degraded" ? "Degraded" :
@@ -82,68 +93,77 @@ export function FleetServerCard(props: ServerCardProps) {
            s().health.state === "auth-failed" ? "Auth Failed" :
            "Checking"}
         </span>
-        <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-muted text-muted-foreground">{connTypeLabel()}</span>
+        <span class="inline-flex items-center rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-accent text-accent-foreground">{connTypeLabel()}</span>
         {s().protocol.kind ? (
-          <span class="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium bg-muted text-muted-foreground">v{s().protocol.kind}</span>
+          <span class="inline-flex items-center rounded px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-accent text-accent-foreground">v{s().protocol.kind}</span>
         ) : null}
       </div>
 
       {/* Body: Version, Latency, Last check */}
-      <div class="flex flex-col gap-1 text-xs text-muted-foreground">
-        <div class="flex items-center gap-4">
-          <span class="w-16 shrink-0">{t("fleet.card.version")}</span>
-          <span class="font-mono tabular-nums">{s().health.version ?? "\u2014"}</span>
+      <div class="flex flex-col gap-2 text-sm text-muted-foreground py-2 border-b border-border/40">
+        <div class="flex items-center">
+          <span class="w-24 shrink-0">{t("fleet.card.version")}</span>
+          <span class="font-mono tabular-nums text-foreground">{s().health.version ?? "\u2014"}</span>
         </div>
-        <div class="flex items-center gap-4">
-          <span class="w-16 shrink-0">{t("fleet.card.latency")}</span>
-          <span class="font-mono tabular-nums">{s().health.latencyMs !== undefined ? formatLatency(s().health.latencyMs) : "\u2014"}</span>
+        <div class="flex items-center">
+          <span class="w-24 shrink-0">{t("fleet.card.latency")}</span>
+          <span class="font-mono tabular-nums text-foreground">{s().health.latencyMs !== undefined ? formatLatency(s().health.latencyMs) : "\u2014"}</span>
         </div>
-        <div class="flex items-center gap-4">
-          <span class="w-16 shrink-0">{t("fleet.card.lastCheck")}</span>
-          <span>{s().health.checkedAt ? formatRelativeTime(s().health.checkedAt) : "\u2014"}</span>
+        <div class="flex items-center">
+          <span class="w-24 shrink-0">{t("fleet.card.lastCheck")}</span>
+          <span class="text-foreground">{s().health.checkedAt ? formatRelativeTime(s().health.checkedAt) : "\u2014"}</span>
         </div>
       </div>
 
       {/* Metrics row: Sessions | Projects | Providers */}
-      <div class="flex items-center gap-4 text-xs pt-0.5">
-        <span title={t("fleet.card.sessions")}>
-          <span class="font-mono tabular-nums">{s().sessions.running}</span>
-          <span class="text-muted-foreground ml-1">{t("fleet.card.sessions")}</span>
-        </span>
-        <span class="text-muted-foreground/30" aria-hidden="true">|</span>
-        <span title={t("fleet.card.projects")}>
-          <span class="font-mono tabular-nums">{s().projects.known}</span>
-          <span class="text-muted-foreground ml-1">{t("fleet.card.projects")}</span>
-        </span>
-        <span class="text-muted-foreground/30" aria-hidden="true">|</span>
-        <span title={t("fleet.card.providers")}>
-          <span class="font-mono tabular-nums">{s().providers.connected}/{s().providers.configured}</span>
-          <span class="text-muted-foreground ml-1">{t("fleet.card.providers")}</span>
-        </span>
+      <div class="flex justify-between items-center text-sm">
+        <div class="flex flex-col items-center gap-1" title={t("fleet.card.sessions")}>
+          <div class="flex items-center gap-1.5 text-muted-foreground">
+            <UsersIcon />
+            <span class="text-xs">{t("fleet.card.sessions")}</span>
+          </div>
+          <span class="font-mono text-base tabular-nums">{s().sessions.running}</span>
+        </div>
+
+        <div class="flex flex-col items-center gap-1" title={t("fleet.card.projects")}>
+          <div class="flex items-center gap-1.5 text-muted-foreground">
+            <FolderMockupIcon />
+            <span class="text-xs">{t("fleet.card.projects")}</span>
+          </div>
+          <span class="font-mono text-base tabular-nums">{s().projects.known}</span>
+        </div>
+
+        <div class="flex flex-col items-center gap-1" title={t("fleet.card.providers")}>
+          <div class="flex items-center gap-1.5 text-muted-foreground">
+            <UsersGroupIcon />
+            <span class="text-xs">{t("fleet.card.providers")}</span>
+          </div>
+          <span class="font-mono text-base tabular-nums">{s().providers.connected}/{s().providers.configured}</span>
+        </div>
       </div>
 
       {/* Footer: evenly-spaced action buttons */}
-      <div class="flex items-center justify-between gap-1 pt-1.5 mt-auto border-t border-border">
-        <button class="inline-flex items-center gap-1 justify-center rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-40 min-h-[32px] flex-1"
+      <div class="flex items-center gap-2 pt-2 mt-auto">
+        <button class="inline-flex flex-1 items-center gap-1.5 justify-center rounded-md border border-border/50 bg-background/50 px-2 py-1.5 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-40 min-h-[36px]"
                 disabled={props.refreshing}
                 onClick={() => props.onRefresh(s().key)}
                 aria-label={`${t("fleet.card.refresh")} ${s().name}`}>
           <span class={props.refreshing ? "animate-spin" : ""}><RefreshCwIcon /></span>
           <span>{t("fleet.card.refresh")}</span>
         </button>
-        <button class="inline-flex items-center gap-1 justify-center rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground min-h-[32px] flex-1"
+        <button class="inline-flex flex-1 items-center gap-1.5 justify-center rounded-md bg-blue-600 px-2 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-700 min-h-[36px] shadow-sm"
                 onClick={() => props.onOpen(s().key)}
                 aria-label={`${t("fleet.card.open")} ${s().name}`}>
           <ExternalLinkIcon />
           <span>{t("fleet.card.open")}</span>
         </button>
-        <button class="inline-flex items-center gap-1 justify-center rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground min-h-[32px] flex-1"
+        <button class="inline-flex flex-1 items-center gap-1.5 justify-center rounded-md border border-border/50 bg-background/50 px-2 py-1.5 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground min-h-[36px]"
                 onClick={() => props.onEdit(s().key)}
                 aria-label={`${t("fleet.card.edit")} ${s().name}`}>
           <SettingsIcon />
           <span>{t("fleet.card.edit")}</span>
         </button>
-        <button class="inline-flex items-center gap-1 justify-center rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground min-h-[32px] flex-1"
+        <button class="inline-flex flex-1 items-center gap-1.5 justify-center rounded-md border border-border/50 bg-background/50 px-2 py-1.5 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground min-h-[36px]"
                 onClick={() => props.onViewDetails(s().key)}
                 aria-label={`${t("fleet.card.details")} ${s().name}`}>
           <InfoIcon />

@@ -1263,7 +1263,5 @@ export const dict = {
   "better-harness.error.verify": "Verification failed.",
   "better-harness.error.ignore": "Failed to ignore finding.",
   "better-harness.error.batch": "Batch operation partially failed.",
-
-  "better-harness.error.cancel": "Failed to cancel analysis.",
+  "better-harness.error.cancel": "Failed to cancel analysis."
 }
-
