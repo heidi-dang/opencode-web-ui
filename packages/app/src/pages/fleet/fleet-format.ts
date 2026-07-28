@@ -1,7 +1,7 @@
 export function formatLatency(ms: number | undefined): string {
   if (ms === undefined) return "\u2014"
-  if (ms < 1000) return `~${ms}ms`
-  return `~${(ms / 1000).toFixed(1)}s`
+  if (ms < 1000) return `${Math.round(ms)}ms`
+  return `${(ms / 1000).toFixed(1)}s`
 }
 
 export function formatRelativeTime(timestamp: number | undefined): string {
