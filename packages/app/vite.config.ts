@@ -54,7 +54,7 @@ export default defineConfig({
   plugins: [desktopPlugin, sentry].filter(Boolean),
   server: {
     host: "127.0.0.1",
-    allowedHosts: false,
+    allowedHosts: [],
     port: 3000,
     proxy: {
       "/opencode-server": {
@@ -84,6 +84,7 @@ export default defineConfig({
   },
   build: {
     target: "esnext",
-    sourcemap: true,
+    sourcemap: !!sentry,
+    manifest: true,
   },
 })

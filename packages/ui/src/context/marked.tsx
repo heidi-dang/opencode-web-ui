@@ -1,10 +1,7 @@
 import { marked, type MarkedExtension, type Tokens } from "marked"
 import markedShiki from "marked-shiki"
-import katex from "katex"
-import { bundledLanguages, type BundledLanguage } from "shiki"
 import { createSimpleContext } from "./helper"
 import { markedCodeSpanBoundary } from "./marked-code-span"
-import { getSharedHighlighter, registerCustomTheme, ThemeRegistrationResolved } from "@pierre/diffs"
 
 export const OpenCodeTheme = {
   name: "OpenCode",
@@ -16,30 +13,6 @@ export const OpenCodeTheme = {
     "gitDecoration.addedResourceForeground": "var(--syntax-diff-add)",
     "gitDecoration.deletedResourceForeground": "var(--syntax-diff-delete)",
     "gitDecoration.modifiedResourceForeground": "var(--syntax-diff-unknown)",
-    // "gitDecoration.conflictingResourceForeground": "#ffca00",
-    // "gitDecoration.modifiedResourceForeground": "#1a76d4",
-    // "gitDecoration.untrackedResourceForeground": "#00cab1",
-    // "gitDecoration.ignoredResourceForeground": "#84848A",
-    // "terminal.titleForeground": "#adadb1",
-    // "terminal.titleInactiveForeground": "#84848A",
-    // "terminal.background": "#141415",
-    // "terminal.foreground": "#adadb1",
-    // "terminal.ansiBlack": "#141415",
-    // "terminal.ansiRed": "#ff2e3f",
-    // "terminal.ansiGreen": "#0dbe4e",
-    // "terminal.ansiYellow": "#ffca00",
-    // "terminal.ansiBlue": "#008cff",
-    // "terminal.ansiMagenta": "#c635e4",
-    // "terminal.ansiCyan": "#08c0ef",
-    // "terminal.ansiWhite": "#c6c6c8",
-    // "terminal.ansiBrightBlack": "#141415",
-    // "terminal.ansiBrightRed": "#ff2e3f",
-    // "terminal.ansiBrightGreen": "#0dbe4e",
-    // "terminal.ansiBrightYellow": "#ffca00",
-    // "terminal.ansiBrightBlue": "#008cff",
-    // "terminal.ansiBrightMagenta": "#c635e4",
-    // "terminal.ansiBrightCyan": "#08c0ef",
-    // "terminal.ansiBrightWhite": "#c6c6c8",
   },
   tokenColors: [
     {
@@ -51,7 +24,7 @@ export const OpenCodeTheme = {
     {
       scope: ["entity.other.attribute-name"],
       settings: {
-        foreground: "var(--syntax-property)", // maybe attribute
+        foreground: "var(--syntax-property)",
       },
     },
     {
@@ -261,7 +234,6 @@ export const OpenCodeTheme = {
       scope: "markup.italic",
       settings: {
         fontStyle: "italic",
-        // foreground: "",
       },
     },
     {
@@ -375,38 +347,118 @@ export const OpenCodeTheme = {
     "variable.constant": "var(--syntax-constant)",
     "variable.defaultLibrary": "var(--syntax-unknown)",
   },
-} as unknown as ThemeRegistrationResolved
+} as any
 
-registerCustomTheme("OpenCode", () => Promise.resolve(OpenCodeTheme))
+let pierreModulePromise: Promise<typeof import("@pierre/diffs")> | undefined
+function getPierre() {
+  if (!pierreModulePromise) {
+    pierreModulePromise = import("@pierre/diffs").then((mod) => {
+      mod.registerCustomTheme("OpenCode", () => Promise.resolve(OpenCodeTheme))
+      return mod
+    })
+  }
+  return pierreModulePromise
+}
 
-function renderMathInText(text: string): string {
+let highlighterPromise: Promise<any> | undefined
+async function loadHighlighter() {
+  if (!highlighterPromise) {
+    highlighterPromise = (async () => {
+      const pierre = await getPierre()
+      return pierre.getSharedHighlighter({
+        themes: ["OpenCode"],
+        langs: [],
+        preferredHighlighter: "shiki-wasm",
+      })
+    })()
+  }
+  return highlighterPromise
+}
+
+let bundledLanguagesPromise: Promise<Record<string, any>> | undefined
+function getBundledLanguages() {
+  if (!bundledLanguagesPromise) {
+    bundledLanguagesPromise = import("shiki").then((mod) => mod.bundledLanguages)
+  }
+  return bundledLanguagesPromise
+}
+
+const highlightCache = new Map<string, string>()
+const MAX_HIGHLIGHT_CACHE_SIZE = 1000
+
+async function cachedHighlight(code: string, lang: string): Promise<string> {
+  const cacheKey = `${lang || "text"}:${code}`
+  const cached = highlightCache.get(cacheKey)
+  if (cached) return cached
+
+  const highlighter = await loadHighlighter()
+  const bundledLangs = await getBundledLanguages()
+
+  let language = lang || "text"
+  if (!(language in bundledLangs)) {
+    language = "text"
+  }
+  if (!highlighter.getLoadedLanguages().includes(language)) {
+    await highlighter.loadLanguage(language)
+  }
+
+  const highlighted = highlighter.codeToHtml(code, {
+    lang: language,
+    theme: "OpenCode",
+    tabindex: false,
+  })
+
+  if (highlightCache.size >= MAX_HIGHLIGHT_CACHE_SIZE) {
+    const firstKey = highlightCache.keys().next().value
+    if (firstKey !== undefined) highlightCache.delete(firstKey)
+  }
+  highlightCache.set(cacheKey, highlighted)
+  return highlighted
+}
+
+let katexModulePromise: Promise<typeof import("katex")> | undefined
+function getKatex() {
+  if (!katexModulePromise) {
+    katexModulePromise = import("katex")
+  }
+  return katexModulePromise
+}
+
+async function renderMathInText(text: string): Promise<string> {
+  const hasDisplayMath = text.includes("$$")
+  const hasInlineMath = text.includes("\\(")
+  if (!hasDisplayMath && !hasInlineMath) return text
+
+  const katex = await getKatex()
   let result = text
 
-  // Display math: $$...$$
-  const displayMathRegex = /\$\$([\s\S]*?)\$\$/g
-  result = result.replace(displayMathRegex, (_, math) => {
-    try {
-      return katex.renderToString(math, {
-        displayMode: true,
-        throwOnError: false,
-      })
-    } catch {
-      return `$$${math}$$`
-    }
-  })
+  if (hasDisplayMath) {
+    const displayMathRegex = /\$\$([\s\S]*?)\$\$/g
+    result = result.replace(displayMathRegex, (_, math) => {
+      try {
+        return katex.default.renderToString(math, {
+          displayMode: true,
+          throwOnError: false,
+        })
+      } catch {
+        return `$$${math}$$`
+      }
+    })
+  }
 
-  // Inline math: \(...\)
-  const inlineMathRegex = /\\\(((?:\\.|[^\\\n])*?)\\\)/g
-  result = result.replace(inlineMathRegex, (_, math) => {
-    try {
-      return katex.renderToString(math, {
-        displayMode: false,
-        throwOnError: false,
-      })
-    } catch {
-      return `\\(${math}\\)`
-    }
-  })
+  if (hasInlineMath) {
+    const inlineMathRegex = /\\\(((?:\\.|[^\\\n])*?)\\\)/g
+    result = result.replace(inlineMathRegex, (_, math) => {
+      try {
+        return katex.default.renderToString(math, {
+          displayMode: false,
+          throwOnError: false,
+        })
+      } catch {
+        return `\\(${math}\\)`
+      }
+    })
+  }
 
   return result
 }
@@ -434,7 +486,10 @@ const katexExtension: MarkedExtension = {
           displayMode: false,
         }
       },
-      renderer: renderKatexToken,
+      renderer(token) {
+        const raw = typeof token.text === "string" ? token.text : ""
+        return `\\(${raw}\\)`
+      },
     },
     {
       name: "blockKatex",
@@ -449,43 +504,31 @@ const katexExtension: MarkedExtension = {
           displayMode: true,
         }
       },
-      renderer: renderKatexToken,
+      renderer(token) {
+        const raw = typeof token.text === "string" ? token.text : ""
+        return `$$${raw}$$`
+      },
     },
   ],
 }
 
-function renderKatexToken(token: Tokens.Generic) {
-  return katex.renderToString(typeof token.text === "string" ? token.text : "", {
-    displayMode: token.displayMode === true,
-    throwOnError: false,
-  })
-}
-
-function renderMathExpressions(html: string): string {
-  // Split on code/pre/kbd tags to avoid processing their contents
+async function renderMathExpressions(html: string): Promise<string> {
   const codeBlockPattern = /(<(?:pre|code|kbd)[^>]*>[\s\S]*?<\/(?:pre|code|kbd)>)/gi
   const parts = html.split(codeBlockPattern)
 
-  return parts
-    .map((part, i) => {
-      // Odd indices are the captured code blocks - leave them alone
-      if (i % 2 === 1) return part
-      // Process math only in non-code parts
+  const processed = await Promise.all(
+    parts.map((part, i) => {
+      if (i % 2 === 1) return Promise.resolve(part)
       return renderMathInText(part)
     })
-    .join("")
+  )
+  return processed.join("")
 }
 
 async function highlightCodeBlocks(html: string): Promise<string> {
   const codeBlockRegex = /<pre><code(?:\s+class="language-([^"]*)")?>([\s\S]*?)<\/code><\/pre>/g
   const matches = [...html.matchAll(codeBlockRegex)]
   if (matches.length === 0) return html
-
-  const highlighter = await getSharedHighlighter({
-    themes: ["OpenCode"],
-    langs: [],
-    preferredHighlighter: "shiki-wasm",
-  })
 
   let result = html
   for (const match of matches) {
@@ -497,19 +540,7 @@ async function highlightCodeBlocks(html: string): Promise<string> {
       .replace(/&quot;/g, '"')
       .replace(/&#39;/g, "'")
 
-    let language = lang || "text"
-    if (!(language in bundledLanguages)) {
-      language = "text"
-    }
-    if (!highlighter.getLoadedLanguages().includes(language)) {
-      await highlighter.loadLanguage(language as BundledLanguage)
-    }
-
-    const highlighted = highlighter.codeToHtml(code, {
-      lang: language,
-      theme: "OpenCode",
-      tabindex: false,
-    })
+    const highlighted = await cachedHighlight(code, lang)
     result = result.replace(fullMatch, () => highlighted)
   }
 
@@ -534,22 +565,7 @@ export const { use: useMarked, provider: MarkedProvider } = createSimpleContext(
       katexExtension,
       markedShiki({
         async highlight(code, lang) {
-          const highlighter = await getSharedHighlighter({
-            themes: ["OpenCode"],
-            langs: [],
-            preferredHighlighter: "shiki-wasm",
-          })
-          if (!(lang in bundledLanguages)) {
-            lang = "text"
-          }
-          if (!highlighter.getLoadedLanguages().includes(lang)) {
-            await highlighter.loadLanguage(lang as BundledLanguage)
-          }
-          return highlighter.codeToHtml(code, {
-            lang: lang || "text",
-            theme: "OpenCode",
-            tabindex: false,
-          })
+          return cachedHighlight(code, lang)
         },
       }),
     )
@@ -559,12 +575,18 @@ export const { use: useMarked, provider: MarkedProvider } = createSimpleContext(
       return {
         async parse(markdown: string): Promise<string> {
           const html = await nativeParser(markdown)
-          const withMath = renderMathExpressions(html)
+          const withMath = await renderMathExpressions(html)
           return highlightCodeBlocks(withMath)
         },
       }
     }
 
-    return jsParser
+    return {
+      async parse(markdown: string): Promise<string> {
+        const parsed = await jsParser.parse(markdown)
+        return renderMathExpressions(parsed)
+      },
+    }
   },
 })
+
