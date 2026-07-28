@@ -21,7 +21,6 @@ export interface FleetServerSnapshot {
     state: FleetServerState
     healthy?: boolean
     version?: string
-    /** Uncached round-trip latency in milliseconds */
     latencyMs?: number
     checkedAt?: number
   }
@@ -39,7 +38,7 @@ export interface FleetServerSnapshot {
   providers: { connected: number; configured: number }
 }
 
-export type FleetSortKey = "name" | "state" | "latency" | "sessions" | "projects"
+export type FleetSortKey = "name" | "state" | "latency" | "sessions" | "projects" | "updated"
 export type FleetFilterStatus = "all" | "online" | "degraded" | "offline" | "auth-issue"
 
 export interface FleetController {

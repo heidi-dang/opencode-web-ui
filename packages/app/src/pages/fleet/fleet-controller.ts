@@ -345,8 +345,11 @@ export function createFleetController(
     }
   }
 
+  let _refreshingAll = false
+
   async function refreshAll() {
-    if (!visible) return  // don't mark servers as checking when hidden
+    if (!visible || _refreshingAll) return  // no duplicate refreshes
+    _refreshingAll = true
     const list = global.servers.list()
     setLastRefresh("at", Date.now())
     setIsRefreshingAll("all", true)
@@ -362,6 +365,7 @@ export function createFleetController(
     })
     await Promise.allSettled(promises)
     setIsRefreshingAll("all", false)
+    _refreshingAll = false
   }
 
   /* --- Action handlers: wired from FleetPage with real app APIs --- */
@@ -399,6 +403,8 @@ export function createFleetController(
           case "latency": return (a.health.latencyMs ?? Infinity) - (b.health.latencyMs ?? Infinity)
           case "sessions": return b.sessions.totalActive - a.sessions.totalActive
           case "projects": return b.projects.open - a.projects.open
+          case "updated": return (b.health.checkedAt ?? 0) - (a.health.checkedAt ?? 0)
+          default: return 0
         }
       })
       return copy
