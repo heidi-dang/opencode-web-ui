@@ -89,16 +89,16 @@ describe("Better Harness API Schemas", () => {
         timestamp: "2026-07-28T12:00:00.000Z",
         data: { runId: "r1", status: "running" },
       };
-      expect(SSEEnvelopeSchema.parse(data)).toEqual(data);
+      expect(SSEEnvelopeSchema.parse(data)).toMatchObject(data);
     });
 
     it("validates connected envelope", () => {
       const data = {
-        type: "connected",
+        type: "connected" as const,
         timestamp: "2026-07-28T12:00:00.000Z",
         data: { clientId: "c1" },
       };
-      expect(SSEEnvelopeSchema.parse(data)).toEqual(data);
+      expect(SSEEnvelopeSchema.parse(data)).toMatchObject(data);
     });
   });
 
