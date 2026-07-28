@@ -1,4 +1,5 @@
 import { describe, it, expect } from "bun:test";
+import { z } from "zod";
 import {
   AvailabilityResponseSchema,
   StartRunResponseSchema,
@@ -88,17 +89,17 @@ describe("Better Harness API Schemas", () => {
         type: "run.progress",
         timestamp: "2026-07-28T12:00:00.000Z",
         data: { runId: "r1", status: "running" },
-      };
-      expect(SSEEnvelopeSchema.parse(data)).toMatchObject(data);
+      } satisfies z.input<typeof SSEEnvelopeSchema>;
+      expect(SSEEnvelopeSchema.parse(data)).toEqual(data);
     });
 
     it("validates connected envelope", () => {
       const data = {
-        type: "connected" as const,
+        type: "connected",
         timestamp: "2026-07-28T12:00:00.000Z",
         data: { clientId: "c1" },
-      };
-      expect(SSEEnvelopeSchema.parse(data)).toMatchObject(data);
+      } satisfies z.input<typeof SSEEnvelopeSchema>;
+      expect(SSEEnvelopeSchema.parse(data)).toEqual(data);
     });
   });
 
