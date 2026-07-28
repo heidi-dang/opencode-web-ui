@@ -58,6 +58,8 @@ export interface FleetController {
   readonly sort: (list: FleetServerSnapshot[], key: FleetSortKey) => FleetServerSnapshot[]
   readonly refreshOne: (key: ServerConnection.Key) => Promise<void>
   readonly refreshAll: () => Promise<void>
+  openHandler: ((key: ServerConnection.Key) => void) | undefined
+  editHandler: ((key: ServerConnection.Key) => void) | undefined
   readonly openServer: (key: ServerConnection.Key) => void
   readonly editServer: (key: ServerConnection.Key) => void
   readonly getConnection: (key: ServerConnection.Key) => ServerConnection.Any | undefined

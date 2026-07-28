@@ -1,19 +1,19 @@
 
 import { createStore, reconcile } from "solid-js/store"
 import { createMemo, createEffect, onCleanup, on } from "solid-js"
-import type { ServerConnection } from "@/context/server"
+import { ServerConnection } from "@/context/server"
 import type { ServerHealth } from "@/utils/server-health"
-import { checkServerHealth } from "@/utils/server-health"
 import type { FleetController, FleetServerSnapshot, FleetConnectionType } from "./fleet-types"
 import { HEALTH_CONCURRENCY, HEALTH_PROBE_TIMEOUT_MS, POLL_INTERVAL_MS, normalizeConnectionType } from "./fleet-types"
 
 /* ------------------------------------------------------------------ */
 /*  Worker pool — exactly HEALTH_CONCURRENCY persistent workers        */
-/*  No recursive spawning. Rejects queued promises on abort.           */
+/*  Rejects queued promises on abort.                                  */
 /* ------------------------------------------------------------------ */
 
 function createWorkerPool(concurrency: number) {
   const queue: Array<() => Promise<unknown>> = []
+  const pendingRejects: Array<(reason: unknown) => void> = []
   let pendingResolvers: Array<() => void> = []
   const abortController = new AbortController()
   const signal = abortController.signal
@@ -44,6 +44,7 @@ function createWorkerPool(concurrency: number) {
   async function enqueue<T>(task: () => Promise<T>): Promise<T> {
     return new Promise<T>((resolve, reject) => {
       if (signal.aborted) { reject(new Error("Worker pool aborted")); return }
+      pendingRejects.push(reject)
       queue.push(async () => {
         try { resolve(await task()) } catch (e) { reject(e) }
       })
@@ -53,43 +54,33 @@ function createWorkerPool(concurrency: number) {
 
   function abort() {
     abortController.abort()
-    // Wake all sleepers so they exit their loops
     pendingResolvers.splice(0).forEach(r => r())
+    const rejects = pendingRejects.splice(0)
+    const err = new Error("Worker pool aborted")
+    for (const r of rejects) r(err)
   }
 
   return { enqueue, abort, get pending() { return queue.length } }
 }
 
 /* ------------------------------------------------------------------ */
-/*  Uncached latency probe — a simple HEAD round-trip timing           */
+/*  Health + latency measured together so latency is always authed     */
+/*  Uses the injected platform-aware checkHealthFn (not raw fetch).    */
 /* ------------------------------------------------------------------ */
 
-async function probeLatency(
-  url: string,
+async function healthWithLatency(
+  checkHealthFn: (http: ServerConnection.HttpBase) => Promise<ServerHealth>,
+  http: ServerConnection.HttpBase,
   signal: AbortSignal,
-  timeoutMs: number,
-): Promise<number | null> {
-  const controller = new AbortController()
-  const mergedSignal = AbortSignal.any ? AbortSignal.any([signal, controller.signal]) : signal
-
-  const timer = setTimeout(() => controller.abort(), timeoutMs)
-
+): Promise<{ health: ServerHealth; latencyMs: number | null }> {
+  const start = performance.now()
   try {
-    const start = performance.now()
-    // Normalize URL: strip trailing slash, build /health path
-    const base = url.replace(/\/+$/, "")
-    const res = await fetch(`${base}/health`, {
-      method: "HEAD",
-      signal: mergedSignal,
-      cache: "no-store",
-      // Important: no credentials/headers here — this is just timing
-      // The real health check uses checkServerHealth which handles auth
-    })
-    return Math.round(performance.now() - start)
+    const health = await checkHealthFn(http)
+    if (signal.aborted) return { health, latencyMs: null }
+    return { health, latencyMs: Math.round(performance.now() - start) }
   } catch {
-    return null
-  } finally {
-    clearTimeout(timer)
+    if (signal.aborted) return { health: { healthy: false }, latencyMs: null }
+    return { health: { healthy: false }, latencyMs: Math.round(performance.now() - start) }
   }
 }
 
@@ -100,10 +91,6 @@ async function probeLatency(
 function buildSnapshot(
   conn: ServerConnection.Any,
   existing: FleetServerSnapshot | undefined,
-  projectsData: { open: number; known: number } | undefined,
-  sessionsData: FleetServerSnapshot["sessions"] | undefined,
-  providersData: { connected: number; configured: number } | undefined,
-  protocolKind: "v1" | "v2" | undefined,
 ): FleetServerSnapshot {
   const key = ServerConnection.key(conn)
   return {
@@ -119,12 +106,12 @@ function buildSnapshot(
       latencyMs: existing?.health.latencyMs,
       checkedAt: existing?.health.checkedAt,
     },
-    protocol: { kind: protocolKind ?? existing?.protocol.kind },
-    projects: projectsData ?? existing?.projects ?? { open: 0, known: 0 },
-    sessions: sessionsData ?? existing?.sessions ?? {
+    protocol: { kind: existing?.protocol.kind },
+    projects: existing?.projects ?? { open: 0, known: 0 },
+    sessions: existing?.sessions ?? {
       running: 0, busy: 0, permissionBlocked: 0, questionBlocked: 0, totalActive: 0,
     },
-    providers: providersData ?? existing?.providers ?? { connected: 0, configured: 0 },
+    providers: existing?.providers ?? { connected: 0, configured: 0 },
   }
 }
 
@@ -136,8 +123,8 @@ export function createFleetController(
   checkHealthFn: (http: ServerConnection.HttpBase) => Promise<ServerHealth>,
   global: { servers: { list: () => ServerConnection.Any[] } },
   getCtxFn: (conn: ServerConnection.Any) => {
-    sync: { data: { project: unknown[]; provider: unknown } };
-    sdk: { protocolKind: () => "v1" | "v2" };
+    sync: { data: { project: Array<unknown>; provider: unknown } };
+    sdk: { protocolKind: () => string | undefined };
   },
 ): FleetController {
   /* --- Reactive server list --- */
@@ -169,11 +156,11 @@ export function createFleetController(
 
   function onVisibility() {
     const nowVisible = !document.hidden
-    if (nowVisible && !visible) {
+    visible = nowVisible
+    if (nowVisible) {
       // Tab became visible — refresh immediately
       refreshAll()
     }
-    visible = nowVisible
   }
 
   if (typeof document !== "undefined") {
@@ -215,34 +202,7 @@ export function createFleetController(
       for (const conn of list) {
         const key = ServerConnection.key(conn)
         newKeys.add(key)
-        // Try to get real data from server context
-        let projectsData: { open: number; known: number } | undefined
-        let sessionsData: FleetServerSnapshot["sessions"] | undefined
-        let providersData: { connected: number; configured: number } | undefined
-        let protocolKind: "v1" | "v2" | undefined
-
-        try {
-          const ctx = getCtxFn(conn)
-          const sync = ctx.sync
-          protocolKind = ctx.sdk.protocolKind()
-          if (sync.data.project) {
-            projectsData = {
-              open: sync.data.project.length,
-              known: sync.data.project.length,
-            }
-          }
-          if (sync.data.provider) {
-            const p = sync.data.provider as { connected?: unknown[]; configured?: unknown }
-            providersData = {
-              connected: Array.isArray(p.connected) ? p.connected.length : 0,
-              configured: p.configured ? 1 : 0,
-            }
-          }
-        } catch {
-          // Context not available yet — use existing or defaults
-        }
-
-        entries.push([key as string, buildSnapshot(conn, snapshots[key as string], projectsData, sessionsData, providersData, protocolKind)])
+        entries.push([key as string, buildSnapshot(conn, snapshots[key as string])])
       }
 
       // Clean up probes for removed servers
@@ -257,6 +217,53 @@ export function createFleetController(
       setSnapshots(reconcile(Object.fromEntries(entries)))
     }),
   )
+
+  /* --- Reactive sync data watcher: re-reads protocol, projects, providers --- */
+  createEffect(() => {
+    const list = serverList()
+    // Track reactive reads so Solid re-runs when sync data changes
+    for (const conn of list) {
+      try {
+        const ctx = getCtxFn(conn)
+        ctx.sdk.protocolKind()
+        ctx.sync.data.project
+        ctx.sync.data.provider
+      } catch { /* skip */ }
+    }
+
+    for (const conn of list) {
+      const key = ServerConnection.key(conn) as string
+      try {
+        const ctx = getCtxFn(conn)
+        const protocolKind = ctx.sdk.protocolKind()
+
+        const projectArray = ctx.sync.data.project
+        const known = Array.isArray(projectArray) ? projectArray.length : 0
+        const open = known
+
+        const providerData = ctx.sync.data.provider
+        let connectedCount = 0
+        let configuredCount = 0
+        if (providerData && typeof providerData === "object") {
+          const p = providerData as Record<string, unknown>
+          if (Array.isArray(p.connected)) connectedCount = p.connected.length
+          if (Array.isArray(p.configured)) configuredCount = p.configured.length
+          if (configuredCount === 0 && connectedCount > 0) {
+            configuredCount = connectedCount
+          }
+        }
+
+        setSnapshots(key, "protocol", reconcile({
+          kind: (protocolKind as "v1" | "v2" | undefined) ?? snapshots[key]?.protocol.kind,
+        }))
+        setSnapshots(key, "projects", reconcile({ open, known }))
+        setSnapshots(key, "providers", reconcile({
+          connected: connectedCount,
+          configured: configuredCount,
+        }))
+      } catch { /* skip */ }
+    }
+  })
 
   /* --- Sorted view: online first, then name --- */
   const sorted = createMemo(() =>
@@ -293,11 +300,14 @@ export function createFleetController(
     setRefreshingKeys(key as string, true)
 
     try {
-      // Run the full health check and latency probe simultaneously
-      const [healthResult, latencyMs] = await Promise.all([
-        checkServerHealth(conn.http, globalThis.fetch, { timeoutMs: HEALTH_PROBE_TIMEOUT_MS }),
-        probeLatency(conn.http.url, abortCtrl.signal, HEALTH_PROBE_TIMEOUT_MS),
-      ])
+      // Use the injected platform-aware health check function, NOT raw fetch.
+      // This respects desktop/SSH/WSL/proxy transport and includes auth headers.
+      // Latency is measured as part of the same authenticated request.
+      const { health: healthResult, latencyMs } = await healthWithLatency(
+        checkHealthFn,
+        conn.http,
+        abortCtrl.signal,
+      )
 
       if (abortCtrl.signal.aborted) return
 
@@ -354,15 +364,9 @@ export function createFleetController(
     setIsRefreshingAll("all", false)
   }
 
-  /* --- Server actions: call existing app APIs directly --- */
-  function openServer(key: ServerConnection.Key) {
-    // Dispatch a custom event that the layout layer can pick up
-    window.dispatchEvent(new CustomEvent("opencode:select-server", { detail: { key } }))
-  }
-
-  function editServer(_key: ServerConnection.Key) {
-    window.dispatchEvent(new CustomEvent("opencode:navigate", { detail: { path: "/settings", tab: "servers" } }))
-  }
+  /* --- Action handlers: wired from FleetPage with real app APIs --- */
+  let _openServerFn: ((key: ServerConnection.Key) => void) | undefined
+  let _editServerFn: ((key: ServerConnection.Key) => void) | undefined
 
   function getConnection(key: ServerConnection.Key): ServerConnection.Any | undefined {
     return global.servers.list().find((conn) => ServerConnection.key(conn) === key)
@@ -401,8 +405,16 @@ export function createFleetController(
     },
     refreshOne,
     refreshAll,
-    openServer,
-    editServer,
+    get openHandler(): ((key: ServerConnection.Key) => void) | undefined { return _openServerFn },
+    set openHandler(fn: ((key: ServerConnection.Key) => void) | undefined) { _openServerFn = fn },
+    get editHandler(): ((key: ServerConnection.Key) => void) | undefined { return _editServerFn },
+    set editHandler(fn: ((key: ServerConnection.Key) => void) | undefined) { _editServerFn = fn },
+    openServer(key: ServerConnection.Key) {
+      if (_openServerFn) _openServerFn(key)
+    },
+    editServer(key: ServerConnection.Key) {
+      if (_editServerFn) _editServerFn(key)
+    },
     getConnection,
     lastRefreshTime: () => lastRefresh.at,
     refreshing: () => isRefreshingAll.all,

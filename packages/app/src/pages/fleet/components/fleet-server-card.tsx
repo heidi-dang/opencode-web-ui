@@ -2,6 +2,7 @@
 import { type FleetServerSnapshot } from "../fleet-types"
 import { FleetStatusBadge } from "./fleet-status-badge"
 import { formatRelativeTime } from "../fleet-format"
+import { useLanguage } from "@/context/language"
 
 interface ServerCardProps {
   server: FleetServerSnapshot
@@ -14,9 +15,10 @@ interface ServerCardProps {
 
 export function FleetServerCard(props: ServerCardProps) {
   const s = () => props.server
+  const { t } = useLanguage()
   const connTypeLabel = () => {
-    const t = s().connectionType
-    return t === "wsl" ? "WSL" : t === "ssh" ? "SSH" : t === "sidecar" ? "Sidecar" : "HTTP"
+    const ct = s().connectionType
+    return ct === "wsl" ? t("fleet.connectionType.wsl") : ct === "ssh" ? t("fleet.connectionType.ssh") : ct === "sidecar" ? t("fleet.connectionType.sidecar") : t("fleet.connectionType.http")
   }
 
   return (
@@ -50,19 +52,19 @@ export function FleetServerCard(props: ServerCardProps) {
 
       {/* Row 3: metrics */}
       <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
-        <span title="Running sessions">
-          <span class="font-mono">{s().sessions.running}</span> sessions
+        <span title={t("fleet.card.sessions")}>
+          <span class="font-mono">{s().sessions.running}</span> {t("fleet.card.sessions")}
         </span>
         {s().sessions.permissionBlocked > 0 || s().sessions.questionBlocked > 0 ? (
-          <span class="text-amber-500" title="Blocked sessions">
-            <span class="font-mono">{s().sessions.permissionBlocked + s().sessions.questionBlocked}</span> blocked
+          <span class="text-amber-500" title={t("fleet.card.blocked")}>
+            <span class="font-mono">{s().sessions.permissionBlocked + s().sessions.questionBlocked}</span> {t("fleet.card.blocked")}
           </span>
         ) : null}
-        <span title="Open projects">
-          <span class="font-mono">{s().projects.open}/{s().projects.known}</span> projects
+        <span title={t("fleet.card.projects")}>
+          <span class="font-mono">{s().projects.open}/{s().projects.known}</span> {t("fleet.card.projects")}
         </span>
-        <span title="Connected providers">
-          <span class="font-mono">{s().providers.connected}/{s().providers.configured}</span> providers
+        <span title={t("fleet.card.providers")}>
+          <span class="font-mono">{s().providers.connected}/{s().providers.configured}</span> {t("fleet.card.providers")}
         </span>
       </div>
 
@@ -72,23 +74,23 @@ export function FleetServerCard(props: ServerCardProps) {
         <button class="inline-flex items-center justify-center rounded px-2 py-1 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-40"
                 disabled={props.refreshing}
                 onClick={() => props.onRefresh(s().key)}
-                title="Refresh health">
-          Refresh
+                title={t("fleet.card.refresh")}>
+          {t("fleet.card.refresh")}
         </button>
         <button class="inline-flex items-center justify-center rounded px-2 py-1 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
                 onClick={() => props.onOpen(s().key)}
-                title="Open server">
-          Open
+                title={t("fleet.card.open")}>
+          {t("fleet.card.open")}
         </button>
         <button class="inline-flex items-center justify-center rounded px-2 py-1 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
                 onClick={() => props.onEdit(s().key)}
-                title="Edit connection">
-          Edit
+                title={t("fleet.card.edit")}>
+          {t("fleet.card.edit")}
         </button>
         <button class="ml-auto inline-flex items-center justify-center rounded px-2 py-1 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground"
                 onClick={() => props.onViewDetails(s().key)}
-                title="View details">
-          Details
+                title={t("fleet.card.details")}>
+          {t("fleet.card.details")}
         </button>
       </div>
     </div>

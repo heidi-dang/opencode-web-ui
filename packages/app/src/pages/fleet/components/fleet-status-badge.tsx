@@ -1,4 +1,5 @@
 
+import { useLanguage } from "@/context/language"
 import { type FleetServerState } from "../fleet-types"
 
 interface StatusBadgeProps {
@@ -15,7 +16,7 @@ const BADGE_CLASS: Record<FleetServerState, string> = {
   "auth-failed": "badge badge-outline text-red-700 dark:text-red-300",
 }
 
-const STATUS_LABELS: Record<FleetServerState, string> = {
+const STATUS_KEYS: Record<FleetServerState, string> = {
   checking: "fleet.status.checking",
   online: "fleet.status.online",
   degraded: "fleet.status.degraded",
@@ -25,9 +26,10 @@ const STATUS_LABELS: Record<FleetServerState, string> = {
 }
 
 export function FleetStatusBadge(props: StatusBadgeProps) {
-  const label = props.state === "online" && props.latencyMs !== undefined
+  const { t } = useLanguage()
+  const label = () => props.state === "online" && props.latencyMs !== undefined
     ? `~${props.latencyMs}ms`
-    : STATUS_LABELS[props.state]
+    : t(STATUS_KEYS[props.state])
 
-  return <span class={BADGE_CLASS[props.state]}>{label}</span>
+  return <span class={BADGE_CLASS[props.state]}>{label()}</span>
 }
