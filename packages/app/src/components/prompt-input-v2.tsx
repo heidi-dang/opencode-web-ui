@@ -309,30 +309,33 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
       })),
   )
   const resources = createMemo(() =>
-    Object.values(sync().data.mcp_resource).map((resource) => ({
-      id: `resource:${resource.server}:${resource.uri}`,
-      kind: "resource" as const,
-      label: `@${resource.name}`,
-      path: resource.uri,
-      description: resource.description,
-      mention: {
-        type: "file" as const,
+    Object.values(sync().data.mcp_resource).map((resource) => {
+      const name = resource.name || resource.uri.split('/').pop() || "resource";
+      return {
+        id: `resource:${resource.server}:${resource.uri}`,
+        kind: "resource" as const,
+        label: `@${name}`,
         path: resource.uri,
-        content: `@${resource.name}`,
-        start: 0,
-        end: 0,
-        mime: resource.mimeType ?? "text/plain",
-        filename: resource.name,
-        url: resource.uri,
-        source: {
-          type: "resource" as const,
-          text: { value: `@${resource.name}`, start: 0, end: resource.name.length + 1 },
-          clientName: resource.server,
-          uri: resource.uri,
+        description: resource.description,
+        mention: {
+          type: "file" as const,
+          path: resource.uri,
+          content: `@${name}`,
+          start: 0,
+          end: 0,
+          mime: resource.mimeType ?? "text/plain",
+          filename: name,
+          url: resource.uri,
+          source: {
+            type: "resource" as const,
+            text: { value: `@${name}`, start: 0, end: name.length + 1 },
+            clientName: resource.server,
+            uri: resource.uri,
+          },
         },
-      },
-      resource,
-    })),
+        resource,
+      }
+    }),
   )
   const context = createMemo<PromptInputV2Suggestion[]>(() => [
     ...references(),
