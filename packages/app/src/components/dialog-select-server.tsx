@@ -375,15 +375,7 @@ export function useServerManagementController(options: { onSelect?: () => void; 
       }
       if (store.addServer.name.trim()) conn.displayName = store.addServer.name.trim()
       if (store.addServer.username) conn.http.username = store.addServer.username
-      if (store.addServer.password) conn.http.password = store.addServer.password
-      let result = await checkServerHealth(conn.http)
-      if (!result.healthy && typeof location === "object" && location.origin) {
-        const proxyHttp = { ...conn.http, url: `${location.origin}/opencode-server` }
-        const proxyResult = await checkServerHealth(proxyHttp)
-        if (proxyResult.healthy) {
-          result = proxyResult
-        }
-      }
+      const result = await checkServerHealth(conn.http)
       if (!result.healthy) {
         if (result.requiresAuth && (!store.addServer.username || !store.addServer.password)) {
           setStore("addServer", { error: "Server requires authentication. Please enter Username & Password." })

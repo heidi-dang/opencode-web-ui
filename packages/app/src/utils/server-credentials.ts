@@ -1,5 +1,11 @@
+import { normalizeServerUrl } from "./url-normalize"
+
 const SESSION_PREFIX = "opencode.credentials."
 const LEGACY_LOCAL_PREFIX = "opencode.credentials."
+
+function canonicalUrlKey(serverUrl: string): string {
+  return normalizeServerUrl(serverUrl) ?? serverUrl.trim()
+}
 
 function getSessionStorage() {
   try {
@@ -18,11 +24,11 @@ function getLocalStorage() {
 }
 
 function sessionKey(serverUrl: string) {
-  return `${SESSION_PREFIX}${serverUrl}`
+  return `${SESSION_PREFIX}${canonicalUrlKey(serverUrl)}`
 }
 
 function legacyLocalKey(serverUrl: string) {
-  return `${LEGACY_LOCAL_PREFIX}${serverUrl}`
+  return `${LEGACY_LOCAL_PREFIX}${canonicalUrlKey(serverUrl)}`
 }
 
 function legacyLocalKeys() {
@@ -50,7 +56,6 @@ function migrateLegacyCredentials() {
     if (!ss.getItem(sessionKey_)) {
       ss.setItem(sessionKey_, raw)
     }
-    ls.removeItem(legacyKey)
   }
 }
 
@@ -66,45 +71,44 @@ function migrateLegacyServerCredentials(knownServers: string[]) {
     if (!ss.getItem(sessionKey_)) {
       ss.setItem(sessionKey_, raw)
     }
-    ls.removeItem(legacyKey)
   }
 }
 
 export function saveCredentials(serverUrl: string, username: string | undefined, password: string) {
-  const ss = getSessionStorage()
-  if (!ss) return
   if (!password) return
-  migrateLegacyCredentials()
   const data = JSON.stringify({ username, password })
-  ss.setItem(sessionKey(serverUrl), data)
+  const ss = getSessionStorage()
+  if (ss) {
+    ss.setItem(sessionKey(serverUrl), data)
+  }
+  const ls = getLocalStorage()
+  if (ls) {
+    ls.setItem(legacyLocalKey(serverUrl), data)
+  }
 }
 
 export function getCredentials(serverUrl: string): { username?: string; password?: string } | null {
+  const key = canonicalUrlKey(serverUrl)
   const ss = getSessionStorage()
   if (ss) {
-    const raw = ss.getItem(sessionKey(serverUrl))
+    const raw = ss.getItem(sessionKey(key))
     if (raw) {
       try {
         return JSON.parse(raw)
-      } catch {
-        return null
-      }
+      } catch {}
     }
   }
   const ls = getLocalStorage()
   if (ls) {
-    const raw = ls.getItem(legacyLocalKey(serverUrl))
+    const raw = ls.getItem(legacyLocalKey(key))
     if (raw) {
       try {
         const parsed = JSON.parse(raw)
         if (ss) {
-          ss.setItem(sessionKey(serverUrl), raw)
+          ss.setItem(sessionKey(key), raw)
         }
-        ls.removeItem(legacyLocalKey(serverUrl))
         return parsed
-      } catch {
-        return null
-      }
+      } catch {}
     }
   }
   return null
