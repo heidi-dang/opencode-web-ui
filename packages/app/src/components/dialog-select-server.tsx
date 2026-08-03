@@ -122,35 +122,43 @@ function useServerPreview() {
 
 function ServerForm(props: ServerFormProps) {
   const language = useLanguage()
+  const [scheme, setScheme] = createSignal<"http" | "https">("http")
   const [host, setHost] = createSignal("")
   const [port, setPort] = createSignal("4096")
 
   createEffect(() => {
     if (props.value) {
       try {
+        // Parse out scheme, host, and port from the stored/incoming value
+        const detectedScheme: "http" | "https" = props.value.startsWith("https://") ? "https" : "http"
         const clean = props.value.replace(/^https?:\/\//, "")
         const parts = clean.split(":")
         if (parts[0]) setHost(parts[0])
         if (parts[1]) setPort(parts[1].split("/")[0])
+        setScheme(detectedScheme)
       } catch {}
     }
   })
 
-  const updateUrl = (h: string, p: string) => {
+  const updateUrl = (h: string, p: string, forceScheme?: "http" | "https") => {
     let cleanHost = h.trim()
     if (cleanHost === "http" || cleanHost === "https" || cleanHost === "http:" || cleanHost === "https:") {
       props.onChange("")
       return
     }
+    // If the user pastes a full URL (contains ://), extract scheme, host and port
     if (cleanHost.includes("://")) {
       try {
         const parsed = new URL(cleanHost)
+        if (parsed.protocol === "https:") setScheme("https")
+        else if (parsed.protocol === "http:") setScheme("http")
         cleanHost = parsed.hostname
         if (parsed.port) p = parsed.port
       } catch {}
     }
+    const effectiveScheme = forceScheme ?? scheme()
     const cleanPort = p.trim() || "4096"
-    const constructed = cleanHost && cleanHost.length > 1 ? `http://${cleanHost}:${cleanPort}` : ""
+    const constructed = cleanHost && cleanHost.length > 1 ? `${effectiveScheme}://${cleanHost}:${cleanPort}` : ""
     props.onChange(constructed)
   }
 

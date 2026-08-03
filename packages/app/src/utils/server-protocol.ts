@@ -1,5 +1,6 @@
 import type { ServerConnection } from "@/context/server"
 import { authTokenFromCredentials } from "./server"
+import { getEffectiveServerUrl } from "./url-normalize"
 
 export type ServerProtocol = "v1" | "v2"
 
@@ -11,7 +12,9 @@ function headers(server: ServerConnection.HttpBase) {
 }
 
 async function probe(server: ServerConnection.HttpBase, fetch: typeof globalThis.fetch, path: string) {
-  const response = await fetch(new URL(path, server.url), {
+  const baseUrl = getEffectiveServerUrl(server.url)
+  const target = new URL(path.replace(/^\//, ""), baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`).toString()
+  const response = await fetch(target, {
     headers: headers(server),
     signal: AbortSignal.timeout(5_000),
   })

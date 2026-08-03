@@ -2,6 +2,7 @@ import { createOpencodeClient } from "@opencode-ai/sdk/v2/client"
 import { OpenCode, type OpenCodeClient } from "@opencode-ai/client/promise"
 import type { ServerConnection } from "@/context/server"
 import { decode64 } from "@/utils/base64"
+import { getEffectiveServerUrl } from "@/utils/url-normalize"
 
 // UTF-8 safe Base64 encoding for Basic Auth credentials.
 // btoa() throws on non-ASCII characters, so we encode to bytes first.
@@ -48,7 +49,7 @@ export function createSdkForServer({
       ...(config.headers instanceof Headers ? Object.fromEntries(config.headers.entries()) : config.headers),
       ...auth,
     },
-    baseUrl: server.url,
+    baseUrl: getEffectiveServerUrl(server.url),
   })
 }
 
@@ -57,7 +58,7 @@ export function createApiForServer(input: {
   fetch?: typeof globalThis.fetch
 }): OpenCodeClient {
   return OpenCode.make({
-    baseUrl: input.server.url,
+    baseUrl: getEffectiveServerUrl(input.server.url),
     fetch: input.fetch,
     headers: input.server.password
       ? {

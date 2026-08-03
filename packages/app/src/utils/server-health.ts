@@ -1,6 +1,7 @@
 import { usePlatform } from "@/context/platform"
 import { ServerConnection } from "@/context/server"
 import { authTokenFromCredentials, createSdkForServer } from "./server"
+import { getEffectiveServerUrl } from "./url-normalize"
 import { ClientError, OpenCode } from "@opencode-ai/client"
 import { Accessor, createEffect, onCleanup } from "solid-js"
 import { createStore, reconcile } from "solid-js/store"
@@ -113,28 +114,24 @@ export function checkServerHealth(
       return null
     }
 
-    // Direct HTTP Probe for raw status check
+    // HTTP Probe for status check (direct + effective proxy)
     try {
       const probePaths = ["/health", "/global/health", "/api/health"]
-      for (const path of probePaths) {
-        try {
-          const res = await fetch(new URL(path, server.url).toString(), { headers: authHeaders, signal }).catch(() => null)
-          const result = await processRes(res)
-          if (result) return result
-        } catch {}
+      const targetUrls = [server.url]
+      const effectiveUrl = getEffectiveServerUrl(server.url)
+      if (effectiveUrl !== server.url) {
+        targetUrls.push(effectiveUrl)
       }
 
-      // Same-origin Vite Proxy fallback probe (guarantees success for local server)
-      if (typeof location === "object" && location.origin) {
-        const proxyBase = `${location.origin}/opencode-server`
+      for (const targetBase of targetUrls) {
         for (const path of probePaths) {
           try {
-            const proxyRes = await fetch(new URL(path, proxyBase).toString(), { headers: authHeaders, signal }).catch(() => null)
-            const result = await processRes(proxyRes)
+            const target = new URL(path.replace(/^\//, ""), targetBase.endsWith("/") ? targetBase : `${targetBase}/`).toString()
+            const res = await fetch(target, { headers: authHeaders, signal }).catch(() => null)
+            const result = await processRes(res)
             if (result) return result
           } catch {}
         }
-
       }
     } catch {}
 

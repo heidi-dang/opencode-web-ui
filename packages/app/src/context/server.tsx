@@ -5,6 +5,7 @@ import { Persist, persisted } from "@/utils/persist"
 import { pathKey } from "@/utils/path-key"
 import { ServerScope } from "@/utils/server-scope"
 import { saveCredentials, clearCredentials, getCredentials, runCredentialMigration } from "@/utils/server-credentials"
+import { normalizeServerUrl as canonicalNormalizeServerUrl } from "@/utils/url-normalize"
 
 type StoredProject = { worktree: string; expanded: boolean }
 type StoredServer = string | ServerConnection.HttpBase | ServerConnection.Http
@@ -21,35 +22,12 @@ const HEALTH_POLL_INTERVAL_MS = 10_000
 const RECENTLY_CLOSED_HISTORY_LIMIT = 16
 export const RECENTLY_CLOSED_DISPLAY_LIMIT = 5
 
-export function normalizeServerUrl(input: string) {
-  const trimmed = input.trim()
-  if (!trimmed) return
-  const withProtocol = /^https?:\/\//.test(trimmed) ? trimmed : `http://${trimmed}`
-  let clean = withProtocol.replace(/\/+$/, "")
-
-  if (clean.endsWith("/opencode-server") && !clean.includes("localhost") && !clean.includes("127.0.0.1")) {
-    if (typeof location === "object" && location.hostname && !clean.includes(location.hostname)) {
-      clean = clean.replace(/\/opencode-server$/, "")
-    }
-  }
-
-  if (
-    typeof location === "object" &&
-    location.hostname &&
-    location.hostname !== "localhost" &&
-    location.hostname !== "127.0.0.1" &&
-    location.hostname !== ""
-  ) {
-    const targetHost = clean.replace(/^https?:\/\//, "").split("/")[0].split(":")[0]
-    const isLocalTarget =
-      targetHost === "localhost" ||
-      targetHost === "127.0.0.1" ||
-      targetHost === location.hostname
-    if (isLocalTarget && (clean.includes(":4096") || clean.endsWith("/opencode-server"))) {
-      return `${location.origin}/opencode-server`
-    }
-  }
-  return clean
+/**
+ * Canonical server URL normalization — delegates to url-normalize module.
+ * Preserved as a named export for backwards compatibility with existing callers.
+ */
+export function normalizeServerUrl(input: string): string | undefined {
+  return canonicalNormalizeServerUrl(input)
 }
 
 export function serverName(conn?: ServerConnection.Any, ignoreDisplayName = false) {
@@ -319,6 +297,9 @@ export const { use: useServer, provider: ServerProvider } = createSimpleContext(
         projects: {} as Record<string, StoredProject[]>,
         lastProject: {} as Record<string, string>,
         recentlyClosed: {} as Record<string, string[]>,
+        // Persisted active server key — restored on page reload so the user's
+        // selected server survives navigation and browser refresh.
+        activeServer: undefined as ServerConnection.Key | undefined,
       }),
     )
 
@@ -329,11 +310,16 @@ export const { use: useServer, provider: ServerProvider } = createSimpleContext(
     })
 
     const [state, setState] = createStore({
-      active: props.defaultServer,
+      // Prefer the persisted active key; fall back to the prop default.
+      active: store.activeServer ?? props.defaultServer,
     })
 
     function setActive(input: ServerConnection.Key) {
-      if (state.active !== input) setState("active", input)
+      if (state.active !== input) {
+        setState("active", input)
+        // Persist the new selection so it survives page reload.
+        setStore("activeServer", input)
+      }
     }
 
     function add(input: ServerConnection.Http) {
@@ -355,7 +341,10 @@ export const { use: useServer, provider: ServerProvider } = createSimpleContext(
         } else {
           setStore("list", store.list.length, conn)
         }
-        setState("active", ServerConnection.key(conn))
+        const newKey = ServerConnection.key(conn)
+        setState("active", newKey)
+        // Persist so the new server remains active after page reload.
+        setStore("activeServer", newKey)
         return conn
       })
     }
@@ -366,7 +355,10 @@ export const { use: useServer, provider: ServerProvider } = createSimpleContext(
       const list = store.list.filter((x) => url(x) !== key)
       batch(() => {
         setStore("list", list)
-        if (state.active === key) setState("active", next)
+        if (state.active === key) {
+          setState("active", next)
+          setStore("activeServer", next)
+        }
       })
     }
 
