@@ -123,12 +123,12 @@ function createV2ProjectApi(sdk: OpencodeClient): ProjectApi {
   return {
     list: () =>
       sdk.project.list().then((res) => {
-        const data = res[200] ?? (res as unknown as Array<Project>)
+        const data = (res as any)[200] ?? (res as unknown as Array<Project>)
         return Array.isArray(data) ? data : []
       }) as Promise<ProjectListOutput>,
     current: () =>
       sdk.project.current().then((res) => {
-        const data = res[200] ?? (res as unknown)
+        const data = (res as any)[200] ?? (res as unknown)
         return data as ProjectCurrentOutput
       }),
   }

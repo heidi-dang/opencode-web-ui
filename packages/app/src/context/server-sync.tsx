@@ -419,10 +419,11 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
                 : loadRootSessions({ api: serverSDK.api.session, directory, limit }),
             )
             .then((x) => {
-              const nonArchived = (x.data ?? [])
-                .filter((s) => !!s?.id)
-                .filter((s) => !s.time?.archived)
-                .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+              const dataArray = Array.isArray(x.data) ? x.data : Object.values(x.data ?? {})
+              const nonArchived = dataArray
+                .filter((s: any) => !!s?.id)
+                .filter((s: any) => !s.time?.archived)
+                .sort((a: any, b: any) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)) as any[]
               const limit = Math.max(store.limit, options?.limit ?? 0, sessionMeta.get(key)?.limit ?? 0)
               const childSessions = store.session.filter((s) => !!s.parentID)
               const next = trimSessions([...nonArchived, ...childSessions], {

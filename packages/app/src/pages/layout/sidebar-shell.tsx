@@ -30,6 +30,7 @@ export const SidebarContent = (props: {
   onOpenSettings: () => void
   onOpenFleet: () => void
   onOpenFlowdeck: () => void
+  onOpenBetterHarness: () => void
   helpLabel: Accessor<string>
   onOpenHelp: () => void
   renderPanel: () => JSX.Element
@@ -108,6 +109,15 @@ export const SidebarContent = (props: {
               size="large"
               onClick={props.onOpenFlowdeck}
               aria-label="FlowDeck"
+            />
+          </Tooltip>
+          <Tooltip placement={placement()} value="Better Harness">
+            <IconButton
+              icon="providers"
+              variant="ghost"
+              size="large"
+              onClick={props.onOpenBetterHarness}
+              aria-label="Better Harness"
             />
           </Tooltip>
           <TooltipKeybind placement={placement()} title={props.settingsLabel()} keybind={props.settingsKeybind() ?? ""}>

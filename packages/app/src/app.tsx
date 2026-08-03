@@ -75,6 +75,7 @@ const LegacyHome = lazy(() => import("@/pages/home/legacy-home").then((m) => ({ 
 const FleetPage = lazy(() => import("@/pages/fleet").then((m) => ({ default: m.FleetPage })))
 const NewSession = lazy(() => import("@/pages/new-session"))
 const FlowdeckDashboard = lazy(() => import("@/pages/flowdeck"))
+const BetterHarnessPage = lazy(() => import("@/features/better-harness").then((m) => ({ default: m.BetterHarnessPage })))
 
 const SessionRoute = () => {
   const settings = useSettings()
@@ -639,6 +640,7 @@ function Routes(props: { serverScoped?: JSX.Element }) {
         <Route path="/" component={NewHome} />
         <Route path="/fleet" component={FleetPage} />
         <Route path="/flowdeck" component={FlowdeckDashboard} />
+        <Route path="/server/:serverKey/project/:projectKey/better-harness" component={BetterHarnessPage} />
         <Route path="/:dir/session/:id" component={NewLayoutLegacySessionRedirect} />
         <Route path="/server/:serverKey/session/:id" component={TargetSessionRoute} />
       </Show>

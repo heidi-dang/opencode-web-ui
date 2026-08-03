@@ -2248,6 +2248,17 @@ export default function LegacyLayout(props: ParentProps) {
       onOpenSettings={openSettings}
       onOpenFleet={() => navigate("/fleet")}
       onOpenFlowdeck={() => navigate("/flowdeck")}
+      onOpenBetterHarness={() => {
+        const p = currentProject();
+        const serverKey = server.key;
+        if (p && p.id) {
+          navigate(`/server/${serverKey}/project/${p.id}/better-harness`);
+        } else {
+          // If no project is selected or no ID exists, fallback to home or show an alert.
+          // Or just navigate to home if they click it without a project open.
+          navigate(`/`);
+        }
+      }}
       helpLabel={() => language.t("sidebar.help")}
       onOpenHelp={() => platform.openLink("https://opencode.ai/desktop-feedback")}
       renderPanel={() =>
