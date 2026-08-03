@@ -5,6 +5,7 @@ import { Persist, persisted } from "@/utils/persist"
 import { pathKey } from "@/utils/path-key"
 import { ServerScope } from "@/utils/server-scope"
 import { saveCredentials, clearCredentials, getCredentials, runCredentialMigration } from "@/utils/server-credentials"
+export { getEffectiveServerUrl } from "@/utils/server"
 
 type StoredProject = { worktree: string; expanded: boolean }
 type StoredServer = string | ServerConnection.HttpBase | ServerConnection.Http

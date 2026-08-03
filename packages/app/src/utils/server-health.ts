@@ -1,6 +1,6 @@
 import { usePlatform } from "@/context/platform"
 import { ServerConnection } from "@/context/server"
-import { authTokenFromCredentials, createSdkForServer } from "./server"
+import { authTokenFromCredentials, createSdkForServer, getEffectiveServerUrl } from "./server"
 import { ClientError, OpenCode } from "@opencode-ai/client"
 import { Accessor, createEffect, onCleanup } from "solid-js"
 import { createStore, reconcile } from "solid-js/store"
@@ -93,6 +93,7 @@ export function checkServerHealth(
       .catch(() => ({ healthy: false }))
   }
   const attempt = async (count: number): Promise<ServerHealth> => {
+    const effectiveUrl = getEffectiveServerUrl(server.url)
     const authHeaders = server.password
       ? { Authorization: `Basic ${authTokenFromCredentials({ username: server.username, password: server.password })}` }
       : undefined
@@ -113,33 +114,20 @@ export function checkServerHealth(
       return null
     }
 
-    // Direct HTTP Probe for raw status check
+    // Direct / Proxy Probe for raw status check
     try {
       const probePaths = ["/health", "/global/health", "/api/health"]
       for (const path of probePaths) {
         try {
-          const res = await fetch(new URL(path, server.url).toString(), { headers: authHeaders, signal }).catch(() => null)
+          const res = await fetch(new URL(path, effectiveUrl).toString(), { headers: authHeaders, signal }).catch(() => null)
           const result = await processRes(res)
           if (result) return result
         } catch {}
       }
-
-      // Same-origin Vite Proxy fallback probe (guarantees success for local server)
-      if (typeof location === "object" && location.origin) {
-        const proxyBase = `${location.origin}/opencode-server`
-        for (const path of probePaths) {
-          try {
-            const proxyRes = await fetch(new URL(path, proxyBase).toString(), { headers: authHeaders, signal }).catch(() => null)
-            const result = await processRes(proxyRes)
-            if (result) return result
-          } catch {}
-        }
-
-      }
     } catch {}
 
     const current = await OpenCode.make({
-      baseUrl: server.url,
+      baseUrl: effectiveUrl,
       fetch,
       headers: authHeaders,
     })

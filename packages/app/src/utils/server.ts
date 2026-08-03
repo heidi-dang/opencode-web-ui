@@ -29,6 +29,23 @@ export function authFromToken(token: string | null) {
   }
 }
 
+export function getEffectiveServerUrl(url: string): string {
+  if (!url) return url
+  const trimmed = url.trim()
+  if (typeof location === "object" && location.protocol === "https:" && trimmed.startsWith("http://")) {
+    try {
+      const parsed = new URL(trimmed)
+      const host = parsed.hostname
+      const port = parsed.port || "80"
+      const pathname = parsed.pathname === "/" ? "" : parsed.pathname.replace(/\/+$/, "")
+      return `${location.origin}/direct/${host}/${port}${pathname}`
+    } catch {
+      return trimmed
+    }
+  }
+  return trimmed
+}
+
 export function createSdkForServer({
   server,
   ...config
@@ -48,7 +65,7 @@ export function createSdkForServer({
       ...(config.headers instanceof Headers ? Object.fromEntries(config.headers.entries()) : config.headers),
       ...auth,
     },
-    baseUrl: server.url,
+    baseUrl: getEffectiveServerUrl(server.url),
   })
 }
 
@@ -57,7 +74,7 @@ export function createApiForServer(input: {
   fetch?: typeof globalThis.fetch
 }): OpenCodeClient {
   return OpenCode.make({
-    baseUrl: input.server.url,
+    baseUrl: getEffectiveServerUrl(input.server.url),
     fetch: input.fetch,
     headers: input.server.password
       ? {
