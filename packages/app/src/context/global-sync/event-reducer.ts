@@ -259,7 +259,7 @@ export function applyDirectoryEvent(input: {
     }
     case "todo.updated": {
       const props = event.properties as { sessionID: string; todos: Todo[] }
-      input.setStore("todo", props.sessionID, reconcile(props.todos, { key: "id" }))
+      input.setStore("todo", props.sessionID, reconcile(props.todos, { merge: false }))
       input.setSessionTodo?.(props.sessionID, props.todos)
       break
     }
