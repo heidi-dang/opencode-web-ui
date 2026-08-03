@@ -511,6 +511,8 @@ export const dict = {
   "toast.language.description": "已切换到{{language}}",
   "toast.theme.title": "主题已切换",
   "toast.scheme.title": "颜色方案",
+  "toast.project.required.title": "需要项目",
+  "toast.project.required.description": "请打开一个项目以使用 Better Harness。",
   "toast.workspace.enabled.title": "工作区已启用",
   "toast.workspace.enabled.description": "侧边栏现在显示多个工作树",
   "toast.workspace.disabled.title": "工作区已禁用",

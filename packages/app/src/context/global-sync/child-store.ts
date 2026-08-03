@@ -17,6 +17,7 @@ import { canDisposeDirectory, pickDirectoriesToEvict } from "./eviction"
 import { useQuery } from "@tanstack/solid-query"
 import { QueryOptionsApi } from "../server-sync"
 import { directoryKey, type DirectoryKey } from "./utils"
+import { normalizeLspStatusList } from "@/utils/lsp"
 import { NormalizedProviderListResponse } from "@opencode-ai/session-ui/context"
 import type { ServerScope } from "@/utils/server-scope"
 
@@ -250,7 +251,7 @@ export function createChildStoreManager(input: {
               return instanceQueriesEnabled() && !lspQuery.isLoading
             },
             get lsp() {
-              return lspQuery.isLoading ? [] : (lspQuery.data ?? [])
+              return lspQuery.isLoading ? [] : normalizeLspStatusList(lspQuery.data)
             },
             vcs: vcsStore.value,
             limit: 5,

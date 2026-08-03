@@ -35,7 +35,9 @@ export async function discoverBetterHarness(
   authToken?: string,
 ): Promise<BetterHarnessRuntimeInfo> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
-  if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
+  // Basic auth — the token is a base64 "user:password" credential pair,
+  // not a Bearer token (see authTokenFromCredentials).
+  if (authToken) headers["Authorization"] = `Basic ${authToken}`;
 
   // Try the Better Harness availability endpoint
   const baseUrl = transportUrl.replace(/\/+$/, "");

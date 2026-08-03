@@ -420,6 +420,8 @@ export const dict = {
 
   "toast.theme.title": "Tema byttet",
   "toast.scheme.title": "Fargevalg",
+  "toast.project.required.title": "Prosjekt kreves",
+  "toast.project.required.description": "Åpne et prosjekt for å bruke Better Harness.",
 
   "toast.workspace.enabled.title": "Arbeidsområder aktivert",
   "toast.workspace.enabled.description": "Flere worktrees vises nå i sidefeltet",

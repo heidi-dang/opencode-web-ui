@@ -504,6 +504,8 @@ export const dict = {
 
   "toast.theme.title": "Tema değiştirildi",
   "toast.scheme.title": "Renk şeması",
+  "toast.project.required.title": "Proje gerekli",
+  "toast.project.required.description": "Better Harness kullanmak için bir proje açın.",
 
   "toast.workspace.enabled.title": "Çalışma alanları etkinleştirildi",
   "toast.workspace.enabled.description": "Kenar çubuğunda birden fazla çalışma ağacı gösterilecek",

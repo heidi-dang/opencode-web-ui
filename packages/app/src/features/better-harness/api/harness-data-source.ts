@@ -61,7 +61,9 @@ export class HttpHarnessDataSource implements HarnessDataSource {
 
   private getHeaders(): Record<string, string> {
     const h: Record<string, string> = { "Content-Type": "application/json" };
-    if (this.authToken) h["Authorization"] = `Bearer ${this.authToken}`;
+    // Basic auth — the token is a base64 "user:password" credential pair,
+    // not a Bearer token (see authTokenFromCredentials).
+    if (this.authToken) h["Authorization"] = `Basic ${this.authToken}`;
     return h;
   }
 

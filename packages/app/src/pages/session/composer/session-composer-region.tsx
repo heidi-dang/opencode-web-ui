@@ -10,6 +10,7 @@ import { SessionRevertDock } from "@/pages/session/composer/session-revert-dock"
 import { SessionTodoDock } from "@/pages/session/composer/session-todo-dock"
 import { StreamingStatusBar, type ActivityHint } from "@/pages/session/composer/streaming-status-bar"
 import { SessionProgressRing } from "@/pages/session/composer/session-progress-ring"
+import { activityHintFromPart } from "@/pages/session/composer/activity-hint"
 import type { SessionComposerRegionController } from "./session-composer-region-controller"
 
 export function SessionComposerRegion(props: {
@@ -32,27 +33,15 @@ export function SessionComposerRegion(props: {
   const activityHint = createMemo<ActivityHint>(() => {
     const sId = params.id ?? ""
     if (!sync().data.session_working(sId)) return "thinking"
-    
+
     const messages = sync().data.message[sId]
     if (!messages?.length) return "thinking"
-    
+
     const lastMsg = messages[messages.length - 1]
     const parts = sync().data.part[lastMsg.id]
     if (!parts?.length) return "thinking"
-    
-    const lastPart = parts[parts.length - 1]
-    switch (lastPart.type) {
-      case "tool_call":
-        if (lastPart.toolCall?.name?.includes("command")) return "shell"
-        if (lastPart.toolCall?.name?.includes("file") || lastPart.toolCall?.name?.includes("grep")) return "file"
-        return "tool"
-      case "text":
-        return "text"
-      case "step":
-        return "step"
-      default:
-        return "thinking"
-    }
+
+    return activityHintFromPart(parts[parts.length - 1])
   })
 
   return (

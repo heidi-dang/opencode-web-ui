@@ -499,6 +499,8 @@ export const dict = {
 
   "toast.theme.title": "สลับธีมแล้ว",
   "toast.scheme.title": "โทนสี",
+  "toast.project.required.title": "ต้องมีโปรเจกต์",
+  "toast.project.required.description": "เปิดโปรเจกต์เพื่อใช้ Better Harness",
 
   "toast.workspace.enabled.title": "เปิดใช้งานพื้นที่ทำงานแล้ว",
   "toast.workspace.enabled.description": "ตอนนี้จะแสดง worktree หลายรายการในแถบด้านข้าง",

@@ -613,4 +613,47 @@ describe("applyDirectoryEvent", () => {
     expect(pushes).toEqual(["/tmp"])
     expect(lspLoads).toBe(1)
   })
+
+  test("replaces the todo list as a snapshot on todo.updated (v2 contract)", () => {
+    const [store, setStore] = createStore(
+      baseState({ todo: { ses_1: [{ content: "old", status: "completed", priority: "low" }] } }),
+    )
+    let sessionTodo: unknown
+
+    applyDirectoryEvent({
+      event: {
+        type: "todo.updated",
+        properties: { sessionID: "ses_1", todos: [{ content: "new", status: "in_progress", priority: "high" }] },
+      },
+      store,
+      setStore,
+      push() {},
+      directory: "/tmp",
+      loadLsp() {},
+      setSessionTodo(sid, todos) {
+        sessionTodo = todos
+      },
+    })
+
+    expect(store.todo.ses_1).toHaveLength(1)
+    expect(store.todo.ses_1).toEqual([{ content: "new", status: "in_progress", priority: "high" }])
+    expect(sessionTodo).toEqual([{ content: "new", status: "in_progress", priority: "high" }])
+
+    applyDirectoryEvent({
+      event: {
+        type: "todo.updated",
+        properties: { sessionID: "ses_1", todos: [] },
+      },
+      store,
+      setStore,
+      push() {},
+      directory: "/tmp",
+      loadLsp() {},
+      setSessionTodo(sid, todos) {
+        sessionTodo = todos
+      },
+    })
+
+    expect(store.todo.ses_1).toEqual([])
+  })
 })

@@ -7,6 +7,8 @@ import { createEffect, createSignal, onCleanup, Switch, Match, Show } from "soli
 import { useParams, useNavigate } from "@solidjs/router";
 import { useGlobal } from "@/context/global";
 import { ServerConnection } from "@/context/server";
+import { requireServerKey } from "@/utils/session-route";
+import { authTokenFromCredentials } from "@/utils/server";
 
 // Simple English-only i18n helper for BH keys. The keys exist in all 17 locale
 // files; wiring to the app's useLanguage() is a follow-up task.
@@ -32,8 +34,15 @@ export function BetterHarnessPage() {
   const navigate = useNavigate();
   const [initialised, setInitialised] = createSignal(false);
 
-  // Get server and project context from route params
-  const serverKey = () => params.serverKey;
+  // Get server and project context from route params.
+  // The serverKey route segment is base64-encoded; decode and validate it.
+  const serverKey = () => {
+    try {
+      return requireServerKey(params.serverKey);
+    } catch {
+      return undefined;
+    }
+  };
   const projectKey = () => params.projectKey;
 
   // Derive transport URL from the current page's origin
@@ -41,16 +50,34 @@ export function BetterHarnessPage() {
 
   // Create the store with runtime-discovered config
   const global = useGlobal();
-  const serverConn = () => global.servers.list.find(s => ServerConnection.key(s) === serverKey());
-  
+  const serverConn = () => {
+    const key = serverKey();
+    if (!key) return undefined;
+    return global.servers.list().find((s) => ServerConnection.key(s) === key);
+  };
+
+  // Better Harness is served by the same OpenCode server, so it authenticates
+  // with the server's Basic credentials (base64 "user:password"), not a Bearer token.
+  const authToken = () => {
+    const conn = serverConn();
+    if (conn?.type === "http" && conn.http?.password) {
+      return authTokenFromCredentials({ username: conn.http?.username, password: conn.http.password });
+    }
+    return undefined;
+  };
+
   const store = createBetterHarnessStore({
     baseUrl: baseUrl(),
-    serverKey: serverKey(),
+    serverKey: serverKey() ?? "",
     projectKey: projectKey(),
-    authToken: serverConn()?.type === "http" ? serverConn()?.http?.password : undefined,
+    authToken: authToken(),
   });
 
   createEffect(async () => {
+    if (!serverKey() || !serverConn()) {
+      setInitialised(true);
+      return;
+    }
     const available = await store.checkAvailability();
     setInitialised(true);
     if (available) {

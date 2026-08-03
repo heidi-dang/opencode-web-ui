@@ -499,6 +499,8 @@ export const dict = {
 
   "toast.theme.title": "Tema skiftet",
   "toast.scheme.title": "Farveskema",
+  "toast.project.required.title": "Projekt påkrævet",
+  "toast.project.required.description": "Åbn et projekt for at bruge Better Harness.",
 
   "toast.permissions.autoaccept.on.title": "Accepterer tilladelser automatisk",
   "toast.permissions.autoaccept.on.description": "Anmodninger om tilladelse godkendes automatisk",

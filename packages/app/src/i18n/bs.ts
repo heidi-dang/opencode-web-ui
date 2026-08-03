@@ -501,6 +501,8 @@ export const dict = {
 
   "toast.theme.title": "Tema promijenjena",
   "toast.scheme.title": "Šema boja",
+  "toast.project.required.title": "Projekat je potreban",
+  "toast.project.required.description": "Otvorite projekat da biste koristili Better Harness.",
 
   "toast.workspace.enabled.title": "Radni prostori omogućeni",
   "toast.workspace.enabled.description": "Više worktree-ova se sada prikazuje u bočnoj traci",

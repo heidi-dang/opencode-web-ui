@@ -381,6 +381,8 @@ export const dict = {
   "toast.language.description": "{{language}}(으)로 전환됨",
   "toast.theme.title": "테마 전환됨",
   "toast.scheme.title": "색상 테마",
+  "toast.project.required.title": "프로젝트가 필요합니다",
+  "toast.project.required.description": "Better Harness를 사용하려면 프로젝트를 여세요.",
   "toast.workspace.enabled.title": "작업 공간 활성화됨",
   "toast.workspace.enabled.description": "이제 사이드바에 여러 작업 트리가 표시됩니다",
   "toast.workspace.disabled.title": "작업 공간 비활성화됨",

@@ -463,6 +463,8 @@ export const dict = {
   "toast.language.description": "تم التبديل إلى {{language}}",
   "toast.theme.title": "تم تبديل السمة",
   "toast.scheme.title": "مخطط الألوان",
+  "toast.project.required.title": "المشروع مطلوب",
+  "toast.project.required.description": "يرجى فتح مشروع لاستخدام Better Harness.",
   "toast.workspace.enabled.title": "تم تمكين مساحات العمل",
   "toast.workspace.enabled.description": "الآن يتم عرض عدة worktrees في الشريط الجانبي",
   "toast.workspace.disabled.title": "تم تعطيل مساحات العمل",

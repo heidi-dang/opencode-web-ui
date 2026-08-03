@@ -136,7 +136,8 @@ export function createBetterHarnessStore(config: {
     try {
       const headers: Record<string, string> = { Accept: "text/event-stream" };
       const authToken = dataSource["authToken"];
-      if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
+      // Basic auth — the token is a base64 "user:password" credential pair.
+      if (authToken) headers["Authorization"] = `Basic ${authToken}`;
       if (lastValidEventId) headers["Last-Event-ID"] = lastValidEventId;
 
       const response = await fetch(url, { headers, signal });

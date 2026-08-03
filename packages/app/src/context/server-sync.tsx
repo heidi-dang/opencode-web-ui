@@ -32,6 +32,7 @@ import { trimSessions } from "./global-sync/session-trim"
 import type { ProjectMeta } from "./global-sync/types"
 import { SESSION_RECENT_LIMIT } from "./global-sync/types"
 import { formatServerError } from "@/utils/server-errors"
+import { normalizeLspStatusList } from "@/utils/lsp"
 import { queryOptions, useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/solid-query"
 import type { SolidQueryOptions } from "@tanstack/solid-query"
 import { createRefreshQueue } from "./global-sync/queue"
@@ -147,10 +148,7 @@ export const loadMcpResourcesQuery = (
 export const loadLspQuery = (scope: ServerScope, directory: string, sdk: OpencodeClient) =>
   queryOptions({
     queryKey: [scope, directory, "lsp"] as const,
-    queryFn: () => sdk.lsp.status().then((r) => {
-      if (!r.data) return []
-      return Array.isArray(r.data) ? r.data : Object.values(r.data)
-    }),
+    queryFn: () => sdk.lsp.status().then((r) => normalizeLspStatusList(r.data)),
   })
 
 export const loadActiveSessionsQuery = (

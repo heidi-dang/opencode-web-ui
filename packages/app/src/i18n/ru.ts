@@ -501,6 +501,8 @@ export const dict = {
 
   "toast.theme.title": "Тема переключена",
   "toast.scheme.title": "Цветовая схема",
+  "toast.project.required.title": "Требуется проект",
+  "toast.project.required.description": "Откройте проект, чтобы использовать Better Harness.",
 
   "toast.permissions.autoaccept.on.title": "Разрешения принимаются автоматически",
   "toast.permissions.autoaccept.on.description": "Запросы на разрешения будут одобряться автоматически",

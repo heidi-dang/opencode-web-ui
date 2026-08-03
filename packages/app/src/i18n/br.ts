@@ -465,6 +465,8 @@ export const dict = {
   "toast.language.description": "Alterado para {{language}}",
   "toast.theme.title": "Tema alterado",
   "toast.scheme.title": "Esquema de cores",
+  "toast.project.required.title": "Projeto necessário",
+  "toast.project.required.description": "Abra um projeto para usar o Better Harness.",
   "toast.workspace.enabled.title": "Espaços de trabalho ativados",
   "toast.workspace.enabled.description": "Várias worktrees agora são exibidas na barra lateral",
   "toast.workspace.disabled.title": "Espaços de trabalho desativados",

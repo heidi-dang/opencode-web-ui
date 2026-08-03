@@ -26,6 +26,17 @@ export function normalizeSessionInfo(input: SessionInfo | Session): Session {
   }
 }
 
+/**
+ * Normalise an unknown session-list payload (array or keyed record) into a
+ * typed Session array. The underlying API clients return loosely-typed data,
+ * so normalise at the boundary instead of in callers.
+ */
+export function normalizeSessionList(data: unknown): Session[] {
+  if (data == null) return []
+  const items = Array.isArray(data) ? data : Object.values(data as Record<string, unknown>)
+  return items.map((item) => normalizeSessionInfo(item as SessionInfo | Session))
+}
+
 export async function listAllSessions(api: Pick<SessionApi, "list">, input: Omit<SessionListInput, "cursor">) {
   const load = async (cursor?: string): Promise<Session[]> => {
     const result = await api.list({ ...input, limit: input.limit ?? 100, cursor })

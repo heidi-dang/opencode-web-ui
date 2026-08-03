@@ -2252,12 +2252,12 @@ export default function LegacyLayout(props: ParentProps) {
         const p = currentProject();
         const serverKey = server.key;
         if (p && p.id) {
-          navigate(`/server/${serverKey}/project/${p.id}/better-harness`);
+          navigate(`/server/${base64Encode(serverKey)}/project/${p.id}/better-harness`);
         } else {
           showToast({
-            title: "Project Required",
-            description: "Please open a project to use Better Harness.",
-            status: "warning",
+            title: language.t("toast.project.required.title"),
+            description: language.t("toast.project.required.description"),
+            variant: "default",
           });
         }
       }}
