@@ -715,3 +715,197 @@ kbd, [data-slot="desktop-app-menu-keybind"] {
   }
 }
 
+/* ─── AI Streaming Polish — Maximum UX ───────────────────────────────────────
+   Premium animations for the AI SSE streaming experience.
+   All animations respect prefers-reduced-motion via the global override above.
+──────────────────────────────────────────────────────────────────────────── */
+
+/* 1. Streaming Border Glow — animated gradient border for the prompt area while AI works */
+@keyframes streaming-border-flow {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.streaming-border-animated {
+  background: linear-gradient(
+    270deg,
+    rgba(99, 102, 241, 0.6),
+    rgba(139, 92, 246, 0.6),
+    rgba(168, 85, 247, 0.4),
+    rgba(99, 102, 241, 0.6)
+  );
+  background-size: 400% 400%;
+  animation: streaming-border-flow 3s ease infinite;
+}
+
+/* 2. Enhanced glow-pulse — richer multi-stop shadow */
+@keyframes glow-pulse-enhanced {
+  0%, 100% {
+    box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.25), 0 0 16px rgba(99, 102, 241, 0.15);
+  }
+  50% {
+    box-shadow: 0 0 0 1px rgba(139, 92, 246, 0.45), 0 0 28px rgba(139, 92, 246, 0.3);
+  }
+}
+
+.streaming-active-glow-enhanced {
+  animation: glow-pulse-enhanced 2.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  border-radius: var(--radius-lg, 8px);
+}
+
+/* 3. Status phrase fade transitions */
+@keyframes status-phrase-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes status-phrase-out {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(-4px); }
+}
+
+.status-phrase-enter {
+  animation: status-phrase-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.status-phrase-exit {
+  animation: status-phrase-out 0.25s ease-in both;
+}
+
+/* 4. TODO item entrance animation */
+@keyframes todo-item-enter {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.todo-item-enter {
+  animation: todo-item-enter 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* 5. TODO item completion flash */
+@keyframes todo-complete-flash {
+  0%   { background-color: transparent; }
+  30%  { background-color: rgba(16, 185, 129, 0.12); border-radius: 6px; }
+  100% { background-color: transparent; }
+}
+
+.todo-complete-flash {
+  animation: todo-complete-flash 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* 6. TODO in-progress dot — enhanced pulsing glow ring */
+@keyframes todo-dot-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.6);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(99, 102, 241, 0);
+    transform: scale(1.15);
+  }
+}
+
+.todo-dot-glow {
+  animation: todo-dot-glow 1.4s ease-in-out infinite;
+  border-radius: 50%;
+}
+
+/* 7. Progress ring stroke animation */
+@keyframes progress-ring-fill {
+  from { stroke-dashoffset: var(--ring-circumference); }
+  to   { stroke-dashoffset: var(--ring-offset); }
+}
+
+.progress-ring-circle {
+  transition: stroke-dashoffset 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+}
+
+/* 8. Completion celebration — scale + glow burst */
+@keyframes progress-complete-burst {
+  0%   { transform: scale(1); filter: brightness(1); }
+  35%  { transform: scale(1.15); filter: brightness(1.4) drop-shadow(0 0 8px rgba(16, 185, 129, 0.7)); }
+  70%  { transform: scale(0.97); filter: brightness(1.1); }
+  100% { transform: scale(1); filter: brightness(1); }
+}
+
+.progress-complete-burst {
+  animation: progress-complete-burst 0.65s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* 9. Skeleton shimmer for code preview */
+@keyframes skeleton-shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+
+.streaming-skeleton-line {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.03) 0%,
+    rgba(255, 255, 255, 0.08) 50%,
+    rgba(255, 255, 255, 0.03) 100%
+  );
+  background-size: 400px 100%;
+  animation: skeleton-shimmer 1.6s linear infinite;
+  border-radius: 4px;
+}
+
+/* 10. Status bar gradient background while streaming */
+.streaming-status-bar {
+  background: linear-gradient(
+    90deg,
+    rgba(99, 102, 241, 0.08),
+    rgba(139, 92, 246, 0.05),
+    rgba(99, 102, 241, 0.08)
+  );
+  background-size: 200% 100%;
+  animation: streaming-border-flow 4s ease infinite;
+  border-top: 1px solid rgba(99, 102, 241, 0.18);
+}
+
+/* 11. Elapsed time counter fade-in */
+@keyframes elapsed-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.elapsed-timer {
+  animation: elapsed-fade-in 0.8s ease 0.5s both;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 12. Mobile-responsive overrides for streaming bar */
+@media (max-width: 640px) {
+  .streaming-status-bar {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+
+  .streaming-status-bar .status-text-verbose {
+    display: none;
+  }
+
+  .streaming-status-bar .status-text-compact {
+    display: flex;
+  }
+
+  .progress-ring-container {
+    width: 22px;
+    height: 22px;
+  }
+}
+
+@media (min-width: 641px) {
+  .streaming-status-bar .status-text-compact {
+    display: none;
+  }
+}

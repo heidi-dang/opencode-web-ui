@@ -7,7 +7,7 @@ import { useSpring } from "@opencode-ai/ui/motion-spring"
 import { TextReveal } from "@opencode-ai/ui/text-reveal"
 import { TextStrikethrough } from "@opencode-ai/ui/text-strikethrough"
 import { createResizeObserver } from "@solid-primitives/resize-observer"
-import { Index, createEffect, createMemo } from "solid-js"
+import { Index, createEffect, createMemo, type JSX } from "solid-js"
 import { Dynamic } from "solid-js/web"
 import { createStore } from "solid-js/store"
 import { useLanguage } from "@/context/language"
@@ -16,7 +16,7 @@ import { useSettings } from "@/context/settings"
 const doneToken = "\u0000done\u0000"
 const totalToken = "\u0000total\u0000"
 
-function dot(status: Todo["status"]) {
+function dot(status: Todo["status"], isV2: boolean) {
   if (status !== "in_progress") return undefined
   return (
     <svg
@@ -25,14 +25,15 @@ function dot(status: Todo["status"]) {
       height="12"
       fill="currentColor"
       xmlns="http://www.w3.org/2000/svg"
-      class="block"
+      class={isV2 ? "block todo-dot-glow" : "block"}
+      style={isV2 ? { color: "rgba(99, 102, 241, 0.9)" } : undefined}
     >
       <circle
         cx="6"
         cy="6"
         r="3"
         style={{
-          animation: "var(--animate-pulse-scale)",
+          animation: isV2 ? undefined : "var(--animate-pulse-scale)",
           "transform-origin": "center",
           "transform-box": "fill-box",
         }}
@@ -48,6 +49,8 @@ export function SessionTodoDock(props: {
   collapseLabel: string
   expandLabel: string
   dockProgress: number
+  /** Optional V2 progress ring slot rendered in the header */
+  progressRing?: JSX.Element
 }) {
   const language = useLanguage()
   const settings = useSettings()
@@ -177,6 +180,8 @@ export function SessionTodoDock(props: {
               truncate
             />
           </div>
+          {/* V2 progress ring slot — rendered before the chevron button */}
+          {props.progressRing}
           <div class="ml-auto">
             <IconButton
               data-action="session-todo-toggle-button"
@@ -217,9 +222,12 @@ export function SessionTodoDock(props: {
 }
 
 function TodoList(props: { todos: Todo[] }) {
+  const settings = useSettings()
   const [store, setStore] = createStore({
     stuck: false,
   })
+
+  const isV2 = () => settings.general.newLayoutDesigns()
 
   return (
     <div class="relative">
@@ -231,44 +239,69 @@ function TodoList(props: { todos: Todo[] }) {
         }}
       >
         <Index each={props.todos}>
-          {(todo) => (
-            <Checkbox
-              readOnly
-              checked={todo().status === "completed"}
-              indeterminate={todo().status === "in_progress"}
-              data-in-progress={todo().status === "in_progress" ? "" : undefined}
-              data-state={todo().status}
-              icon={dot(todo().status)}
-              style={{
-                "--checkbox-align": "flex-start",
-                "--checkbox-offset": "1px",
-                transition: "opacity 220ms var(--tool-motion-ease, cubic-bezier(0.22, 1, 0.36, 1))",
-                opacity: todo().status === "pending" ? "0.94" : "1",
-              }}
+          {(todo, index) => (
+            <div
+              class={isV2() ? "todo-item-enter" : ""}
+              style={
+                isV2()
+                  ? {
+                      "animation-delay": `${index * 40}ms`,
+                      "animation-fill-mode": "both",
+                    }
+                  : undefined
+              }
             >
-              <TextStrikethrough
-                active={todo().status === "completed" || todo().status === "cancelled"}
-                text={todo().content}
-                class="text-14-regular min-w-0 break-words"
+              <Checkbox
+                readOnly
+                checked={todo().status === "completed"}
+                indeterminate={todo().status === "in_progress"}
+                data-in-progress={todo().status === "in_progress" ? "" : undefined}
+                data-state={todo().status}
+                icon={dot(todo().status, isV2())}
+                class={
+                  isV2() && todo().status === "completed" ? "todo-complete-flash" : undefined
+                }
                 style={{
-                  "line-height": "var(--line-height-normal)",
-                  transition:
-                    "color 220ms var(--tool-motion-ease, cubic-bezier(0.22, 1, 0.36, 1)), opacity 220ms var(--tool-motion-ease, cubic-bezier(0.22, 1, 0.36, 1))",
-                  color:
-                    todo().status === "completed" || todo().status === "cancelled"
-                      ? "var(--text-weak)"
-                      : "var(--text-strong)",
-                  opacity: todo().status === "pending" ? "0.92" : "1",
+                  "--checkbox-align": "flex-start",
+                  "--checkbox-offset": "1px",
+                  transition: "opacity 220ms var(--tool-motion-ease, cubic-bezier(0.22, 1, 0.36, 1))",
+                  opacity: todo().status === "pending" ? "0.94" : "1",
                 }}
-              />
-            </Checkbox>
+              >
+                <TextStrikethrough
+                  active={todo().status === "completed" || todo().status === "cancelled"}
+                  text={todo().content}
+                  class={
+                    isV2()
+                      ? "font-body text-[13px] leading-5 tracking-v2 min-w-0 break-words"
+                      : "text-14-regular min-w-0 break-words"
+                  }
+                  style={{
+                    "line-height": "var(--line-height-normal)",
+                    transition:
+                      "color 220ms var(--tool-motion-ease, cubic-bezier(0.22, 1, 0.36, 1)), opacity 220ms var(--tool-motion-ease, cubic-bezier(0.22, 1, 0.36, 1))",
+                    color:
+                      todo().status === "completed" || todo().status === "cancelled"
+                        ? isV2()
+                          ? "var(--v2-text-text-faint, var(--text-weak))"
+                          : "var(--text-weak)"
+                        : isV2()
+                          ? "var(--v2-text-text-base, var(--text-strong))"
+                          : "var(--text-strong)",
+                    opacity: todo().status === "pending" ? "0.92" : "1",
+                  }}
+                />
+              </Checkbox>
+            </div>
           )}
         </Index>
       </div>
       <div
         class="pointer-events-none absolute top-0 left-0 right-0 h-4 transition-opacity duration-150"
         style={{
-          background: "linear-gradient(to bottom, var(--background-base), transparent)",
+          background: isV2()
+            ? "linear-gradient(to bottom, var(--v2-background-bg-layer-01, var(--background-base)), transparent)"
+            : "linear-gradient(to bottom, var(--background-base), transparent)",
           opacity: store.stuck ? 1 : 0,
         }}
       />
