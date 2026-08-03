@@ -86,45 +86,49 @@ export function checkServerHealth(
   const signal = opts?.signal ? AbortSignal.any([opts.signal, timeoutSig]) : timeoutSig
   const retryCount = opts?.retryCount ?? defaultRetryCount
   const retryDelayMs = opts?.retryDelayMs ?? defaultRetryDelayMs
-  const next = (count: number, error: unknown) => {
-    if (count >= retryCount || !retryable(error, signal)) return Promise.resolve({ healthy: false } as const)
-    return wait(retryDelayMs * (count + 1), signal)
-      .then(() => attempt(count + 1))
-      .catch(() => ({ healthy: false }))
-  }
   const attempt = async (count: number): Promise<ServerHealth> => {
     const effectiveUrl = getEffectiveServerUrl(server.url)
+    const credentialsSent = !!server.password
     const authHeaders = server.password
       ? { Authorization: `Basic ${authTokenFromCredentials({ username: server.username, password: server.password })}` }
       : undefined
 
-    const processRes = async (res: Response | null): Promise<ServerHealth | null> => {
-      if (!res) return null
-      if (res.ok) {
-        const json = await res.json().catch(() => ({}))
-        return { healthy: json.healthy !== false, version: json.version }
-      }
-      if (res.status === 401 || res.status === 403) {
-        return {
-          healthy: false,
-          requiresAuth: true,
-          authFailed: Boolean(server.username || server.password),
-        }
-      }
-      return null
+    let sawAuthRequired = false
+
+    const finalFailure = (): ServerHealth =>
+      sawAuthRequired
+        ? { healthy: false, requiresAuth: true, authFailed: credentialsSent }
+        : { healthy: false, requiresAuth: false, authFailed: false }
+
+    const next = (count: number, error: unknown): Promise<ServerHealth> => {
+      if (count >= retryCount || !retryable(error, signal)) return Promise.resolve(finalFailure())
+      return wait(retryDelayMs * (count + 1), signal)
+        .then(() => attempt(count + 1))
+        .catch(() => finalFailure())
+    }
+
+    const isAuthError = (error: unknown) => {
+      const statusCode = (error as { data?: { statusCode?: number } })?.data?.statusCode
+      const status = (error as { status?: number })?.status
+      return statusCode === 401 || statusCode === 403 || status === 401 || status === 403
     }
 
     // Direct / Proxy Probe for raw status check
-    try {
-      const probePaths = ["/health", "/global/health", "/api/health"]
-      for (const path of probePaths) {
-        try {
-          const res = await fetch(new URL(path, effectiveUrl).toString(), { headers: authHeaders, signal }).catch(() => null)
-          const result = await processRes(res)
-          if (result) return result
-        } catch {}
-      }
-    } catch {}
+    const probePaths = ["/health", "/global/health", "/api/health"]
+    for (const path of probePaths) {
+      try {
+        const res = await fetch(new URL(path, effectiveUrl).toString(), { headers: authHeaders, signal }).catch(() => null)
+        if (!res) continue
+        if (res.ok) {
+          const json = await res.json().catch(() => ({}))
+          return { healthy: json.healthy !== false, version: json.version }
+        }
+        if (res.status === 401 || res.status === 403) {
+          sawAuthRequired = true
+          continue
+        }
+      } catch {}
+    }
 
     const current = await OpenCode.make({
       baseUrl: effectiveUrl,
@@ -137,14 +141,24 @@ export function checkServerHealth(
           ? { data: { healthy: x.healthy, version: x.version } }
           : { error: new Error("Invalid health response") },
       )
-      .catch((error) => ({ error }))
+      .catch((error) => {
+        if (isAuthError(error)) sawAuthRequired = true
+        return { error }
+      })
     if ("data" in current && current.data) return current.data
     if (signal?.aborted) return { healthy: false }
 
     return createSdkForServer({ server, fetch, signal })
       .global.health()
-      .then((x) => (x.error ? next(count, x.error) : { healthy: x.data?.healthy === true, version: x.data?.version }))
-      .catch((error) => next(count, error))
+      .then((x) => {
+        if (!x.error) return { healthy: x.data?.healthy === true, version: x.data?.version }
+        if (isAuthError(x.error)) sawAuthRequired = true
+        return next(count, x.error)
+      })
+      .catch((error) => {
+        if (isAuthError(error)) sawAuthRequired = true
+        return next(count, error)
+      })
   }
   return attempt(0).finally(() => clear?.())
 }

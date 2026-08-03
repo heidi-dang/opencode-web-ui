@@ -93,7 +93,7 @@ export const DialogServerV2: Component<{
           </div>
           <div class="grid w-full min-w-0 grid-cols-2 gap-4">
             <div class="flex min-w-0 flex-col gap-2">
-              <label class="settings-v2-server-dialog-label">{language.t("dialog.server.add.username")}</label>
+              <label class="settings-v2-server-dialog-label">{language.t("dialog.server.add.username")} (Optional)</label>
               <TextInputV2
                 type="text"
                 appearance="large"
@@ -106,7 +106,7 @@ export const DialogServerV2: Component<{
               />
             </div>
             <div class="flex min-w-0 flex-col gap-2">
-              <label class="settings-v2-server-dialog-label">{language.t("dialog.server.add.password")}</label>
+              <label class="settings-v2-server-dialog-label">{language.t("dialog.server.add.password")} (Optional)</label>
               <TextInputV2
                 type="password"
                 appearance="large"

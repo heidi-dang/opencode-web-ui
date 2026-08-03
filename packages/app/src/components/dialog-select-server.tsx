@@ -17,11 +17,10 @@ import { useLanguage } from "@/context/language"
 import { usePlatform } from "@/context/platform"
 import { normalizeServerUrl, ServerConnection, useServer } from "@/context/server"
 import { detectServerProtocol } from "@/utils/server-protocol"
+import { buildServerHttpBase } from "@/utils/server-http"
 import { type ServerHealth, useCheckServerHealth } from "@/utils/server-health"
 import { useSettings } from "@/context/settings"
 import { useTabs } from "@/context/tabs"
-
-const DEFAULT_USERNAME = "opencode"
 
 interface ServerFormProps {
   value: string
@@ -106,9 +105,7 @@ function useServerPreview() {
     if (!looksComplete(value)) return
     const normalized = normalizeServerUrl(value)
     if (!normalized) return
-    const http: ServerConnection.HttpBase = { url: normalized }
-    if (username) http.username = username
-    if (password) http.password = password
+    const http = buildServerHttpBase({ url: normalized, username, password })
     const result = await checkServerHealth(http)
     setStatusState({
       healthy: result.healthy,
@@ -313,7 +310,7 @@ export function useServerManagementController(options: { onSelect?: () => void; 
     addServer: {
       url: "",
       name: "",
-      username: DEFAULT_USERNAME,
+      username: "",
       password: "",
       error: "",
       showForm: false,
@@ -334,7 +331,7 @@ export function useServerManagementController(options: { onSelect?: () => void; 
     setStore("addServer", {
       url: "",
       name: "",
-      username: DEFAULT_USERNAME,
+      username: "",
       password: "",
       error: "",
       showForm: false,
@@ -363,21 +360,27 @@ export function useServerManagementController(options: { onSelect?: () => void; 
 
       const conn: ServerConnection.Http = {
         type: "http",
-        http: { url: normalized },
+        http: buildServerHttpBase({
+          url: normalized,
+          username: store.addServer.username,
+          password: store.addServer.password,
+        }),
       }
       if (store.addServer.name.trim()) conn.displayName = store.addServer.name.trim()
-      if (store.addServer.username) conn.http.username = store.addServer.username
-      if (store.addServer.password) conn.http.password = store.addServer.password
       let result = await checkServerHealth(conn.http)
       if (!result.healthy && typeof location === "object" && location.origin) {
-        const proxyHttp = { ...conn.http, url: `${location.origin}/opencode-server` }
+        const proxyHttp = buildServerHttpBase({
+          url: `${location.origin}/opencode-server`,
+          username: store.addServer.username,
+          password: store.addServer.password,
+        })
         const proxyResult = await checkServerHealth(proxyHttp)
         if (proxyResult.healthy) {
           result = proxyResult
         }
       }
       if (!result.healthy) {
-        if (result.requiresAuth && (!store.addServer.username || !store.addServer.password)) {
+        if (result.requiresAuth && !conn.http.password) {
           setStore("addServer", { error: "Server requires authentication. Please enter Username & Password." })
         } else if (result.requiresAuth && result.authFailed) {
           setStore("addServer", { error: "Authentication Failed: Invalid Username or Password." })
@@ -423,7 +426,7 @@ export function useServerManagementController(options: { onSelect?: () => void; 
       const conn: ServerConnection.Http = {
         type: "http",
         displayName: name,
-        http: { url: normalized, username, password },
+        http: buildServerHttpBase({ url: normalized, username, password }),
       }
       const result = await checkServerHealth(conn.http)
       if (!result.healthy) {
@@ -588,7 +591,7 @@ export function useServerManagementController(options: { onSelect?: () => void; 
       showForm: true,
       url: "",
       name: "",
-      username: DEFAULT_USERNAME,
+      username: "",
       password: "",
       error: "",
       status: undefined,
