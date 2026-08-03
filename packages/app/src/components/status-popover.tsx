@@ -24,7 +24,7 @@ export function StatusPopover() {
   const issue = createMemo(() =>
     hasNonBlockingServiceIssue({
       mcp: Object.values(sync().data.mcp ?? {}).map((item) => item.status),
-      lsp: (sync().data.lsp ?? []).map((item) => item.status),
+      lsp: Object.values(sync().data.lsp ?? {}).map((item: any) => item.status),
     }),
   )
 
@@ -87,7 +87,7 @@ function DirectoryStatusPopover() {
   const issue = createMemo(() =>
     hasNonBlockingServiceIssue({
       mcp: Object.values(sync().data.mcp ?? {}).map((item) => item.status),
-      lsp: (sync().data.lsp ?? []).map((item) => item.status),
+      lsp: Object.values(sync().data.lsp ?? {}).map((item: any) => item.status),
     }),
   )
   const state = createMemo<StatusPopoverState>(() => ({
