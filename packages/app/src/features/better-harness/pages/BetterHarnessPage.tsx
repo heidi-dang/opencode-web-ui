@@ -5,6 +5,8 @@
  */
 import { createEffect, createSignal, onCleanup, Switch, Match, Show } from "solid-js";
 import { useParams, useNavigate } from "@solidjs/router";
+import { useGlobal } from "@/context/global";
+import { ServerConnection } from "@/context/server";
 
 // Simple English-only i18n helper for BH keys. The keys exist in all 17 locale
 // files; wiring to the app's useLanguage() is a follow-up task.
@@ -38,10 +40,14 @@ export function BetterHarnessPage() {
   const baseUrl = () => window.location.origin;
 
   // Create the store with runtime-discovered config
+  const global = useGlobal();
+  const serverConn = () => global.servers.list.find(s => ServerConnection.key(s) === serverKey());
+  
   const store = createBetterHarnessStore({
     baseUrl: baseUrl(),
     serverKey: serverKey(),
     projectKey: projectKey(),
+    authToken: serverConn()?.type === "http" ? serverConn()?.http?.password : undefined,
   });
 
   createEffect(async () => {

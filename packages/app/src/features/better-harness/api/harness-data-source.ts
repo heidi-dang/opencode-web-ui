@@ -10,8 +10,11 @@ import {
   validatePlanFixResponse,
 } from "../schemas/harness-api";
 import type { HarnessReport, HarnessRunProgress } from "../types";
-import { HarnessRunProgressSchema } from "../schemas/harness-api";
-
+import { 
+  HarnessRunProgressSchema, 
+  HarnessReportSchema, 
+  HarnessHistorySchema 
+} from "../schemas/harness-api";
 export type ValidatedHttpResult<T> =
   | { kind: "value"; value: T }
   | { kind: "empty"; status: 204 | 404 };
@@ -124,7 +127,7 @@ export class HttpHarnessDataSource implements HarnessDataSource {
 
   async getReport(): Promise<HarnessReport | undefined> {
     const result = await this.validatedRequest("GET", "/report", (data) => {
-      const r = HarnessRunProgressSchema.safeParse(data);
+      const r = HarnessReportSchema.safeParse(data);
       return r.success ? { valid: true, value: r.data as unknown as HarnessReport } : { valid: false, error: r.error.message };
     });
     if (result.kind === "empty") return undefined;
@@ -133,8 +136,8 @@ export class HttpHarnessDataSource implements HarnessDataSource {
 
   async getHistory(): Promise<HarnessReport[]> {
     const result = await this.validatedRequest("GET", "/history", (data) => {
-      const arr = (data as unknown[]).filter(Boolean);
-      return { valid: true, value: arr as HarnessReport[] };
+      const r = HarnessHistorySchema.safeParse(data);
+      return r.success ? { valid: true, value: r.data as unknown as HarnessReport[] } : { valid: false, error: r.error.message };
     });
     if (result.kind === "empty") return [];
     return result.value;
@@ -145,7 +148,7 @@ export class HttpHarnessDataSource implements HarnessDataSource {
     const result = await this.validatedRequest("GET", path, (data) => {
       const r = HarnessRunProgressSchema.safeParse(data);
       if (r.success) return { valid: true, value: r.data as unknown as HarnessRunProgress };
-      return { valid: true, value: data as HarnessRunProgress };
+      return { valid: false, error: r.error.message };
     });
     if (result.kind === "empty") return undefined;
     return result.value;

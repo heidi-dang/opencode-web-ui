@@ -3,45 +3,20 @@ import { useSync } from "@/context/sync"
 import { useParams } from "@solidjs/router"
 import { useSettings } from "@/context/settings"
 
-// Contextual phrases shown while the AI works — cycle every ~3.5s
-const WORKING_PHRASES = [
-  "Analyzing your request…",
-  "Reading through the code…",
-  "Formulating a plan…",
-  "Working on it…",
-  "Thinking…",
-] as const
+import { useLanguage } from "@/context/language"
 
-const TOOL_PHRASES = [
-  "Running a tool…",
-  "Executing operation…",
-  "Calling function…",
-] as const
+export type ActivityHint = "thinking" | "tool" | "shell" | "file" | "text" | "step"
 
-const SHELL_PHRASES = [
-  "Running command…",
-  "Executing shell script…",
-  "Executing bash…",
-] as const
-
-const FILE_PHRASES = [
-  "Reading file…",
-  "Analyzing file contents…",
-  "Scanning your code…",
-] as const
-
-const TEXT_PHRASES = [
-  "Writing response…",
-  "Generating code…",
-  "Composing output…",
-  "Crafting answer…",
-] as const
-
-const STEP_PHRASES = [
-  "Planning next step…",
-  "Evaluating approach…",
-  "Determining next action…",
-] as const
+function getPhrases(lang: ReturnType<typeof useLanguage>, hint: ActivityHint): readonly string[] {
+  switch (hint) {
+    case "tool": return [lang.t("session.status.tool.1"), lang.t("session.status.tool.2"), lang.t("session.status.tool.3")]
+    case "shell": return [lang.t("session.status.shell.1"), lang.t("session.status.shell.2"), lang.t("session.status.shell.3")]
+    case "file": return [lang.t("session.status.file.1"), lang.t("session.status.file.2"), lang.t("session.status.file.3")]
+    case "text": return [lang.t("session.status.text.1"), lang.t("session.status.text.2"), lang.t("session.status.text.3")]
+    case "step": return [lang.t("session.status.step.1"), lang.t("session.status.step.2"), lang.t("session.status.step.3")]
+    default: return [lang.t("session.status.working.1"), lang.t("session.status.working.2"), lang.t("session.status.working.3")]
+  }
+}
 
 function pick<T>(arr: readonly T[]): T {
   return arr[Math.floor(Math.random() * arr.length)]!
@@ -54,7 +29,7 @@ function formatElapsed(seconds: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`
 }
 
-export type ActivityHint = "thinking" | "tool" | "shell" | "file" | "text" | "step"
+
 
 interface StreamingStatusBarProps {
   activityHint?: ActivityHint
@@ -80,18 +55,9 @@ export function StreamingStatusBar(props: StreamingStatusBarProps) {
 }
 
 function StreamingStatusBarInner(props: { activityHint: ActivityHint }) {
-  const getPhrasesForHint = (hint: ActivityHint): readonly string[] => {
-    switch (hint) {
-      case "tool": return TOOL_PHRASES
-      case "shell": return SHELL_PHRASES
-      case "file": return FILE_PHRASES
-      case "text": return TEXT_PHRASES
-      case "step": return STEP_PHRASES
-      default: return WORKING_PHRASES
-    }
-  }
+  const language = useLanguage()
 
-  const [phrase, setPhrase] = createSignal<string>(pick(getPhrasesForHint(props.activityHint)))
+  const [phrase, setPhrase] = createSignal<string>(pick(getPhrases(language, props.activityHint)))
   const [phraseFading, setPhraseFading] = createSignal(false)
   const [elapsedSeconds, setElapsedSeconds] = createSignal(0)
   const [isMounted, setIsMounted] = createSignal(false)
@@ -103,7 +69,7 @@ function StreamingStatusBarInner(props: { activityHint: ActivityHint }) {
   const cyclePhrase = () => {
     setPhraseFading(true)
     setTimeout(() => {
-      setPhrase(pick(getPhrasesForHint(props.activityHint)))
+      setPhrase(pick(getPhrases(language, props.activityHint)))
       setPhraseFading(false)
     }, 250)
   }
@@ -149,7 +115,7 @@ function StreamingStatusBarInner(props: { activityHint: ActivityHint }) {
       }}
       role="status"
       aria-live="polite"
-      aria-label="AI is working"
+      aria-label={language.t("session.status.accessibleName")}
     >
       {/* Animated indigo activity dot */}
       <div style={{ "flex-shrink": "0", display: "flex", "align-items": "center", "justify-content": "center" }}>
@@ -179,6 +145,7 @@ function StreamingStatusBarInner(props: { activityHint: ActivityHint }) {
             overflow: "hidden",
             "text-overflow": "ellipsis",
           }}
+          aria-hidden="true"
         >
           {phrase()}
         </span>
@@ -195,8 +162,9 @@ function StreamingStatusBarInner(props: { activityHint: ActivityHint }) {
             color: "var(--v2-text-text-muted, rgba(140, 140, 160, 0.8))",
             "white-space": "nowrap",
           }}
+          aria-hidden="true"
         >
-          Working…
+          {language.t("session.status.workingCompact")}
         </span>
       </div>
 
@@ -210,7 +178,7 @@ function StreamingStatusBarInner(props: { activityHint: ActivityHint }) {
             color: "var(--v2-text-text-faint, rgba(120, 120, 140, 0.65))",
             "white-space": "nowrap",
           }}
-          aria-label={`Elapsed: ${formatElapsed(elapsedSeconds())}`}
+          aria-hidden="true"
         >
           {formatElapsed(elapsedSeconds())}
         </span>

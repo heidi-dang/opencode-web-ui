@@ -8,7 +8,7 @@ import { SessionQuestionDock } from "@/pages/session/composer/session-question-d
 import { SessionFollowupDock } from "@/pages/session/composer/session-followup-dock"
 import { SessionRevertDock } from "@/pages/session/composer/session-revert-dock"
 import { SessionTodoDock } from "@/pages/session/composer/session-todo-dock"
-import { StreamingStatusBar } from "@/pages/session/composer/streaming-status-bar"
+import { StreamingStatusBar, type ActivityHint } from "@/pages/session/composer/streaming-status-bar"
 import { SessionProgressRing } from "@/pages/session/composer/session-progress-ring"
 import type { SessionComposerRegionController } from "./session-composer-region-controller"
 
@@ -28,6 +28,32 @@ export function SessionComposerRegion(props: {
     const revert = controller.revert()
     return revert?.items.length ? revert : undefined
   }
+
+  const activityHint = createMemo<ActivityHint>(() => {
+    const sId = params.id ?? ""
+    if (!sync().data.session_working(sId)) return "thinking"
+    
+    const messages = sync().data.message[sId]
+    if (!messages?.length) return "thinking"
+    
+    const lastMsg = messages[messages.length - 1]
+    const parts = sync().data.part[lastMsg.id]
+    if (!parts?.length) return "thinking"
+    
+    const lastPart = parts[parts.length - 1]
+    switch (lastPart.type) {
+      case "tool_call":
+        if (lastPart.toolCall?.name?.includes("command")) return "shell"
+        if (lastPart.toolCall?.name?.includes("file") || lastPart.toolCall?.name?.includes("grep")) return "file"
+        return "tool"
+      case "text":
+        return "text"
+      case "step":
+        return "step"
+      default:
+        return "thinking"
+    }
+  })
 
   return (
     <div
@@ -151,7 +177,7 @@ export function SessionComposerRegion(props: {
             >
               {/* V2 streaming status bar — shown above the prompt while AI works */}
               <Show when={settings.general.newLayoutDesigns()}>
-                <StreamingStatusBar />
+                <StreamingStatusBar activityHint={activityHint()} />
               </Show>
               <Show when={controller.followup()?.items.length}>
                 <SessionFollowupDock

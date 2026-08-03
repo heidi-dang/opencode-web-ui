@@ -19,7 +19,7 @@ interface SessionProgressRingProps {
 export function SessionProgressRing(props: SessionProgressRingProps) {
   const total = createMemo(() => props.todos.length)
   const done = createMemo(
-    () => props.todos.filter((t) => t.status === "completed" || t.status === "cancelled").length,
+    () => props.todos.filter((t) => t.status === "completed").length,
   )
   const fraction = createMemo(() => (total() > 0 ? done() / total() : 0))
   const dashOffset = createMemo(() => CIRCUMFERENCE * (1 - fraction()))

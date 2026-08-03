@@ -60,6 +60,65 @@ export const HarnessRunProgressSchema = z.object({
   completedAt: z.string().optional(),
 }).strict();
 
+export const HarnessDimensionScoreSchema = z.object({
+  dimension: z.string(),
+  score: z.number(),
+  findingCount: z.number(),
+  evidenceCoverage: z.number(),
+}).strict();
+
+export const HarnessEvidenceSchema = z.object({
+  id: z.string(),
+  category: z.string(),
+  source: z.string(),
+  summary: z.string(),
+  path: z.string().optional(),
+  confidence: z.number(),
+  collectedAt: z.string(),
+  fingerprint: z.string(),
+}).strict();
+
+export const HarnessFindingSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  dimension: z.string(),
+  priority: z.enum(["critical", "high", "medium", "low"]),
+  status: z.enum(["pending", "in-progress", "fixed", "ignored", "wont-fix"]),
+  cause: z.string(),
+  impact: z.string(),
+  expectedOutput: z.string(),
+  evidence: z.array(HarnessEvidenceSchema),
+  recommendedVehicle: z.string(),
+  allowedPaths: z.array(z.string()),
+  validationRequirements: z.array(z.string()),
+  acceptanceCriteria: z.array(z.string()),
+  firstSeenAt: z.string(),
+  lastSeenAt: z.string(),
+}).strict();
+
+export const HarnessReportSchema = z.object({
+  schemaVersion: z.number(),
+  engineVersion: z.string(),
+  scoringVersion: z.string(),
+  generatedAt: z.string(),
+  project: z.object({ name: z.string(), directory: z.string() }).strict(),
+  overallScore: z.number(),
+  evidenceCoverage: z.number(),
+  dimensions: z.array(HarnessDimensionScoreSchema),
+  findings: z.array(HarnessFindingSchema),
+  sessions: z.object({
+    analyzed: z.number(),
+    longSessions: z.number(),
+    failedSessions: z.number(),
+    repeatedFailures: z.number(),
+    compactions: z.number(),
+    permissionInterruptions: z.number(),
+  }).strict(),
+  assets: z.record(z.string(), z.number()),
+}).strict();
+
+export const HarnessHistorySchema = z.array(HarnessReportSchema);
+
 // ── SSE Event Contract ─────────────────────────────────────────────────
 
 export const SSESupportedEventEnum = z.enum([

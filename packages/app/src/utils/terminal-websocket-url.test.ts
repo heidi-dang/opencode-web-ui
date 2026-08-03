@@ -77,4 +77,23 @@ describe("terminalWebSocketURL", () => {
     expect(url.searchParams.get("directory")).toBe("/tmp/project")
     expect(url.searchParams.get("auth_token")).toBe(btoa("opencode:secret"))
   })
+
+  test("uses query auth for same-origin credentials from auth_token for v2", () => {
+    const url = terminalWebSocketURL({
+      protocol: "v2",
+      url: "https://app.example.test",
+      id: "pty_test",
+      directory: "/tmp/project",
+      cursor: 10,
+      sameOrigin: true,
+      username: "opencode",
+      password: "secret",
+      authToken: true,
+    })
+
+    expect(url.protocol).toBe("wss:")
+    expect(url.pathname).toBe("/api/pty/pty_test/connect")
+    expect(url.searchParams.get("location[directory]")).toBe("/tmp/project")
+    expect(url.searchParams.get("auth_token")).toBe(btoa("opencode:secret"))
+  })
 })

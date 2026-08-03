@@ -2254,9 +2254,11 @@ export default function LegacyLayout(props: ParentProps) {
         if (p && p.id) {
           navigate(`/server/${serverKey}/project/${p.id}/better-harness`);
         } else {
-          // If no project is selected or no ID exists, fallback to home or show an alert.
-          // Or just navigate to home if they click it without a project open.
-          navigate(`/`);
+          showToast({
+            title: "Project Required",
+            description: "Please open a project to use Better Harness.",
+            status: "warning",
+          });
         }
       }}
       helpLabel={() => language.t("sidebar.help")}
