@@ -1,6 +1,6 @@
 // OpenCode Web UI — Service Worker (runtime-cache strategy)
 // Version bump this string to force all clients to update cache.
-const CACHE_VERSION = "oc-shell-v2"
+const CACHE_VERSION = "oc-shell-v5"
 
 // Only the root HTML document is pre-fetched on install.
 // Everything else is cached lazily on first successful network request.
@@ -8,15 +8,20 @@ const CACHE_VERSION = "oc-shell-v2"
 const PRECACHE_URLS = ["/"]
 
 // Never intercept these paths — must always hit the live network.
-// (Note: /api/remote-proxy and /api/mobile-log were removed in Phase 1 security audit)
 const BYPASS_PREFIXES = [
   "/opencode-server",
+  "/api",
+  "/servers",
+  "/direct",
+  "/global",
+  "/health",
+  "/project",
   "chrome-extension://",
 ]
 
-// Large binary assets we deliberately skip caching (fonts, WASM).
+// Large binary assets we deliberately skip caching (fonts, WASM, media).
 // They will be served by the browser's own HTTP cache instead.
-const SKIP_EXTENSIONS = [".ttf", ".woff", ".woff2", ".wasm", ".map"]
+const SKIP_EXTENSIONS = [".ttf", ".woff", ".woff2", ".wasm", ".map", ".png", ".jpg", ".jpeg", ".svg", ".ico", ".aac"]
 
 // ─── Install ────────────────────────────────────────────────────────────────
 // Only pre-cache the root page; skip waiting so the SW activates immediately.
@@ -60,7 +65,8 @@ self.addEventListener("fetch", (event) => {
   if (BYPASS_PREFIXES.some((p) => url.pathname.startsWith(p) || request.url.startsWith(p))) return
 
   // Skip large binary assets — let the browser HTTP cache handle them
-  if (SKIP_EXTENSIONS.some((ext) => url.pathname.endsWith(ext))) return
+  const pathnameLower = url.pathname.toLowerCase()
+  if (SKIP_EXTENSIONS.some((ext) => pathnameLower.endsWith(ext) || pathnameLower.includes(ext))) return
 
   event.respondWith(networkFirstWithFallback(request))
 })
