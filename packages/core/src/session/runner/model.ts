@@ -72,7 +72,7 @@ export type Error =
   | Integration.AuthorizationError
 
 export interface Interface {
-  readonly resolve: (session: SessionSchema.Info) => Effect.Effect<Model, Error>
+  readonly resolve: (session: SessionSchema.Info) => Effect.Effect<{ llm: Model; info: ModelV2.Info }, Error>
 }
 
 export class Service extends Context.Service<Service, Interface>()("@opencode/v2/SessionRunnerModel") {}
@@ -131,7 +131,7 @@ const apiName = (model: ModelV2.Info) =>
 export const fromCatalogModel = (
   model: ModelV2.Info,
   credential?: Credential.Value,
-): Effect.Effect<Model, UnsupportedApiError> => {
+): Effect.Effect<{ llm: Model; info: ModelV2.Info }, UnsupportedApiError> => {
   const resolved =
     credential?.type !== "key" || credential.metadata === undefined
       ? model
@@ -140,25 +140,28 @@ export const fromCatalogModel = (
         })
   const key = apiKey(resolved, credential)
   if (resolved.api.type === "aisdk" && resolved.api.package === "@ai-sdk/openai") {
-    return Effect.succeed(
-      withDefaults(resolved, OpenAIResponses.route)
+    return Effect.succeed({
+      llm: withDefaults(resolved, OpenAIResponses.route)
         .with({ auth: key === undefined ? Auth.none : Auth.bearer(key) })
         .model({ id: resolved.api.id }),
-    )
+      info: model,
+    })
   }
   if (resolved.api.type === "aisdk" && resolved.api.package === "@ai-sdk/anthropic") {
-    return Effect.succeed(
-      withDefaults(resolved, AnthropicMessages.route)
+    return Effect.succeed({
+      llm: withDefaults(resolved, AnthropicMessages.route)
         .with({ auth: key === undefined ? Auth.none : Auth.header("x-api-key", key) })
         .model({ id: resolved.api.id }),
-    )
+      info: model,
+    })
   }
   if (resolved.api.type === "aisdk" && resolved.api.package === "@ai-sdk/openai-compatible" && resolved.api.url) {
-    return Effect.succeed(
-      withDefaults(resolved, OpenAICompatibleChat.route)
+    return Effect.succeed({
+      llm: withDefaults(resolved, OpenAICompatibleChat.route)
         .with({ auth: key === undefined ? Auth.none : Auth.bearer(key) })
         .model({ id: resolved.api.id }),
-    )
+      info: model,
+    })
   }
   return Effect.fail(
     new UnsupportedApiError({

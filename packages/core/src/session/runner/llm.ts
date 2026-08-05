@@ -196,7 +196,7 @@ const layer = Layer.effect(
       }
       const system =
         initialized ?? (yield* SessionContextEpoch.prepare(db, events, loadSystemContext(agent), session.id))
-      const model = yield* models.resolve(session)
+      const { llm: model, info: modelInfo } = yield* models.resolve(session)
       const entries = yield* SessionHistory.entriesForRunner(db, session.id, system.baselineSeq)
       const context = entries.map((entry) => entry.message)
       const isLastStep = agent.info?.steps !== undefined && currentStep >= agent.info.steps
@@ -322,13 +322,22 @@ const layer = Layer.effect(
                     .files({ from: startSnapshot, to: endSnapshot })
                     .pipe(Effect.catch(() => Effect.succeed(undefined)))
                 : undefined
+            const costConfig = modelInfo.cost?.find((item) => item.tier === undefined) ?? modelInfo.cost?.[0]
+            const cost = costConfig
+              ? ((stepSettlement.tokens.input ?? 0) * costConfig.input +
+                  (stepSettlement.tokens.output ?? 0) * costConfig.output +
+                  (stepSettlement.tokens.cache?.read ?? 0) * costConfig.cache.read +
+                  (stepSettlement.tokens.cache?.write ?? 0) * costConfig.cache.write) /
+                1_000_000
+              : 0
+
             yield* withPublication(
               events.publish(SessionEvent.Step.Ended, {
                 sessionID: session.id,
                 timestamp: yield* DateTime.now,
                 assistantMessageID: yield* publisher.startAssistant(),
                 finish: stepSettlement.finish,
-                cost: 0,
+                cost,
                 tokens: stepSettlement.tokens,
                 snapshot: endSnapshot,
                 files,
