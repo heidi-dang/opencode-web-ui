@@ -232,8 +232,8 @@ function TodoList(props: { todos: Todo[] }) {
   return (
     <div class="relative">
       <div
-        class="px-3 pb-11 flex flex-col gap-1.5 max-h-42 overflow-y-auto no-scrollbar"
-        style={{ "overflow-anchor": "none" }}
+        class={isV2() ? "px-3 pb-3 flex flex-col gap-1.5 overflow-y-auto no-scrollbar" : "px-3 pb-11 flex flex-col gap-1.5 max-h-42 overflow-y-auto no-scrollbar"}
+        style={{ "overflow-anchor": "none", "max-height": isV2() ? "35vh" : undefined }}
         onScroll={(e) => {
           setStore("stuck", e.currentTarget.scrollTop > 0)
         }}

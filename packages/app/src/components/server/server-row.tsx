@@ -79,14 +79,15 @@ export function ServerRow(props: ServerRowProps) {
             <Show
               when={badge()}
               fallback={
-                <Show when={props.status?.version}>
-                  <span
-                    ref={versionRef}
-                    class={`${props.versionClass ?? "text-text-weak text-14-regular truncate"} min-w-0`}
-                  >
-                    v{props.status?.version}
-                  </span>
-                </Show>
+                <div class={`${props.versionClass ?? "text-text-weak text-14-regular truncate"} min-w-0 flex items-center gap-1`}>
+                  <Show when={props.status?.model}>
+                    <span class="capitalize truncate">{props.status?.model}</span>
+                    <Show when={props.status?.version}> • </Show>
+                  </Show>
+                  <Show when={props.status?.version}>
+                    <span ref={versionRef}>v{props.status?.version}</span>
+                  </Show>
+                </div>
               }
             >
               {(badge) => badge()}

@@ -361,6 +361,7 @@ function getPierre() {
 }
 
 let highlighterPromise: Promise<any> | undefined
+let highlighterPreloaded = false
 async function loadHighlighter() {
   if (!highlighterPromise) {
     highlighterPromise = (async () => {
@@ -375,6 +376,22 @@ async function loadHighlighter() {
   return highlighterPromise
 }
 
+async function preloadHighlighterLanguages() {
+  if (highlighterPreloaded) return
+  highlighterPreloaded = true
+  try {
+    const highlighter = await loadHighlighter()
+    const langs = ["typescript", "javascript", "python", "rust", "go", "java", "c", "cpp", "json", "yaml", "toml", "md", "html", "css", "bash", "sql", "dockerfile", "graphql"]
+    for (const lang of langs) {
+      if (!highlighter.getLoadedLanguages().includes(lang)) {
+        await highlighter.loadLanguage(lang)
+      }
+    }
+  } catch {
+    // Silently fail preloading; languages will be loaded on demand
+  }
+}
+
 let bundledLanguagesPromise: Promise<Record<string, any>> | undefined
 function getBundledLanguages() {
   if (!bundledLanguagesPromise) {
@@ -384,7 +401,7 @@ function getBundledLanguages() {
 }
 
 const highlightCache = new Map<string, string>()
-const MAX_HIGHLIGHT_CACHE_SIZE = 1000
+const MAX_HIGHLIGHT_CACHE_SIZE = 5000
 
 async function cachedHighlight(code: string, lang: string): Promise<string> {
   const cacheKey = `${lang || "text"}:${code}`

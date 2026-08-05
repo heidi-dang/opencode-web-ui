@@ -544,6 +544,7 @@ export function PromptInputV2Select(props: {
   return (
     <TooltipV2
       placement="top"
+      class="min-w-0 flex shrink"
       value={
         <>
           {props.title}
@@ -556,7 +557,7 @@ export function PromptInputV2Select(props: {
           as={ButtonV2}
           variant="ghost-muted"
           size="normal"
-          class={`max-w-[220px] justify-start ![font-weight:440] ${props.class ?? ""}`}
+          class={`min-w-0 max-w-[220px] justify-start ![font-weight:440] ${props.class ?? ""}`}
           aria-label={props.title}
         >
           {props.currentIcon}
@@ -666,6 +667,7 @@ export function PromptInputV2SubmitButton(props: {
       placement="top"
       inactive={!props.stopping && props.disabled}
       value={props.stopping ? props.stopLabel : props.sendLabel}
+      class="shrink-0 flex items-center justify-center"
     >
       <IconButton
         data-action="prompt-submit"

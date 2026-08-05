@@ -42,13 +42,14 @@ export function SessionComposerRegion(props: {
     
     const lastPart = parts[parts.length - 1]
     switch (lastPart.type) {
-      case "tool_call":
-        if (lastPart.toolCall?.name?.includes("command")) return "shell"
-        if (lastPart.toolCall?.name?.includes("file") || lastPart.toolCall?.name?.includes("grep")) return "file"
+      case "tool":
+        if (lastPart.tool?.includes("command")) return "shell"
+        if (lastPart.tool?.includes("file") || lastPart.tool?.includes("grep")) return "file"
         return "tool"
       case "text":
         return "text"
-      case "step":
+      case "step-start":
+      case "step-finish":
         return "step"
       default:
         return "thinking"
@@ -172,7 +173,7 @@ export function SessionComposerRegion(props: {
                 "streaming-active-glow-enhanced": isV2Working(),
               }}
               style={{
-                "margin-top": `${-controller.lift()}px`,
+                "margin-top": settings.general.newLayoutDesigns() ? "8px" : `${-controller.lift()}px`,
               }}
             >
               {/* V2 streaming status bar — shown above the prompt while AI works */}

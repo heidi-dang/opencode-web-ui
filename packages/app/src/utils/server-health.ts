@@ -1,11 +1,11 @@
 import { usePlatform } from "@/context/platform"
 import { ServerConnection } from "@/context/server"
-import { authTokenFromCredentials, createSdkForServer, getEffectiveServerUrl } from "./server"
+import { authTokenFromCredentials, createSdkForServer, getEffectiveServerUrl, createApiForServer } from "./server"
 import { ClientError, OpenCode } from "@opencode-ai/client"
 import { Accessor, createEffect, onCleanup } from "solid-js"
 import { createStore, reconcile } from "solid-js/store"
 
-export type ServerHealth = { healthy: boolean; version?: string; requiresAuth?: boolean; authFailed?: boolean }
+export type ServerHealth = { healthy: boolean; version?: string; provider?: string; model?: string; requiresAuth?: boolean; authFailed?: boolean }
 
 interface CheckServerHealthOptions {
   timeoutMs?: number
@@ -102,7 +102,7 @@ export function checkServerHealth(
       if (!res) return null
       if (res.ok) {
         const json = await res.json().catch(() => ({}))
-        return { healthy: json.healthy !== false, version: json.version }
+        return { healthy: json.healthy !== false, version: json.version, provider: json.provider, model: json.model }
       }
       if (res.status === 401 || res.status === 403) {
         return {
@@ -121,7 +121,19 @@ export function checkServerHealth(
         try {
           const res = await fetch(new URL(path, effectiveUrl).toString(), { headers: authHeaders, signal }).catch(() => null)
           const result = await processRes(res)
-          if (result) return result
+          if (result) {
+             if (result.healthy && !result.provider) {
+               try {
+                 const api = createApiForServer({ server, fetch })
+                 const defaultModel = await api.model.default()
+                 if (defaultModel?.data) {
+                   result.provider = defaultModel.data.providerID
+                   result.model = defaultModel.data.id
+                 }
+               } catch (e) {}
+             }
+             return result
+          }
         } catch {}
       }
     } catch {}
@@ -141,9 +153,24 @@ export function checkServerHealth(
     if ("data" in current && current.data) return current.data
     if (signal?.aborted) return { healthy: false }
 
-    return createSdkForServer({ server, fetch, signal })
+    const sdk = createSdkForServer({ server, fetch, signal })
+    return sdk
       .global.health()
-      .then((x) => (x.error ? next(count, x.error) : { healthy: x.data?.healthy === true, version: x.data?.version }))
+      .then(async (x) => {
+        if (x.error) return next(count, x.error)
+        let provider, model;
+        if (x.data?.healthy) {
+          try {
+             const api = createApiForServer({ server, fetch })
+             const defaultModel = await api.model.default()
+             if (defaultModel?.data) {
+               provider = defaultModel.data.providerID
+               model = defaultModel.data.id
+             }
+          } catch (e) {}
+        }
+        return { healthy: x.data?.healthy === true, version: x.data?.version, provider, model }
+      })
       .catch((error) => next(count, error))
   }
   return attempt(0).finally(() => clear?.())

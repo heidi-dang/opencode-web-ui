@@ -2,7 +2,7 @@ import { createEffect, createMemo, createSignal, on, onCleanup, Show } from "sol
 import { useSync } from "@/context/sync"
 import { useParams } from "@solidjs/router"
 import { useSettings } from "@/context/settings"
-
+import { NumberTicker } from "@/components/ui/number-ticker"
 import { useLanguage } from "@/context/language"
 
 export type ActivityHint = "thinking" | "tool" | "shell" | "file" | "text" | "step"
@@ -97,6 +97,20 @@ function StreamingStatusBarInner(props: { activityHint: ActivityHint }) {
     if (phraseInterval !== undefined) clearInterval(phraseInterval)
   })
 
+  const sync = useSync()
+  const params = useParams<{ id: string }>()
+  const session = createMemo(() => sync().session.get(params.id ?? ""))
+
+  const tokens = createMemo(() => {
+    const t = session()?.tokens
+    return t ? (t.input ?? 0) + (t.output ?? 0) + (t.reasoning ?? 0) + (t.cache?.read ?? 0) + (t.cache?.write ?? 0) : 0
+  })
+
+  const cost = createMemo(() => session()?.cost ?? 0)
+
+  const formatTokens = (val: number) => new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(Math.round(val))
+  const formatCost = (val: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 4, maximumFractionDigits: 4 }).format(val)
+
   return (
     <div
       class="streaming-status-bar"
@@ -105,7 +119,7 @@ function StreamingStatusBarInner(props: { activityHint: ActivityHint }) {
         display: "flex",
         "align-items": "center",
         gap: "8px",
-        padding: "5px 12px",
+        padding: "5px 16px",
         opacity: isMounted() ? "1" : "0",
         transition: "opacity 0.5s ease",
         "border-radius": "8px 8px 0 0",
@@ -167,6 +181,31 @@ function StreamingStatusBarInner(props: { activityHint: ActivityHint }) {
           {language.t("session.status.workingCompact")}
         </span>
       </div>
+
+      {/* Realtime token and cost metrics */}
+      <Show when={tokens() > 0 || cost() > 0}>
+        <div
+          style={{
+            display: "flex",
+            "align-items": "center",
+            gap: "8px",
+            "flex-shrink": "0",
+            "font-size": "11px",
+            "white-space": "nowrap",
+          }}
+        >
+          <Show when={tokens() > 0}>
+            <span style={{ color: "var(--v2-text-danger, #ef4444)" }}>
+              <NumberTicker value={tokens()} format={formatTokens} /> tokens
+            </span>
+          </Show>
+          <Show when={cost() > 0}>
+            <span style={{ color: "var(--v2-text-success, #22c55e)" }}>
+              <NumberTicker value={cost()} format={formatCost} />
+            </span>
+          </Show>
+        </div>
+      </Show>
 
       {/* Elapsed timer */}
       <Show when={elapsedSeconds() > 0}>
