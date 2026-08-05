@@ -86,5 +86,37 @@ export default defineConfig({
     target: "esnext",
     sourcemap: !!sentry,
     manifest: true,
+    cssCodeSplit: true,
+    chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          // Solid.js framework core
+          if (id.includes("/node_modules/solid-js") || id.includes("/node_modules/@solidjs")) {
+            return "vendor-solid"
+          }
+          // Kobalte UI primitives
+          if (id.includes("/node_modules/@kobalte")) {
+            return "vendor-kobalte"
+          }
+          // Effect functional library
+          if (id.includes("/node_modules/effect") || id.includes("/node_modules/@effect")) {
+            return "vendor-effect"
+          }
+          // TanStack Query
+          if (id.includes("/node_modules/@tanstack")) {
+            return "vendor-tanstack"
+          }
+          // Zod schema validation
+          if (id.includes("/node_modules/zod")) {
+            return "vendor-zod"
+          }
+          // Sentry error tracking (can be deferred)
+          if (id.includes("/node_modules/@sentry")) {
+            return "vendor-sentry"
+          }
+        },
+      },
+    },
   },
 })
