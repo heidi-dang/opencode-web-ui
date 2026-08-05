@@ -54,8 +54,9 @@ export function SessionTodoDock(props: {
 }) {
   const language = useLanguage()
   const settings = useSettings()
+  const baseHeight = () => settings.general.newLayoutDesigns() ? 44 : 78
   const [store, setStore] = createStore({
-    height: 78,
+    height: baseHeight(),
   })
 
   const total = createMemo(() => props.todos.length)
@@ -83,7 +84,7 @@ export function SessionTodoDock(props: {
   const hide = createMemo(() => Math.max(value(), shut()))
   const off = createMemo(() => hide() > 0.98)
   const turn = createMemo(() => Math.max(0, Math.min(1, value())))
-  const full = createMemo(() => Math.max(78, store.height))
+  const full = createMemo(() => Math.max(baseHeight(), store.height))
   let contentRef: HTMLDivElement | undefined
 
   createEffect(() => {
@@ -107,7 +108,7 @@ export function SessionTodoDock(props: {
       style={{
         "overflow-x": "visible",
         "overflow-y": "hidden",
-        "max-height": `${Math.max(78, full() - value() * (full() - 78))}px`,
+        "max-height": `${Math.max(baseHeight(), full() - value() * (full() - baseHeight()))}px`,
       }}
     >
       <div ref={contentRef}>
