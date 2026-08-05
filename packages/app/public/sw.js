@@ -1,10 +1,8 @@
 // OpenCode Web UI — Service Worker (runtime-cache strategy)
-// Version bump this string to force all clients to update cache.
-const CACHE_VERSION = "oc-shell-v5"
+// Version bump this string to force all clients to purge old caches.
+const CACHE_VERSION = "oc-shell-v6"
 
 // Only the root HTML document is pre-fetched on install.
-// Everything else is cached lazily on first successful network request.
-// This avoids ERR_NO_BUFFER_SPACE from parallel fetches on install.
 const PRECACHE_URLS = ["/"]
 
 // Never intercept these paths — must always hit the live network.
@@ -16,6 +14,7 @@ const BYPASS_PREFIXES = [
   "/global",
   "/health",
   "/project",
+  "/session",
   "chrome-extension://",
 ]
 
@@ -29,23 +28,18 @@ self.addEventListener("install", (event) => {
   self.skipWaiting()
   event.waitUntil(
     caches.open(CACHE_VERSION).then((cache) => {
-      // Single fetch — no buffer pressure
-      return cache.add("/").catch(() => {
-        // Non-fatal: if / isn't available (e.g. offline at install time),
-        // the SW still activates and caches on first real request.
-      })
+      return cache.add("/").catch(() => {})
     }),
   )
 })
 
 // ─── Activate ───────────────────────────────────────────────────────────────
+// Force purge ALL old cache keys on activation to clear any corrupted entries.
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches
       .keys()
-      .then((keys) =>
-        Promise.all(keys.filter((key) => key !== CACHE_VERSION).map((key) => caches.delete(key))),
-      )
+      .then((keys) => Promise.all(keys.map((key) => caches.delete(key))))
       .then(() => self.clients.claim()),
   )
 })
@@ -61,7 +55,7 @@ self.addEventListener("fetch", (event) => {
   // Skip cross-origin requests
   if (url.origin !== self.location.origin) return
 
-  // Skip API / proxy / backend paths — must always be live
+  // Skip API / proxy / backend / session paths — must always be live network
   if (BYPASS_PREFIXES.some((p) => url.pathname.startsWith(p) || request.url.startsWith(p))) return
 
   // Skip large binary assets — let the browser HTTP cache handle them
@@ -73,9 +67,9 @@ self.addEventListener("fetch", (event) => {
 
 /**
  * Network-first with lazy cache population:
- * 1. Try network → on success, store in cache and return response.
+ * 1. Try network → on success, store in cache ONLY if it is root or static asset.
  * 2. On network failure → return cached version if available.
- * 3. For navigation failures with no cache → return styled offline page.
+ * 3. For navigation failures with no cache → return cached root or offline page.
  */
 async function networkFirstWithFallback(request) {
   const cache = await caches.open(CACHE_VERSION)
@@ -83,8 +77,16 @@ async function networkFirstWithFallback(request) {
   try {
     const networkResponse = await fetch(request)
     if (networkResponse.ok && networkResponse.type !== "opaque") {
-      // Populate cache lazily — don't await, fire-and-forget
-      cache.put(request, networkResponse.clone()).catch(() => {})
+      const url = new URL(request.url)
+      // ONLY cache / and /assets/ — NEVER cache dynamic routes like /session/*
+      if (url.pathname === "/" || url.pathname.startsWith("/assets/")) {
+        const contentType = networkResponse.headers.get("content-type") || ""
+        // Never cache HTML fallback pages for static asset requests
+        if (url.pathname.startsWith("/assets/") && contentType.includes("text/html")) {
+          return networkResponse
+        }
+        cache.put(request, networkResponse.clone()).catch(() => {})
+      }
     }
     return networkResponse
   } catch {
