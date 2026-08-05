@@ -26,6 +26,7 @@ function t(key: string): string {
 }
 import { createBetterHarnessStore } from "../stores/better-harness";
 import { BetterHarnessUnavailable } from "../components/BetterHarnessUnavailable";
+import { ButtonV2 } from "@opencode-ai/ui/v2/button-v2";
 
 export function BetterHarnessPage() {
   const params = useParams<{ serverKey: string; projectKey: string }>();
@@ -41,7 +42,7 @@ export function BetterHarnessPage() {
 
   // Create the store with runtime-discovered config
   const global = useGlobal();
-  const serverConn = () => global.servers.list.find(s => ServerConnection.key(s) === serverKey());
+  const serverConn = () => global.servers.list().find((s: any) => ServerConnection.key(s) === serverKey());
   
   const store = createBetterHarnessStore({
     baseUrl: baseUrl(),
@@ -80,21 +81,21 @@ export function BetterHarnessPage() {
               <div class="flex items-center justify-between">
                 <h1 class="text-xl font-bold">{t("better-harness.title")}</h1>
                 <Show when={!store.state.running}>
-                  <button
+                  <ButtonV2
+                    variant="contrast"
                     onClick={() => store.regenerate()}
-                    class="px-4 py-2 text-sm rounded-lg bg-primary text-primary-foreground hover:bg-primary/90"
                     disabled={store.state.loading}
                   >
                     {t("better-harness.regenerate")}
-                  </button>
+                  </ButtonV2>
                 </Show>
                 <Show when={store.state.running}>
-                  <button
+                  <ButtonV2
+                    variant="danger"
                     onClick={() => store.cancelRun()}
-                    class="px-4 py-2 text-sm rounded-lg bg-destructive text-destructive-foreground hover:bg-destructive/90"
                   >
                     {t("better-harness.cancel")}
-                  </button>
+                  </ButtonV2>
                 </Show>
               </div>
 
@@ -105,7 +106,7 @@ export function BetterHarnessPage() {
 
               {/* Error state */}
               <Show when={store.state.error}>
-                <div class="p-4 rounded-lg bg-destructive/10 text-destructive text-sm">
+                <div class="p-4 rounded-lg bg-surface-danger-base/10 text-text-danger text-sm">
                   {store.state.error}
                 </div>
               </Show>
@@ -117,9 +118,9 @@ export function BetterHarnessPage() {
                     <span>{store.state.runProgress?.stage || t("better-harness.progress.running")}</span>
                     <span>{store.state.runProgress?.progressPercent ?? 0}%</span>
                   </div>
-                  <div class="h-2 rounded-full bg-muted overflow-hidden">
+                  <div class="h-2 rounded-full bg-surface-raised-base overflow-hidden">
                     <div
-                      class="h-full rounded-full bg-primary transition-all duration-500"
+                      class="h-full rounded-full bg-surface-accent-base transition-all duration-500"
                       style={{ width: `${store.state.runProgress?.progressPercent ?? 0}%` }}
                     />
                   </div>
@@ -130,18 +131,18 @@ export function BetterHarnessPage() {
               <Show when={store.state.report}>
                 <div class="space-y-6">
                   {/* Overall Score */}
-                  <div class="p-6 rounded-xl border bg-card text-card-foreground">
+                  <div class="p-6 rounded-xl border border-border-weak-base bg-surface-panel text-text-base">
                     <div class="text-3xl font-bold">{store.state.report?.overallScore}</div>
-                    <div class="text-sm text-muted-foreground">{t("better-harness.score.overall")}</div>
+                    <div class="text-sm text-text-weak">{t("better-harness.score.overall")}</div>
                   </div>
 
                   {/* Dimensions */}
                   <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {store.state.report?.dimensions.map((dim) => (
-                      <div class="p-4 rounded-lg border bg-card text-card-foreground">
+                      <div class="p-4 rounded-lg border border-border-weak-base bg-surface-panel text-text-base">
                         <div class="font-medium text-sm">{dim.dimension}</div>
                         <div class="text-2xl font-bold mt-1">{dim.score}</div>
-                        <div class="text-xs text-muted-foreground mt-1">
+                        <div class="text-xs text-text-weak mt-1">
                           {dim.findingCount} {t("better-harness.findings")}
                         </div>
                       </div>
@@ -152,16 +153,16 @@ export function BetterHarnessPage() {
                   <div class="space-y-2">
                     <h2 class="font-semibold">{t("better-harness.findings")}</h2>
                     {store.state.report?.findings.map((finding) => (
-                      <div class="p-4 rounded-lg border bg-card text-card-foreground">
+                      <div class="p-4 rounded-lg border border-border-weak-base bg-surface-panel text-text-base">
                         <div class="flex items-start justify-between gap-2">
                           <div>
                             <div class="font-medium text-sm">{finding.title}</div>
-                            <div class="text-xs text-muted-foreground mt-1">{finding.cause}</div>
+                            <div class="text-xs text-text-weak mt-1">{finding.cause}</div>
                           </div>
                           <span class={`px-2 py-0.5 rounded text-xs font-medium ${
                             finding.priority === "high" || finding.priority === "critical"
-                              ? "bg-destructive/10 text-destructive"
-                              : "bg-muted text-muted-foreground"
+                              ? "bg-surface-danger-base/10 text-text-danger"
+                              : "bg-surface-raised-base text-text-weak"
                           }`}>
                             {finding.priority}
                           </span>
@@ -175,10 +176,10 @@ export function BetterHarnessPage() {
                     <div class="space-y-2">
                       <h2 class="font-semibold">{t("better-harness.history")}</h2>
                       {store.state.history.slice(0, 5).map((entry) => (
-                        <div class="p-3 rounded-lg border bg-card text-card-foreground text-sm">
+                        <div class="p-3 rounded-lg border border-border-weak-base bg-surface-panel text-text-base text-sm">
                           <div class="flex justify-between">
                             <span class="font-medium">{t("better-harness.score.overall")}: {entry.overallScore}</span>
-                            <span class="text-xs text-muted-foreground">{new Date(entry.generatedAt).toLocaleDateString()}</span>
+                            <span class="text-xs text-text-weak">{new Date(entry.generatedAt).toLocaleDateString()}</span>
                           </div>
                         </div>
                       ))}
@@ -189,14 +190,15 @@ export function BetterHarnessPage() {
 
               {/* Empty state */}
               <Show when={!store.state.loading && !store.state.report && !store.state.running && store.state.available}>
-                <div class="p-8 text-center text-sm text-muted-foreground">
+                <div class="p-8 text-center text-sm text-text-weak flex flex-col items-center">
                   {t("better-harness.empty")}
-                  <button
+                  <ButtonV2
+                    variant="contrast"
                     onClick={() => store.regenerate()}
-                    class="block mx-auto mt-4 px-4 py-2 text-sm rounded-lg bg-primary text-primary-foreground hover:bg-primary/90"
+                    class="mt-4"
                   >
                     {t("better-harness.regenerate")}
-                  </button>
+                  </ButtonV2>
                 </div>
               </Show>
             </div>

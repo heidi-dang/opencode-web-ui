@@ -9,8 +9,8 @@ export function BetterHarnessUnavailable(props: Props) {
     <div class="p-8 text-center">
       <div class="max-w-md mx-auto space-y-4">
         <div class="text-4xl">🔌</div>
-        <h2 class="text-lg font-semibold">Better Harness Unavailable</h2>
-        <p class="text-sm text-balance">
+        <h2 class="text-lg font-semibold text-text-base">Better Harness Unavailable</h2>
+        <p class="text-sm text-balance text-text-weak">
           <Switch fallback={props.reason || "Not available on this server."}>
             <Match when={props.reason === "No FlowDeck"}>
               FlowDeck not installed.
