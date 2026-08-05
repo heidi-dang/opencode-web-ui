@@ -81,7 +81,9 @@ export function ServerRow(props: ServerRowProps) {
               fallback={
                 <div class={`${props.versionClass ?? "text-text-weak text-14-regular truncate"} min-w-0 flex items-center gap-1`}>
                   <Show when={props.status?.model}>
-                    <span class="capitalize truncate">{props.status?.model}</span>
+                    <span class="capitalize truncate">
+                      {props.status?.provider ? `${props.status.provider} ${props.status.model}` : props.status?.model}
+                    </span>
                     <Show when={props.status?.version}> • </Show>
                   </Show>
                   <Show when={props.status?.version}>
