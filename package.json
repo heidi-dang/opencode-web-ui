@@ -81,6 +81,7 @@
     }
   },
   "devDependencies": {
+    "@tsconfig/bun": "catalog:",
     "oxlint-tsgolint": "0.21.0",
     "typescript": "catalog:",
     "vite": "catalog:"

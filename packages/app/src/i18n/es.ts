@@ -1,4 +1,7 @@
+import { newKeyFallbacks } from "./new-key-fallbacks"
+
 export const dict = {
+  ...newKeyFallbacks,
   "command.category.suggested": "Sugerido",
   "command.category.view": "Ver",
   "command.category.project": "Proyecto",

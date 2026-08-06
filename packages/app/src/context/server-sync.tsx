@@ -1,5 +1,6 @@
 import type {
   Config,
+  LspStatus,
   OpencodeClient,
   Path,
   Project,
@@ -144,8 +145,12 @@ export const loadMcpResourcesQuery = (
     placeholderData: {},
   })
 
-export const loadLspQuery = (scope: ServerScope, directory: string, sdk: OpencodeClient) =>
-  queryOptions({
+export const loadLspQuery = (
+  scope: ServerScope,
+  directory: string,
+  sdk: OpencodeClient,
+): ApiQueryOptions<LspStatus[], readonly [ServerScope, string, "lsp"]> =>
+  queryOptions<LspStatus[], Error, LspStatus[], readonly [ServerScope, string, "lsp"]>({
     queryKey: [scope, directory, "lsp"] as const,
     queryFn: () => sdk.lsp.status().then((r) => {
       if (!r.data) return []

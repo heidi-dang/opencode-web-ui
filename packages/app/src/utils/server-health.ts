@@ -1,6 +1,6 @@
 import { usePlatform } from "@/context/platform"
 import { ServerConnection } from "@/context/server"
-import { authTokenFromCredentials, createSdkForServer, getEffectiveServerUrl, createApiForServer } from "./server"
+import { authTokenFromCredentials, createSdkForServer, getEffectiveServerUrl } from "./server"
 import { ClientError, OpenCode } from "@opencode-ai/client"
 import { Accessor, createEffect, onCleanup } from "solid-js"
 import { createStore, reconcile } from "solid-js/store"
@@ -121,19 +121,7 @@ export function checkServerHealth(
         try {
           const res = await fetch(new URL(path.replace(/^\/+/, ""), effectiveUrl.endsWith("/") ? effectiveUrl : effectiveUrl + "/").toString(), { headers: authHeaders, signal }).catch(() => null)
           const result = await processRes(res)
-          if (result) {
-             if (result.healthy && !result.provider) {
-               try {
-                 const api = createApiForServer({ server, fetch })
-                 const defaultModel = await api.model.default()
-                 if (defaultModel?.data) {
-                   result.provider = defaultModel.data.providerID
-                   result.model = defaultModel.data.id
-                 }
-               } catch (e) {}
-             }
-             return result
-          }
+          if (result) return result
         } catch {}
       }
     } catch {}
@@ -156,20 +144,9 @@ export function checkServerHealth(
     const sdk = createSdkForServer({ server, fetch, signal })
     return sdk
       .global.health()
-      .then(async (x) => {
+      .then((x) => {
         if (x.error) return next(count, x.error)
-        let provider, model;
-        if (x.data?.healthy) {
-          try {
-             const api = createApiForServer({ server, fetch })
-             const defaultModel = await api.model.default()
-             if (defaultModel?.data) {
-               provider = defaultModel.data.providerID
-               model = defaultModel.data.id
-             }
-          } catch (e) {}
-        }
-        return { healthy: x.data?.healthy === true, version: x.data?.version, provider, model }
+        return { healthy: x.data?.healthy === true, version: x.data?.version }
       })
       .catch((error) => next(count, error))
   }

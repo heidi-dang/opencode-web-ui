@@ -1,8 +1,10 @@
 import { dict as en } from "./en"
+import { newKeyFallbacks } from "./new-key-fallbacks"
 
 type Keys = keyof typeof en
 
 export const dict = {
+  ...newKeyFallbacks,
   "command.category.suggested": "Önerilen",
   "command.category.view": "Görünüm",
   "command.category.project": "Proje",

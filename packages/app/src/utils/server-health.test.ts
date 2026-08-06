@@ -26,7 +26,7 @@ describe("checkServerHealth", () => {
     const result = await checkServerHealth(server, fetch)
 
     expect(result).toEqual({ healthy: true, version: "1.2.3" })
-    expect(request?.pathname).toBe("/api/model/default")
+    expect(request?.pathname).toBe("/health")
   })
 
   test("falls back to the V1 health endpoint", async () => {
@@ -40,7 +40,7 @@ describe("checkServerHealth", () => {
     }) as unknown as typeof globalThis.fetch
 
     expect(await checkServerHealth(server, fetch)).toEqual({ healthy: true, version: "1.18.4" })
-    expect(paths).toEqual(["/health", "/global/health", "/api/health", "/api/model/default"])
+    expect(paths).toEqual(["/health", "/global/health", "/api/health"])
   })
 
   test("falls back when the current health response is malformed", async () => {
@@ -54,7 +54,7 @@ describe("checkServerHealth", () => {
     }) as unknown as typeof globalThis.fetch
 
     expect(await checkServerHealth(server, fetch)).toEqual({ healthy: true, version: "1.18.4" })
-    expect(paths).toEqual(["/health", "/global/health", "/api/health", "/api/model/default"])
+    expect(paths).toEqual(["/health", "/global/health", "/api/health"])
   })
 
   test("allows slow servers thirty seconds by default", async () => {
