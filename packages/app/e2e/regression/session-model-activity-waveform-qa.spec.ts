@@ -216,6 +216,22 @@ for (const scenario of responsiveCases) {
     )
     if (scenario.width <= 640) await expect(telemetry.locator(".streaming-cost")).toBeHidden()
     if (scenario.width > 640) await expect(telemetry.locator(".streaming-cost")).toBeVisible()
+    await expect
+      .poll(() =>
+        waveform.evaluate((element) => {
+          const track = element.querySelector<HTMLElement>('[data-slot="model-activity-waveform-track"]')!
+          const packet = element.querySelector<SVGElement>('[data-slot="model-activity-waveform-runner"] svg')!
+          const glow = element.querySelector<HTMLElement>('[data-slot="model-activity-waveform-arrival-glow"]')!
+          const effect = glow.getAnimations()[0]?.effect
+          if (!(effect instanceof KeyframeEffect)) return Number.NaN
+          const peak = effect
+            .getKeyframes()
+            .find((frame) => String(frame.opacity).includes("--wave-arrival-visible"))?.computedOffset
+          const expected = track.clientWidth / (track.clientWidth + packet.getBoundingClientRect().width)
+          return typeof peak === "number" ? Math.abs(peak - expected) : Number.NaN
+        }),
+      )
+      .toBeLessThan(0.015)
 
     const complete = await readLayout(status)
     expectLayout(complete, scenario.width, { telemetry: true, timer: true })
@@ -293,3 +309,104 @@ test("captures a centered static packet with reduced motion", async ({ page }) =
   await capture(page, "/tmp/model-waveform-reduced-motion.png")
   expect(problems).toEqual([])
 })
+
+test("changes cadence through playback rate without retiming the travel effect", async ({ page }) => {
+  const timeline = await setupTimeline(page, {
+    viewport: { width: 1_400, height: 900 },
+    settings: { newLayoutDesigns: true },
+    sessions: [session({ tokens: undefined, cost: 0 })],
+    messages: messages(),
+  })
+  const waveform = page.locator('[data-component="model-activity-waveform"]')
+  const runner = waveform.locator('[data-slot="model-activity-waveform-runner"]')
+  const animationHandle = await runner.evaluateHandle((element) => element.getAnimations()[0])
+  const readTiming = () =>
+    waveform.evaluate((element) => {
+      const animation = element
+        .querySelector<HTMLElement>('[data-slot="model-activity-waveform-runner"]')!
+        .getAnimations()[0]
+      const targetDuration = Number.parseFloat(element.style.getPropertyValue("--wave-duration"))
+      const timing = animation.effect?.getComputedTiming()
+      return {
+        effectDuration: Number(timing?.duration),
+        playbackRate: animation.playbackRate,
+        targetDuration,
+        phase: Number(timing?.currentIteration ?? 0) + Number(timing?.progress ?? 0),
+      }
+    })
+
+  const initial = await readTiming()
+  expect(initial.effectDuration).toBe(1_800)
+  expect(initial.playbackRate).toBeCloseTo(1_800 / initial.targetDuration, 2)
+
+  await timeline.send(partDelta("prt_assistant_text", "first"))
+  await page.waitForTimeout(1_650)
+  const beforeSlow = await readTiming()
+  await timeline.send(partDelta("prt_assistant_text", "slow"))
+  await expect.poll(async () => (await readTiming()).targetDuration).toBeGreaterThan(initial.targetDuration)
+  await expect
+    .poll(async () => {
+      const timing = await readTiming()
+      return Math.abs(timing.playbackRate - 1_800 / timing.targetDuration)
+    })
+    .toBeLessThan(0.005)
+  const slow = await readTiming()
+  expect(slow.effectDuration).toBe(1_800)
+  expect(slow.playbackRate).toBeCloseTo(1_800 / slow.targetDuration, 2)
+  expect(slow.phase).toBeGreaterThanOrEqual(beforeSlow.phase)
+  expect(
+    await runner.evaluate((element, original) => element.getAnimations()[0] === original, animationHandle),
+  ).toBe(true)
+
+  for (let index = 0; index < 4; index++) {
+    await page.waitForTimeout(300)
+    await timeline.send(partDelta("prt_assistant_text", `fast-${index}`))
+  }
+  await expect.poll(async () => (await readTiming()).targetDuration).toBeLessThan(slow.targetDuration)
+  await expect
+    .poll(async () => {
+      const timing = await readTiming()
+      return Math.abs(timing.playbackRate - 1_800 / timing.targetDuration)
+    })
+    .toBeLessThan(0.005)
+  const fast = await readTiming()
+  expect(fast.effectDuration).toBe(1_800)
+  expect(fast.playbackRate).toBeCloseTo(1_800 / fast.targetDuration, 2)
+  expect(
+    await runner.evaluate((element, original) => element.getAnimations()[0] === original, animationHandle),
+  ).toBe(true)
+})
+
+for (const width of [390, 1_920]) {
+  test(`aligns the telemetry glow peak with the packet endpoint at ${width}px`, async ({ page }) => {
+    await setupTimeline(page, {
+      viewport: { width, height: width === 390 ? 844 : 1_080 },
+      settings: { newLayoutDesigns: true },
+      sessions: [telemetrySession()],
+      messages: messages(),
+    })
+    const waveform = page.locator('[data-component="model-activity-waveform"]')
+    const difference = await waveform.evaluate(async (element) => {
+      const track = element.querySelector<HTMLElement>('[data-slot="model-activity-waveform-track"]')!
+      const runner = element.querySelector<HTMLElement>('[data-slot="model-activity-waveform-runner"]')!
+      const packet = runner.querySelector<SVGElement>("svg")!
+      const glow = element.querySelector<HTMLElement>('[data-slot="model-activity-waveform-arrival-glow"]')!
+      const runnerAnimation = runner.getAnimations()[0]
+      const glowAnimation = glow.getAnimations()[0]
+      const glowEffect = glowAnimation.effect
+      if (!(glowEffect instanceof KeyframeEffect)) throw new Error("arrival glow has no keyframe effect")
+      const peak = glowEffect
+        .getKeyframes()
+        .find((frame) => String(frame.opacity).includes("--wave-arrival-visible"))?.computedOffset
+      if (typeof peak !== "number") throw new Error("arrival glow peak is missing")
+      runnerAnimation.pause()
+      glowAnimation.pause()
+      const duration = Number(runnerAnimation.effect?.getComputedTiming().duration)
+      runnerAnimation.currentTime = peak * duration
+      glowAnimation.currentTime = peak * duration
+      await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
+      return Math.abs(packet.getBoundingClientRect().right - track.getBoundingClientRect().right)
+    })
+    expect(difference).toBeLessThanOrEqual(1)
+  })
+}

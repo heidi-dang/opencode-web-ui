@@ -139,12 +139,12 @@
 }
 
 .model-activity-waveform[data-motion="active"] [data-slot="model-activity-waveform-runner"] {
-  animation: model-activity-waveform-travel var(--wave-duration) linear infinite;
+  animation: model-activity-waveform-travel 1800ms linear infinite;
   will-change: transform;
 }
 
 .model-activity-waveform[data-motion="active"] .model-activity-waveform-arrival-glow {
-  animation: model-activity-waveform-arrival var(--wave-duration) linear infinite;
+  animation: model-activity-waveform-arrival 1800ms linear infinite;
 }
 
 .model-activity-waveform[data-motion="static"] [data-slot="model-activity-waveform-runner"] {
