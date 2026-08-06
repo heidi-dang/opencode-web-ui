@@ -11,7 +11,7 @@ export async function loadRootSessions(input: { api: Pick<SessionApi, "list">; d
   })
   const dataArray = Array.isArray(result.data) ? result.data : Object.values(result.data ?? {})
   return {
-    data: dataArray.map(normalizeSessionInfo),
+    data: dataArray.map((item) => normalizeSessionInfo(item as any)),
     limit: input.limit,
     limited: true,
   } as const
@@ -25,7 +25,7 @@ export async function loadRootSessionsV1(input: { client: OpencodeClient; direct
     result = await input.client.session.list({ directory: input.directory, roots: true })
   }
   const dataArray = Array.isArray(result.data) ? result.data : Object.values(result.data ?? {})
-  return { data: dataArray.map(normalizeSessionInfo), limit: input.limit, limited: true } as const
+  return { data: dataArray.map((item) => normalizeSessionInfo(item as any)), limit: input.limit, limited: true } as const
 }
 
 export function estimateRootSessionTotal(input: { count: number; limit: number; limited: boolean }) {

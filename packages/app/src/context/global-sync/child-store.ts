@@ -1,7 +1,7 @@
 import { createRoot, createSignal, getOwner, onCleanup, runWithOwner, type Owner } from "solid-js"
 import { createStore, type SetStoreFunction, type Store } from "solid-js/store"
 import { Persist, persisted } from "@/utils/persist"
-import type { VcsInfo } from "@opencode-ai/sdk/v2/client"
+import type { LspStatus, VcsInfo } from "@opencode-ai/sdk/v2/client"
 import {
   DIR_IDLE_TTL_MS,
   MAX_DIR_STORES,
@@ -249,8 +249,8 @@ export function createChildStoreManager(input: {
             get lsp_ready() {
               return instanceQueriesEnabled() && !lspQuery.isLoading
             },
-            get lsp() {
-              return lspQuery.isLoading ? [] : (lspQuery.data ?? [])
+            get lsp(): LspStatus[] {
+              return lspQuery.isLoading ? [] : ((lspQuery.data ?? []) as LspStatus[])
             },
             vcs: vcsStore.value,
             limit: 5,

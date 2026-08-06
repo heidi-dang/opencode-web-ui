@@ -7,7 +7,7 @@ describe("HttpHarnessDataSource", () => {
   const mockFetch = mock();
 
   beforeEach(() => {
-    globalThis.fetch = mockFetch;
+    globalThis.fetch = mockFetch as any;
     dataSource = new HttpHarnessDataSource({
       baseUrl: "http://localhost",
       serverKey: "test-server",

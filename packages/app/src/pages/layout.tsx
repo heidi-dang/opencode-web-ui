@@ -2257,7 +2257,7 @@ export default function LegacyLayout(props: ParentProps) {
           showToast({
             title: "Project Required",
             description: "Please open a project to use Better Harness.",
-            status: "warning",
+            variant: "error",
           });
         }
       }}
