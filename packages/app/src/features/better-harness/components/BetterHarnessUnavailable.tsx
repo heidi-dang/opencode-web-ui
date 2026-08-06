@@ -8,6 +8,7 @@ export function BetterHarnessUnavailable(props: Props) {
   const getReason = () => {
     if (props.reason === "No FlowDeck") return "FlowDeck not installed.";
     if (props.reason === "Not enabled") return "Not enabled for this project.";
+    if (props.reason === "No project selected") return "Please open a project to use Better Harness.";
     return props.reason || "Not available on this server.";
   };
 

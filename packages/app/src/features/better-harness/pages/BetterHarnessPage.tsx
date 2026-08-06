@@ -42,6 +42,10 @@ export function BetterHarnessPage() {
   });
 
   createEffect(async () => {
+    if (!projectKey()) {
+      setInitialised(true);
+      return;
+    }
     const available = await store.checkAvailability();
     setInitialised(true);
     if (available) {
@@ -61,6 +65,9 @@ export function BetterHarnessPage() {
 
       <Show when={initialised()}>
         <Switch>
+          <Match when={!projectKey()}>
+            <BetterHarnessUnavailable reason="No project selected" />
+          </Match>
           <Match when={!store.state.available}>
             <BetterHarnessUnavailable reason={store.state.availableReason} />
           </Match>
