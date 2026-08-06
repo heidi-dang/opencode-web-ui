@@ -66,13 +66,30 @@ export function createSdkForServer({
     }
   })()
 
+  const parsed = new URL(getEffectiveServerUrl(server.url), typeof location === "object" ? location.href : "http://localhost")
+
+  const customFetch = (reqUrl: RequestInfo | URL, init?: RequestInit) => {
+    let finalStr = typeof reqUrl === "string" ? reqUrl : reqUrl instanceof URL ? reqUrl.toString() : reqUrl.url
+    if (parsed.pathname !== "/" && parsed.pathname !== "") {
+      if (finalStr.startsWith(parsed.origin)) {
+        const u = new URL(finalStr)
+        if (!u.pathname.startsWith(parsed.pathname)) {
+          u.pathname = parsed.pathname + (u.pathname === "/" ? "" : u.pathname)
+          finalStr = u.toString()
+        }
+      }
+    }
+    return (config.fetch ?? globalThis.fetch)(finalStr, init)
+  }
+
   return createOpencodeClient({
     ...config,
     headers: {
       ...(config.headers instanceof Headers ? Object.fromEntries(config.headers.entries()) : config.headers),
       ...auth,
     },
-    baseUrl: getEffectiveServerUrl(server.url),
+    baseUrl: parsed.origin,
+    fetch: customFetch,
   })
 }
 
@@ -80,9 +97,25 @@ export function createApiForServer(input: {
   server: ServerConnection.HttpBase
   fetch?: typeof globalThis.fetch
 }): OpenCodeClient {
+  const parsed = new URL(getEffectiveServerUrl(input.server.url), typeof location === "object" ? location.href : "http://localhost")
+
+  const customFetch = (reqUrl: RequestInfo | URL, init?: RequestInit) => {
+    let finalStr = typeof reqUrl === "string" ? reqUrl : reqUrl instanceof URL ? reqUrl.toString() : reqUrl.url
+    if (parsed.pathname !== "/" && parsed.pathname !== "") {
+      if (finalStr.startsWith(parsed.origin)) {
+        const u = new URL(finalStr)
+        if (!u.pathname.startsWith(parsed.pathname)) {
+          u.pathname = parsed.pathname + (u.pathname === "/" ? "" : u.pathname)
+          finalStr = u.toString()
+        }
+      }
+    }
+    return (input.fetch ?? globalThis.fetch)(finalStr, init)
+  }
+
   return OpenCode.make({
-    baseUrl: getEffectiveServerUrl(input.server.url),
-    fetch: input.fetch,
+    baseUrl: parsed.origin,
+    fetch: customFetch,
     headers: input.server.password
       ? {
           Authorization: `Basic ${authTokenFromCredentials({
