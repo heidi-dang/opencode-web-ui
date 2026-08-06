@@ -14,6 +14,8 @@ interface ImportMeta {
   readonly env: ImportMetaEnv
 }
 
+declare const __BUILD_ID__: string
+
 declare module "*.png" {
   const src: string
   export default src

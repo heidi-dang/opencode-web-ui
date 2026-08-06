@@ -65,16 +65,29 @@ import { legacySessionHref, legacySessionServer, requireServerKey, sessionHref }
 import { createSessionLineage } from "@/pages/session/session-lineage"
 import { SessionRouteErrorBoundary } from "@/pages/session/session-error-boundary"
 
+import { isRecoverableDynamicImportError } from "@/utils/dynamic-import-recovery"
+
+declare const __BUILD_ID__: string
+
 function safeLazy<T extends { default: Component<any> }>(fn: () => Promise<T>): Component<any> {
   return lazy(() =>
-    fn().catch((err) => {
-      const key = "oc_dyn_import_retry"
-      if (!sessionStorage.getItem(key)) {
-        sessionStorage.setItem(key, "1")
-        window.location.reload()
-      }
-      throw err
-    })
+    fn()
+      .then((mod) => {
+        const key = `oc_dyn_import_retry:${__BUILD_ID__}`
+        sessionStorage.removeItem(key)
+        return mod
+      })
+      .catch((err) => {
+        if (isRecoverableDynamicImportError(err)) {
+          const key = `oc_dyn_import_retry:${__BUILD_ID__}`
+          if (!sessionStorage.getItem(key)) {
+            sessionStorage.setItem(key, "1")
+            window.location.reload()
+            return new Promise<T>(() => {}) // Pending promise while reloading
+          }
+        }
+        throw err
+      })
   )
 }
 
