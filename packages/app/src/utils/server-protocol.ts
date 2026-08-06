@@ -12,7 +12,7 @@ function headers(server: ServerConnection.HttpBase) {
 
 async function probe(server: ServerConnection.HttpBase, fetch: typeof globalThis.fetch, path: string) {
   const effectiveUrl = getEffectiveServerUrl(server.url)
-  const response = await fetch(new URL(path, effectiveUrl), {
+  const response = await fetch(new URL(path.replace(/^\/+/, ""), effectiveUrl.endsWith("/") ? effectiveUrl : effectiveUrl + "/"), {
     headers: headers(server),
     signal: AbortSignal.timeout(5_000),
   })
