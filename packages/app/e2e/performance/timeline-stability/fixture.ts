@@ -37,6 +37,7 @@ type TimelinePayload = Extract<
       | "message.part.updated"
       | "message.part.removed"
       | "message.part.delta"
+      | "session.updated"
       | "session.status"
       | "todo.updated"
   }
@@ -81,6 +82,7 @@ const timelineEventSchema = Schema.Union([
   eventSchema("message.part.updated", SessionV1.Event.PartUpdated.data),
   eventSchema("message.part.removed", SessionV1.Event.PartRemoved.data),
   eventSchema("message.part.delta", SessionV1.Event.PartDelta.data),
+  eventSchema("session.updated", SessionV1.Event.Updated.data),
   eventSchema("session.status", SessionStatusEvent.Status.data),
   eventSchema("todo.updated", SessionTodo.Event.Updated.data),
 ])
@@ -346,6 +348,10 @@ export function partDelta(partID: string, delta: string, messageID = assistantID
 
 export function messageUpdated(info: Message) {
   return event("message.updated", { sessionID, info })
+}
+
+export function sessionUpdated(info: Session) {
+  return event("session.updated", { sessionID, info })
 }
 
 export function status(type: SessionStatus["type"], attempt = 1) {
