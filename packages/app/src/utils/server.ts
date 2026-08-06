@@ -37,8 +37,11 @@ export function getEffectiveServerUrl(url: string): string {
       const parsed = new URL(trimmed)
       const host = parsed.hostname
       if (!host) return trimmed
-      if (parsed.port && (parsed.port.length < 2 || parseInt(parsed.port, 10) < 1 || parseInt(parsed.port, 10) > 65535)) {
-        return trimmed
+      if (parsed.port) {
+        const p = parseInt(parsed.port, 10)
+        if (isNaN(p) || p < 1 || p > 65535) {
+          return trimmed
+        }
       }
       const port = parsed.port || "80"
       const pathname = parsed.pathname === "/" ? "" : parsed.pathname.replace(/\/+$/, "")

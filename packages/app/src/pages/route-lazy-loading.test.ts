@@ -38,7 +38,7 @@ function resolveModulePath(importPath: string): string | null {
 
 function lazyPathsFromSource(): string[] {
   const appSource = require("fs").readFileSync(import.meta.dirname + "/../app.tsx", "utf-8")
-  return [...appSource.matchAll(/lazy\(\(\) => import\("([^"]+)"\)/g)].map((m) => m[1])
+  return [...appSource.matchAll(/(?:safeLazy|lazy)\(\(\) => import\("([^"]+)"\)/g)].map((m) => m[1])
 }
 
 /**

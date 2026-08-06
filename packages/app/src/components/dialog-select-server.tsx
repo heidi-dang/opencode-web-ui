@@ -92,8 +92,12 @@ function useServerPreview() {
     if (!normalized) return false
     const host = normalized.replace(/^https?:\/\//, "").split("/")[0]
     if (!host || host.startsWith("http")) return false
-    if (host.includes("localhost") || host.startsWith("127.0.0.1")) return true
-    return host.includes(".") || host.includes(":")
+    if (host.startsWith("localhost") || host.startsWith("127.0.0.1")) return true
+    
+    // Ensure it looks like a complete IP address or a complete domain
+    const isIp = /^(\d{1,3}\.){3}\d{1,3}(:\d+)?$/.test(host)
+    const isDomain = /^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(:\d+)?$/.test(host)
+    return isIp || isDomain
   }
 
   const previewStatus = async (
@@ -154,14 +158,20 @@ function ServerForm(props: ServerFormProps) {
     props.onChange(constructed)
   }
 
+  let timeout: ReturnType<typeof setTimeout> | undefined
+  const debouncedUpdateUrl = (h: string, p: string) => {
+    if (timeout) clearTimeout(timeout)
+    timeout = setTimeout(() => updateUrl(h, p), 400)
+  }
+
   const handleHostChange = (val: string) => {
     setHost(val)
-    updateUrl(val, port())
+    debouncedUpdateUrl(val, port())
   }
 
   const handlePortChange = (val: string) => {
     setPort(val)
-    updateUrl(host(), val)
+    debouncedUpdateUrl(host(), val)
   }
 
   const keyDown = (event: KeyboardEvent) => {

@@ -38,8 +38,11 @@ describe("getEffectiveServerUrl", () => {
 
       const { getEffectiveServerUrl: getEffective } = require("./server")
 
-      // Incomplete port during user typing should not generate broken /direct/ URLs
-      expect(getEffective("http://100.97.224.96:6")).toBe("http://100.97.224.96:6")
+      // Out of range port should not be rewritten
+      expect(getEffective("http://100.97.224.96:0")).toBe("http://100.97.224.96:0")
+      expect(getEffective("http://100.97.224.96:66666")).toBe("http://100.97.224.96:66666")
+      // Valid 1-digit port should be rewritten
+      expect(getEffective("http://100.97.224.96:6")).toBe("https://ai.tnaprovider.com.au/direct/100.97.224.96/6")
       // Valid port should generate clean /direct/ URL
       expect(getEffective("http://100.97.224.96:4096")).toBe("https://ai.tnaprovider.com.au/direct/100.97.224.96/4096")
     } finally {

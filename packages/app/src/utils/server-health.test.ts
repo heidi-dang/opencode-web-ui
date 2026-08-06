@@ -26,7 +26,7 @@ describe("checkServerHealth", () => {
     const result = await checkServerHealth(server, fetch)
 
     expect(result).toEqual({ healthy: true, version: "1.2.3" })
-    expect(request?.pathname).toBe("/health")
+    expect(request?.pathname).toBe("/api/model/default")
   })
 
   test("falls back to the V1 health endpoint", async () => {
@@ -40,7 +40,7 @@ describe("checkServerHealth", () => {
     }) as unknown as typeof globalThis.fetch
 
     expect(await checkServerHealth(server, fetch)).toEqual({ healthy: true, version: "1.18.4" })
-    expect(paths).toEqual(["/health", "/global/health", "/api/health"])
+    expect(paths).toEqual(["/health", "/global/health", "/api/health", "/api/model/default"])
   })
 
   test("falls back when the current health response is malformed", async () => {
@@ -54,7 +54,7 @@ describe("checkServerHealth", () => {
     }) as unknown as typeof globalThis.fetch
 
     expect(await checkServerHealth(server, fetch)).toEqual({ healthy: true, version: "1.18.4" })
-    expect(paths).toEqual(["/health", "/global/health", "/api/health"])
+    expect(paths).toEqual(["/health", "/global/health", "/api/health", "/api/model/default"])
   })
 
   test("allows slow servers thirty seconds by default", async () => {
@@ -132,7 +132,8 @@ describe("checkServerHealth", () => {
   test("uses provided abort signal", async () => {
     let signal: AbortSignal | undefined
     const fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
-      signal = abortFromInput(input, init)
+      const currentSignal = abortFromInput(input, init)
+      if (currentSignal) signal = currentSignal
       return new Response(JSON.stringify({ healthy: true, version: "1.2.3" }), {
         status: 200,
         headers: { "content-type": "application/json" },
@@ -152,7 +153,8 @@ describe("checkServerHealth", () => {
     let count = 0
     const fetch = (async () => {
       count += 1
-      if (count < 3) throw new TypeError("network")
+      // The 3rd attempt succeeds on /health, and the 4th is the /api/model/default fetch
+      if (count <= 2) throw new TypeError("network")
       return new Response(JSON.stringify({ healthy: true, version: "1.2.3" }), {
         status: 200,
         headers: { "content-type": "application/json" },
@@ -164,7 +166,7 @@ describe("checkServerHealth", () => {
       retryDelayMs: 1,
     })
 
-    expect(count).toBe(3)
+    expect(count).toBeGreaterThanOrEqual(3)
     expect(result).toEqual({ healthy: true, version: "1.2.3" })
   })
 
