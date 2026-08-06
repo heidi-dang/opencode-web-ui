@@ -30,16 +30,20 @@ test("carries live activity from the working phrase into telemetry", async ({ pa
   const phrase = status.locator(".status-text-verbose")
   const waveform = status.locator('[data-component="model-activity-waveform"]')
   const track = waveform.locator('[data-slot="model-activity-waveform-track"]')
+  const stateText = waveform.locator('[data-slot="model-activity-waveform-status"]')
   const initialHeight = await status.evaluate((element) => element.getBoundingClientRect().height)
 
+  await expect(page.getByRole("status")).toHaveCount(1)
   await expect(phrase).toBeVisible()
   await expect(waveform).toBeVisible()
   await expect(track).toBeVisible()
+  await expect(stateText).not.toContainText("since last activity")
   await expect(waveform.locator(".streaming-status-telemetry")).toHaveCount(0)
   await expect(waveform.locator(".heartbeat-indicator")).toHaveCount(0)
 
   await timeline.send(partDelta("prt_assistant_text", "activity"))
   await expect(waveform).toHaveAttribute("data-state", /active-/)
+  await expect(stateText).toHaveText(/Thinking rapidly|Processing/)
   await timeline.send(
     sessionUpdated(
       session({ tokens: { input: 1_200, output: 300, reasoning: 0, cache: { read: 0, write: 0 } } }),
@@ -118,10 +122,12 @@ test("renders a static state-colored signal for reduced motion", async ({ page }
   await expect(waveform).toHaveAttribute("data-motion", "static")
   await expect(waveform).toHaveAttribute("data-tone", "accent")
   const animations = await waveform.evaluate((element) => ({
-    signal: getComputedStyle(
-      element.querySelector<SVGPathElement>('[data-slot="model-activity-waveform-signal"]')!,
+    runner: getComputedStyle(
+      element.querySelector<HTMLElement>('[data-slot="model-activity-waveform-runner"]')!,
     ).animationName,
-    telemetry: getComputedStyle(element.querySelector<HTMLElement>(".streaming-status-telemetry")!).animationName,
+    arrival: getComputedStyle(
+      element.querySelector<HTMLElement>('[data-slot="model-activity-waveform-arrival-glow"]')!,
+    ).animationName,
   }))
-  expect(animations).toEqual({ signal: "none", telemetry: "none" })
+  expect(animations).toEqual({ runner: "none", arrival: "none" })
 })
