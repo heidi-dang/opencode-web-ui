@@ -40,10 +40,49 @@ test("carries live activity from the working phrase into telemetry", async ({ pa
   await expect(stateText).not.toContainText("since last activity")
   await expect(waveform.locator(".streaming-status-telemetry")).toHaveCount(0)
   await expect(waveform.locator(".heartbeat-indicator")).toHaveCount(0)
+  await expect(waveform).toHaveAttribute("data-state", /active-/)
+
+  const runner = waveform.locator('[data-slot="model-activity-waveform-runner"]')
+  const runnerHandle = await runner.elementHandle()
+  const initialEnergy = await waveform.evaluate((element) => ({
+    amplitude: Number.parseFloat(element.style.getPropertyValue("--wave-amplitude")),
+    glow: Number.parseFloat(element.style.getPropertyValue("--wave-glow")),
+    duration: element.style.getPropertyValue("--wave-duration"),
+    recent: Number.parseFloat(element.style.getPropertyValue("--wave-recent-boost")),
+  }))
+  expect(initialEnergy.recent).toBe(0)
+  const initialRunnerStartTime = await runner.evaluate(
+    (element) => element.getAnimations()[0]?.startTime ?? null,
+  )
+  expect(initialRunnerStartTime).not.toBeNull()
 
   await timeline.send(partDelta("prt_assistant_text", "activity"))
   await expect(waveform).toHaveAttribute("data-state", /active-/)
   await expect(stateText).toHaveText(/Thinking rapidly|Processing/)
+  await expect
+    .poll(() =>
+      waveform.evaluate((element) => Number.parseFloat(element.style.getPropertyValue("--wave-recent-boost"))),
+    )
+    .toBeGreaterThan(0)
+  const boostedEnergy = await waveform.evaluate((element) => ({
+    amplitude: Number.parseFloat(element.style.getPropertyValue("--wave-amplitude")),
+    glow: Number.parseFloat(element.style.getPropertyValue("--wave-glow")),
+    duration: element.style.getPropertyValue("--wave-duration"),
+  }))
+  expect(boostedEnergy.amplitude).toBeGreaterThan(initialEnergy.amplitude)
+  expect(boostedEnergy.glow).toBeGreaterThan(initialEnergy.glow)
+  expect(boostedEnergy.duration).toBe(initialEnergy.duration)
+  expect(await runnerHandle?.evaluate((element) => element.isConnected)).toBe(true)
+  expect(await runner.evaluate((element) => element.getAnimations()[0]?.startTime ?? null)).toBe(
+    initialRunnerStartTime,
+  )
+  await expect
+    .poll(
+      () =>
+        waveform.evaluate((element) => Number.parseFloat(element.style.getPropertyValue("--wave-recent-boost"))),
+      { timeout: 3_000 },
+    )
+    .toBe(0)
   await timeline.send(
     sessionUpdated(
       session({ tokens: { input: 1_200, output: 300, reasoning: 0, cache: { read: 0, write: 0 } } }),

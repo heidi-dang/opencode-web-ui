@@ -945,6 +945,20 @@ describe("server session", () => {
     expect(store.data.part_text_accum_delta[part.id]).toBeUndefined()
   })
 
+  test("records meaningful activity when a streamed part delta arrives", () => {
+    const store = setup({ child: session("child") }).store
+    const before = Date.now()
+
+    store.apply({
+      type: "message.part.delta",
+      properties: { sessionID: "child", messageID: "message", partID: "part", field: "text", delta: " delta" },
+    })
+
+    const timestamp = store.data.session_activity.child?.lastMeaningfulEventAt
+    expect(timestamp).toBeDefined()
+    expect(timestamp!).toBeGreaterThanOrEqual(before)
+  })
+
   test("does not remove content confirmed by a message event", () => {
     const message = userMessage("message")
     const part = textPart(message.id)

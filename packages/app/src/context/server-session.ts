@@ -19,6 +19,7 @@ import { sessionNotFoundError } from "@/utils/server-errors"
 import { rootSession } from "@/utils/session-route"
 import { normalizeSessionInfo } from "@/utils/session"
 import { normalizeSessionMessages } from "@/utils/session-message"
+import { meaningfulActivitySessionID } from "./global-sync/activity"
 import { dropSessionCaches, pickSessionCacheEvictions, SESSION_CACHE_LIMIT } from "./global-sync/session-cache"
 import { createV2SessionReducer, type V2SessionReduction } from "./server-session-v2-reducer"
 import type { ServerApi } from "@/utils/server"
@@ -988,6 +989,10 @@ export function createServerSession(
   }
 
   const apply = (event: { type: string; properties?: unknown }) => {
+    const activitySessionID = meaningfulActivitySessionID(event)
+    if (activitySessionID) {
+      setData("session_activity", activitySessionID, { lastMeaningfulEventAt: Date.now() })
+    }
     const eventID = eventSessionID(event)
     if (eventID) {
       touch(eventID)

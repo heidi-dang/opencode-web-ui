@@ -14,6 +14,7 @@ import type { FileDiffInfo } from "@opencode-ai/client/promise"
 import type { State, VcsCache } from "./types"
 import { trimSessions } from "./session-trim"
 import { dropSessionCaches } from "./session-cache"
+import { meaningfulActivitySessionID } from "./activity"
 import { diffs as list, message as clean } from "@/utils/diffs"
 
 const SKIP_PARTS = new Set(["patch", "step-start", "step-finish"])
@@ -120,24 +121,12 @@ export function applyDirectoryEvent(input: {
   permission?: State["permission"]
 }) {
   const event = input.event
+  const activitySessionID = meaningfulActivitySessionID(event)
+  if (activitySessionID) {
+    input.setStore("session_activity", activitySessionID, { lastMeaningfulEventAt: Date.now() })
+  }
   if (input.sessionContent === false && SESSION_CONTENT_EVENTS.has(event.type)) return
   const limit = Math.max(input.store.limit, input.retainedLimit ?? 0)
-
-  if (
-    event.type === "message.part.delta" ||
-    event.type === "todo.progress" ||
-    event.type === "message.part.updated" ||
-    event.type === "message.created" ||
-    event.type === "message.updated" ||
-    event.type === "todo.created" ||
-    event.type === "todo.updated"
-  ) {
-    const properties = event.properties as { sessionID?: string; info?: { sessionID?: string } }
-    const sessionID = properties.sessionID ?? properties.info?.sessionID
-    if (sessionID) {
-      input.setStore("session_activity", sessionID, { lastMeaningfulEventAt: Date.now() })
-    }
-  }
 
   switch (event.type) {
     case "server.instance.disposed": {

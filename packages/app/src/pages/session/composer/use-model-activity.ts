@@ -11,6 +11,7 @@ export function useModelActivity(sessionID: () => string, sync = useSync()) {
   const [ewma, setEwma] = createSignal<number>(ActivityConfig.FAST_CADENCE_MS)
   const [lastProcessedEventTime, setLastProcessedEventTime] = createSignal<number>(0)
   const [timeSinceLastActivity, setTimeSinceLastActivity] = createSignal<number>(0)
+  const hasActivity = createMemo(() => lastProcessedEventTime() > 0)
 
   // Use memos for reactive access to the normalized store
   const isWorking = createMemo(() => sync().data.session_working(sessionID()))
@@ -82,5 +83,5 @@ export function useModelActivity(sessionID: () => string, sync = useSync()) {
     })
   })
 
-  return { state, timeSinceLastActivity, ewma }
+  return { state, timeSinceLastActivity, ewma, hasActivity }
 }

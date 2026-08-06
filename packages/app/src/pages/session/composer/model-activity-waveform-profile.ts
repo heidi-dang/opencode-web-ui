@@ -10,6 +10,18 @@ export type ModelActivityWaveformProfile = {
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
 const rounded = (value: number) => Math.round(value * 1_000) / 1_000
+const RECENT_ACTIVITY_BOOST_MS = 1_200
+
+export function modelActivityWaveformRecentBoost(
+  ageMs: number,
+  hasActivity: boolean,
+  reducedMotion = false,
+): number {
+  if (!hasActivity || reducedMotion || !Number.isFinite(ageMs) || ageMs < 0 || ageMs >= RECENT_ACTIVITY_BOOST_MS) {
+    return 0
+  }
+  return rounded(1 - ageMs / RECENT_ACTIVITY_BOOST_MS)
+}
 
 export function modelActivityWaveformProfile(
   state: ModelActivityState,

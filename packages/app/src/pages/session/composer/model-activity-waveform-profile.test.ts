@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test"
-import { modelActivityWaveformProfile } from "./model-activity-waveform-profile"
+import {
+  modelActivityWaveformProfile,
+  modelActivityWaveformRecentBoost,
+} from "./model-activity-waveform-profile"
 
 describe("modelActivityWaveformProfile", () => {
   test("turns faster cadence into quicker, taller, brighter motion", () => {
@@ -38,5 +41,18 @@ describe("modelActivityWaveformProfile", () => {
       tone: "accent",
       moving: false,
     })
+  })
+
+  test("briefly boosts a recent event and then decays without reduced-motion energy", () => {
+    const firstEvent = modelActivityWaveformRecentBoost(0, true)
+    const middle = modelActivityWaveformRecentBoost(600, true)
+
+    expect(firstEvent).toBeGreaterThan(middle)
+    expect(middle).toBeGreaterThan(0)
+    expect(firstEvent).toBeLessThanOrEqual(1)
+    expect(modelActivityWaveformRecentBoost(0, false)).toBe(0)
+    expect(modelActivityWaveformRecentBoost(1_200, true)).toBe(0)
+    expect(modelActivityWaveformRecentBoost(Number.NaN, true)).toBe(0)
+    expect(modelActivityWaveformRecentBoost(250, true, true)).toBe(0)
   })
 })

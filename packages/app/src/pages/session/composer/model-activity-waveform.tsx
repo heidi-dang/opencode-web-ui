@@ -2,7 +2,10 @@ import { createMemo, type ParentProps } from "solid-js"
 import { createMediaQuery } from "@solid-primitives/media"
 import { useLanguage } from "@/context/language"
 import type { ModelActivityState } from "./activity-config"
-import { modelActivityWaveformProfile } from "./model-activity-waveform-profile"
+import {
+  modelActivityWaveformProfile,
+  modelActivityWaveformRecentBoost,
+} from "./model-activity-waveform-profile"
 import { useModelActivity } from "./use-model-activity"
 
 import "./model-activity-waveform.css"
@@ -33,6 +36,11 @@ export function ModelActivityWaveform(props: ParentProps<{ sessionID: string; ha
   const activity = useModelActivity(() => props.sessionID)
   const reducedMotion = createMediaQuery("(prefers-reduced-motion: reduce)")
   const profile = createMemo(() => modelActivityWaveformProfile(activity.state(), activity.ewma(), reducedMotion()))
+  const recentBoost = createMemo(() =>
+    modelActivityWaveformRecentBoost(activity.timeSinceLastActivity(), activity.hasActivity(), reducedMotion()),
+  )
+  const amplitude = createMemo(() => Math.min(1.16, profile().amplitude + recentBoost() * 0.08))
+  const glow = createMemo(() => Math.min(1, profile().glow + recentBoost() * 0.12))
 
   const conciseStatusLabel = createMemo(() => {
     const current = activity.state()
@@ -57,7 +65,7 @@ export function ModelActivityWaveform(props: ParentProps<{ sessionID: string; ha
       data-tone={profile().tone}
       data-motion={profile().moving ? "active" : "static"}
       data-has-telemetry={props.hasTelemetry ? "true" : "false"}
-      style={`--wave-duration:${profile().durationMs}ms;--wave-amplitude:${profile().amplitude};--wave-glow:${profile().glow}`}
+      style={`--wave-duration:${profile().durationMs}ms;--wave-amplitude:${amplitude()};--wave-glow:${glow()};--wave-recent-boost:${recentBoost()}`}
     >
       <span class="sr-only" data-slot="model-activity-waveform-status">
         {conciseStatusLabel()}
