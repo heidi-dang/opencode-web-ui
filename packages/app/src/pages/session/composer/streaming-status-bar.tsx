@@ -4,6 +4,7 @@ import { useParams } from "@solidjs/router"
 import { useSettings } from "@/context/settings"
 import { NumberTicker } from "@/components/ui/number-ticker"
 import { useLanguage } from "@/context/language"
+import { ModelActivityHeartbeat } from "./model-activity-heartbeat"
 
 export type ActivityHint = "thinking" | "tool" | "shell" | "file" | "text" | "step"
 
@@ -131,18 +132,9 @@ function StreamingStatusBarInner(props: { activityHint: ActivityHint }) {
       aria-live="polite"
       aria-label={language.t("session.status.accessibleName")}
     >
-      {/* Animated indigo activity dot */}
+      {/* Animated model activity heartbeat */}
       <div style={{ "flex-shrink": "0", display: "flex", "align-items": "center", "justify-content": "center" }}>
-        <div
-          class="status-pulse-emerald"
-          style={{
-            width: "6px",
-            height: "6px",
-            "border-radius": "50%",
-            background: "var(--v2-text-text-accent)",
-            "flex-shrink": "0",
-          }}
-        />
+        <ModelActivityHeartbeat sessionID={params.id ?? ""} />
       </div>
 
       {/* Status phrase — shown on larger screens */}

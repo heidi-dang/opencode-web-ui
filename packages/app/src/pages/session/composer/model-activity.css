@@ -1,0 +1,106 @@
+.model-activity-heartbeat {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  cursor: help;
+}
+
+.heartbeat-indicator {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Animations for states */
+
+@keyframes heartbeat-pulse-fast {
+  0% {
+    transform: scale(0.8);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.8);
+    opacity: 0.6;
+  }
+}
+
+@keyframes heartbeat-pulse-slow {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.7;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.9);
+    opacity: 0.7;
+  }
+}
+
+@keyframes heartbeat-stalled {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.2;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.heartbeat-fast {
+  animation: heartbeat-pulse-fast 0.6s ease-in-out infinite;
+}
+
+.heartbeat-slow {
+  animation: heartbeat-pulse-slow 2s ease-in-out infinite;
+}
+
+.heartbeat-waiting {
+  /* Static wait state, no pulse but visible */
+  opacity: 0.9;
+  transform: scale(1);
+}
+
+.heartbeat-stalled {
+  animation: heartbeat-stalled 3s ease-in-out infinite;
+}
+
+.heartbeat-error {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.heartbeat-idle {
+  opacity: 0.3;
+  transform: scale(1);
+}
+
+/* Respect user preferences for reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .heartbeat-fast,
+  .heartbeat-slow,
+  .heartbeat-stalled {
+    animation: none;
+    opacity: 1;
+    transform: scale(1);
+  }
+  
+  .heartbeat-fast {
+    opacity: 1;
+  }
+  
+  .heartbeat-slow {
+    opacity: 0.8;
+  }
+}

@@ -69,6 +69,7 @@ function directoryState() {
     limit: 5,
     message: {},
     session_message: {},
+    session_activity: {},
     part: {},
     part_text_accum_delta: {},
   })

@@ -122,6 +122,23 @@ export function applyDirectoryEvent(input: {
   const event = input.event
   if (input.sessionContent === false && SESSION_CONTENT_EVENTS.has(event.type)) return
   const limit = Math.max(input.store.limit, input.retainedLimit ?? 0)
+
+  if (
+    event.type === "message.part.delta" ||
+    event.type === "todo.progress" ||
+    event.type === "message.part.updated" ||
+    event.type === "message.created" ||
+    event.type === "message.updated" ||
+    event.type === "todo.created" ||
+    event.type === "todo.updated"
+  ) {
+    const properties = event.properties as { sessionID?: string; info?: { sessionID?: string } }
+    const sessionID = properties.sessionID ?? properties.info?.sessionID
+    if (sessionID) {
+      input.setStore("session_activity", sessionID, { lastMeaningfulEventAt: Date.now() })
+    }
+  }
+
   switch (event.type) {
     case "server.instance.disposed": {
       input.push(input.directory)

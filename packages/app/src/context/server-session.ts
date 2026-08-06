@@ -202,6 +202,7 @@ export function createServerSession(
     question: {} as Record<string, QuestionRequest[]>,
     message: {} as Record<string, Message[]>,
     session_message: {} as Record<string, SessionMessageInfo[]>,
+    session_activity: {} as Record<string, { lastMeaningfulEventAt: number }>,
     part: {} as Record<string, Part[]>,
     part_text_accum_delta: {} as Record<string, string>,
     session_working(id: string) {
