@@ -1,0 +1,22 @@
+/* WorkspaceShellV2 — Deep Aurora ambient canvas layout root */
+
+[data-component="workspace-shell-v2"] {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  background: var(--v2-background-bg-base);
+  color: var(--v2-text-text-base);
+  font-family: var(--v2-font-family-sans, "Inter", sans-serif);
+}
+
+/* Ambient canvas gradient — renders once at the layout root */
+[data-component="workspace-shell-v2"][data-ambient="true"] {
+  background: var(--v2-gradient-ambient-canvas);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-component="workspace-shell-v2"][data-ambient="true"] {
+    /* Static gradient — no animation. Explicit rule prevents accidental shimmer. */
+    animation: none;
+  }
+}

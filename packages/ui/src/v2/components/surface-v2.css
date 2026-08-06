@@ -1,0 +1,48 @@
+/* SurfaceV2 — Deep Aurora workspace surfaces */
+
+[data-component="surface-v2"] {
+  box-sizing: border-box;
+}
+
+[data-component="surface-v2"][data-variant="canvas"] {
+  background: var(--v2-background-bg-base);
+}
+
+[data-component="surface-v2"][data-variant="layer"] {
+  background: var(--v2-background-bg-layer-01);
+}
+
+[data-component="surface-v2"][data-variant="raised"] {
+  background: var(--v2-background-bg-layer-02);
+  box-shadow: var(--v2-elevation-raised);
+}
+
+[data-component="surface-v2"][data-variant="floating"] {
+  background: var(--v2-background-bg-layer-02);
+  box-shadow: var(--v2-elevation-floating);
+}
+
+[data-component="surface-v2"][data-variant="glass"] {
+  background: var(--v2-surface-glass);
+  backdrop-filter: var(--v2-blur-floating);
+  -webkit-backdrop-filter: var(--v2-blur-floating);
+  border: 1px solid var(--v2-border-border-muted);
+  box-shadow: var(--v2-elevation-panel);
+}
+
+[data-component="surface-v2"][data-variant="glass-strong"] {
+  background: var(--v2-surface-glass-strong);
+  backdrop-filter: var(--v2-blur-modal);
+  -webkit-backdrop-filter: var(--v2-blur-modal);
+  border: 1px solid var(--v2-border-border-base);
+  box-shadow: var(--v2-elevation-modal);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-component="surface-v2"][data-variant="glass"],
+  [data-component="surface-v2"][data-variant="glass-strong"] {
+    transition:
+      background var(--v2-motion-fast) var(--v2-motion-easing-standard),
+      box-shadow var(--v2-motion-fast) var(--v2-motion-easing-standard);
+  }
+}

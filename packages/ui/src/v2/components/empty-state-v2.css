@@ -1,0 +1,60 @@
+/* EmptyStateV2 & ErrorStateV2 */
+
+[data-component="empty-state-v2"],
+[data-component="error-state-v2"] {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 32px 24px;
+  text-align: center;
+}
+
+[data-slot="empty-state-v2-icon"] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--v2-icon-icon-muted);
+}
+
+[data-slot="empty-state-v2-body"],
+[data-slot="error-state-v2-body"] {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 280px;
+}
+
+[data-slot="empty-state-v2-title"],
+[data-slot="error-state-v2-title"] {
+  margin: 0;
+  font-family: var(--v2-font-family-sans, "Inter", sans-serif);
+  font-size: 14px;
+  font-weight: var(--v2-font-weight-emphasis, 530);
+  line-height: 20px;
+  color: var(--v2-text-text-base);
+}
+
+[data-slot="empty-state-v2-description"],
+[data-slot="error-state-v2-description"] {
+  margin: 0;
+  font-family: var(--v2-font-family-sans, "Inter", sans-serif);
+  font-size: 12px;
+  font-weight: var(--v2-font-weight-body, 440);
+  line-height: 16px;
+  color: var(--v2-text-text-muted);
+}
+
+[data-slot="empty-state-v2-action"],
+[data-slot="error-state-v2-action"] {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+/* Error state uses danger colour for title */
+[data-slot="error-state-v2-title"] {
+  color: var(--v2-state-fg-danger);
+}

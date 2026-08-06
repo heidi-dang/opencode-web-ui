@@ -1,0 +1,29 @@
+/* FocusRingV2 */
+
+[data-component="focus-ring-v2"] {
+  outline: none;
+}
+
+[data-component="focus-ring-v2"]:focus-within {
+  outline: none;
+  border-color: var(--v2-border-highlight) !important;
+}
+
+[data-component="focus-ring-v2"][data-glow="sm"]:focus-within {
+  box-shadow: var(--v2-glow-accent-sm);
+}
+
+[data-component="focus-ring-v2"][data-glow="md"]:focus-within {
+  box-shadow: var(--v2-glow-accent-md);
+}
+
+[data-component="focus-ring-v2"][data-glow="none"]:focus-within {
+  box-shadow: none;
+}
+
+@media (forced-colors: active) {
+  [data-component="focus-ring-v2"]:focus-within {
+    outline: 2px solid Highlight;
+    box-shadow: none;
+  }
+}

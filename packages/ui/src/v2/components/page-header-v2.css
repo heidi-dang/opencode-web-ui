@@ -1,0 +1,46 @@
+/* PageHeaderV2 — Deep Aurora page header */
+
+[data-component="page-header-v2"] {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid var(--v2-border-border-muted);
+  min-height: 0;
+}
+
+[data-slot="page-header-v2-text"] {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+[data-slot="page-header-v2-title"] {
+  margin: 0;
+  font-family: var(--v2-font-family-sans, "Inter", sans-serif);
+  font-size: 16px;
+  font-weight: var(--v2-font-weight-emphasis, 530);
+  line-height: 24px;
+  color: var(--v2-text-text-base);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+[data-slot="page-header-v2-subtitle"] {
+  margin: 0;
+  font-family: var(--v2-font-family-sans, "Inter", sans-serif);
+  font-size: 12px;
+  font-weight: var(--v2-font-weight-body, 440);
+  line-height: 16px;
+  color: var(--v2-text-text-muted);
+}
+
+[data-slot="page-header-v2-actions"] {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}

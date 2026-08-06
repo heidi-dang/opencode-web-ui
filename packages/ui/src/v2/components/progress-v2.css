@@ -1,0 +1,56 @@
+/* ProgressV2 — linear progress bar */
+
+[data-component="progress-v2"] {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+[data-slot="progress-v2-track"] {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--v2-background-bg-layer-03);
+  overflow: hidden;
+}
+
+[data-slot="progress-v2-fill"] {
+  height: 100%;
+  border-radius: 2px;
+  background: var(--v2-gradient-brand);
+  min-width: 0;
+  max-width: 100%;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-slot="progress-v2-fill"] {
+    transition: width var(--v2-motion-standard) var(--v2-motion-easing-standard);
+  }
+}
+
+[data-slot="progress-v2-value"] {
+  font-family: var(--v2-font-family-sans, "Inter", sans-serif);
+  font-size: 11px;
+  font-weight: var(--v2-font-weight-body, 440);
+  line-height: 16px;
+  color: var(--v2-text-text-muted);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+/* ProgressV2Ring — circular ring */
+
+[data-slot="progress-v2-ring-track"] {
+  stroke: var(--v2-background-bg-layer-03);
+}
+
+[data-slot="progress-v2-ring-fill"] {
+  stroke: var(--v2-text-text-accent);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-slot="progress-v2-ring-fill"] {
+    transition: stroke-dashoffset var(--v2-motion-standard) var(--v2-motion-easing-standard);
+  }
+}

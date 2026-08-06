@@ -1,0 +1,25 @@
+/* SkeletonV2 */
+
+@keyframes skeleton-v2-shimmer {
+  0% { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+
+[data-component="skeleton-v2"] {
+  display: block;
+  background-color: var(--v2-background-bg-layer-02);
+  flex-shrink: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-component="skeleton-v2"] {
+    background-image: linear-gradient(
+      90deg,
+      var(--v2-background-bg-layer-02) 0%,
+      var(--v2-background-bg-layer-03) 50%,
+      var(--v2-background-bg-layer-02) 100%
+    );
+    background-size: 400px 100%;
+    animation: skeleton-v2-shimmer 1.6s linear infinite;
+  }
+}

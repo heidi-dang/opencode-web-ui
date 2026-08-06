@@ -1,0 +1,32 @@
+/* SectionHeaderV2 */
+
+[data-component="section-header-v2"] {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 12px;
+  min-height: 28px;
+}
+
+[data-slot="section-header-v2-label"] {
+  font-family: var(--v2-font-family-sans, "Inter", sans-serif);
+  font-size: 11px;
+  font-weight: var(--v2-font-weight-emphasis, 530);
+  line-height: 16px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--v2-text-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+[data-slot="section-header-v2-trailing"] {
+  font-family: var(--v2-font-family-sans, "Inter", sans-serif);
+  font-size: 11px;
+  font-weight: var(--v2-font-weight-body, 440);
+  line-height: 16px;
+  color: var(--v2-text-text-faint);
+  flex-shrink: 0;
+}
