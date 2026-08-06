@@ -47,7 +47,7 @@ export function SessionProgressRing(props: SessionProgressRingProps) {
             cy={SIZE / 2}
             r={RADIUS}
             fill="none"
-            stroke="rgba(99, 102, 241, 0.15)"
+            stroke="var(--v2-glow-accent-sm, rgba(99, 102, 241, 0.15))"
             stroke-width={STROKE}
           />
           {/* Fill */}
@@ -57,13 +57,17 @@ export function SessionProgressRing(props: SessionProgressRingProps) {
             cy={SIZE / 2}
             r={RADIUS}
             fill="none"
-            stroke={isComplete() ? "rgba(16, 185, 129, 0.85)" : "rgba(99, 102, 241, 0.75)"}
+            stroke={
+              isComplete()
+                ? "var(--v2-state-fg-success, rgba(16, 185, 129, 0.85))"
+                : "var(--v2-text-text-accent, rgba(99, 102, 241, 0.75))"
+            }
             stroke-width={STROKE}
             stroke-linecap="round"
             stroke-dasharray={`${CIRCUMFERENCE} ${CIRCUMFERENCE}`}
             stroke-dashoffset={dashOffset()}
             style={{
-              transition: "stroke-dashoffset 0.5s cubic-bezier(0.16, 1, 0.3, 1), stroke 0.4s ease",
+              transition: "stroke-dashoffset 0.5s var(--v2-motion-easing-expressive, cubic-bezier(0.16, 1, 0.3, 1)), stroke 0.4s ease",
             }}
           />
         </svg>
@@ -74,7 +78,9 @@ export function SessionProgressRing(props: SessionProgressRingProps) {
             "font-size": "7.5px",
             "font-weight": "600",
             "line-height": "1",
-            color: isComplete() ? "rgba(16, 185, 129, 0.9)" : "rgba(99, 102, 241, 0.85)",
+            color: isComplete()
+              ? "var(--v2-state-fg-success, rgba(16, 185, 129, 0.9))"
+              : "var(--v2-text-text-accent, rgba(99, 102, 241, 0.85))",
             "text-align": "center",
             "pointer-events": "none",
             "user-select": "none",

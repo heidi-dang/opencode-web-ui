@@ -139,7 +139,7 @@ function StreamingStatusBarInner(props: { activityHint: ActivityHint }) {
             width: "6px",
             height: "6px",
             "border-radius": "50%",
-            background: "rgba(99, 102, 241, 0.9)",
+            background: "var(--v2-text-text-accent)",
             "flex-shrink": "0",
           }}
         />
@@ -153,7 +153,7 @@ function StreamingStatusBarInner(props: { activityHint: ActivityHint }) {
             display: "block",
             "font-size": "11.5px",
             "line-height": "1.4",
-            color: "var(--v2-text-text-muted, rgba(160, 160, 180, 0.85))",
+            color: "var(--v2-text-text-muted)",
             "letter-spacing": "0.01em",
             "white-space": "nowrap",
             overflow: "hidden",
@@ -173,7 +173,7 @@ function StreamingStatusBarInner(props: { activityHint: ActivityHint }) {
         <span
           style={{
             "font-size": "11px",
-            color: "var(--v2-text-text-muted, rgba(140, 140, 160, 0.8))",
+            color: "var(--v2-text-text-muted)",
             "white-space": "nowrap",
           }}
           aria-hidden="true"
@@ -195,12 +195,12 @@ function StreamingStatusBarInner(props: { activityHint: ActivityHint }) {
           }}
         >
           <Show when={tokens() > 0}>
-            <span style={{ color: "var(--v2-text-danger, #ef4444)" }}>
+            <span style={{ color: "var(--v2-state-fg-danger)" }}>
               <NumberTicker value={tokens()} format={formatTokens} /> tokens
             </span>
           </Show>
           <Show when={cost() > 0}>
-            <span style={{ color: "var(--v2-text-success, #22c55e)" }}>
+            <span style={{ color: "var(--v2-state-fg-success)" }}>
               <NumberTicker value={cost()} format={formatCost} />
             </span>
           </Show>
@@ -214,7 +214,7 @@ function StreamingStatusBarInner(props: { activityHint: ActivityHint }) {
           style={{
             "flex-shrink": "0",
             "font-size": "11px",
-            color: "var(--v2-text-text-faint, rgba(120, 120, 140, 0.65))",
+            color: "var(--v2-text-text-faint)",
             "white-space": "nowrap",
           }}
           aria-hidden="true"

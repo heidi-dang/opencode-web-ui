@@ -26,7 +26,7 @@ function dot(status: Todo["status"], isV2: boolean) {
       fill="currentColor"
       xmlns="http://www.w3.org/2000/svg"
       class={isV2 ? "block todo-dot-glow" : "block"}
-      style={isV2 ? { color: "rgba(99, 102, 241, 0.9)" } : undefined}
+      style={isV2 ? { color: "var(--v2-text-text-accent)" } : undefined}
     >
       <circle
         cx="6"
