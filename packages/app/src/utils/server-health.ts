@@ -119,7 +119,7 @@ export function checkServerHealth(
       const probePaths = ["/health", "/global/health", "/api/health"]
       for (const path of probePaths) {
         try {
-          const res = await fetch(new URL(path.replace(/^\/+/, ""), effectiveUrl.endsWith("/") ? effectiveUrl : effectiveUrl + "/").toString(), { headers: authHeaders, signal }).catch(() => null)
+          const res = await fetch(new URL(path, effectiveUrl).toString(), { headers: authHeaders, signal }).catch(() => null)
           const result = await processRes(res)
           if (result) {
              if (result.healthy && !result.provider) {
