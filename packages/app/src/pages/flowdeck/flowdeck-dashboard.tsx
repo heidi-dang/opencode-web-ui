@@ -1,5 +1,7 @@
 import { Show } from "solid-js"
 import { ScrollView } from "@opencode-ai/ui/scroll-view"
+import { ButtonV2 } from "@opencode-ai/ui/v2/button-v2"
+import { EmptyStateV2, ErrorStateV2 } from "@opencode-ai/ui/v2/empty-state-v2"
 import { useFlowdeckStats } from "./flowdeck-stats"
 import { PipelinePanel } from "./components/pipeline-panel"
 import { GovernancePanel } from "./components/governance-panel"
@@ -36,17 +38,13 @@ export function FlowdeckDashboard() {
             </p>
           </div>
         </div>
-        <button
-          type="button"
+        <ButtonV2
+          variant="outline"
+          size="small"
           onClick={refetch}
-          class={`
-            rounded-md border border-v2-border-border-default px-3 py-1.5
-            text-12-regular text-v2-text-text-base
-            transition-colors hover:bg-v2-background-bg-raised
-          `}
         >
           Refresh
-        </button>
+        </ButtonV2>
       </div>
 
       {/* Content */}
@@ -62,39 +60,26 @@ export function FlowdeckDashboard() {
 
           {/* Error state */}
           <Show when={isError()}>
-            <div class="flex flex-col items-center justify-center gap-3 py-20">
-              <p class="text-14-regular text-v2-status-danger-fg">Failed to load statistics</p>
-              <button
-                type="button"
-                onClick={refetch}
-                class="rounded-md bg-v2-interactive-interactive-primary px-4 py-2 text-12-regular text-white"
-              >
-                Retry
-              </button>
+            <div class="py-12">
+              <ErrorStateV2
+                title="Failed to load statistics"
+                description="Unable to fetch FlowDeck analytics at this time."
+                action={
+                  <ButtonV2 variant="contrast" size="small" onClick={refetch}>
+                    Retry
+                  </ButtonV2>
+                }
+              />
             </div>
           </Show>
 
           {/* Empty state */}
           <Show when={!isLoading() && !isError() && data() && !data()!.hasFlowdeckActivity}>
-            <div class="flex flex-col items-center justify-center gap-4 py-20">
-              <div class="flex h-16 w-16 items-center justify-center rounded-full bg-v2-background-bg-sunken">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                  <path
-                    d="M4 6h16M4 12h10M4 18h13"
-                    stroke="var(--v2-text-text-muted)"
-                    stroke-width="1.5"
-                    stroke-linecap="round"
-                  />
-                </svg>
-              </div>
-              <div class="text-center">
-                <p class="text-14-emphasis text-v2-text-text-strong">No FlowDeck activity detected</p>
-                <p class="mt-1 text-12-regular text-v2-text-text-muted">
-                  Statistics will appear here once sessions use FlowDeck tools
-                  <br />
-                  (fdx-*, planning-state, codegraph, etc.)
-                </p>
-              </div>
+            <div class="py-12">
+              <EmptyStateV2
+                title="No FlowDeck activity detected"
+                description="Statistics will appear here once sessions use FlowDeck tools (fdx-*, planning-state, codegraph, etc.)"
+              />
             </div>
           </Show>
 
