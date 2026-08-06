@@ -65,17 +65,30 @@ import { legacySessionHref, legacySessionServer, requireServerKey, sessionHref }
 import { createSessionLineage } from "@/pages/session/session-lineage"
 import { SessionRouteErrorBoundary } from "@/pages/session/session-error-boundary"
 
-const DirectoryLayout = lazy(() => import("@/pages/directory-layout"))
-const LegacyLayout = lazy(() => import("@/pages/layout"))
-const NewLayout = lazy(() => import("@/pages/layout-new"))
-const SessionPage = lazy(() => import("@/pages/session").then((m) => ({ default: m.SessionPage })))
-const TargetSessionRouteContent = lazy(() => import("@/pages/session").then((m) => ({ default: m.TargetSessionRouteContent })))
-const NewHome = lazy(() => import("@/pages/home").then((m) => ({ default: m.NewHome })))
-const LegacyHome = lazy(() => import("@/pages/home/legacy-home").then((m) => ({ default: m.LegacyHome })))
-const FleetPage = lazy(() => import("@/pages/fleet").then((m) => ({ default: m.FleetPage })))
-const NewSession = lazy(() => import("@/pages/new-session"))
-const FlowdeckDashboard = lazy(() => import("@/pages/flowdeck"))
-const BetterHarnessPage = lazy(() => import("@/features/better-harness").then((m) => ({ default: m.BetterHarnessPage })))
+function safeLazy<T extends { default: Component<any> }>(fn: () => Promise<T>): Component<any> {
+  return lazy(() =>
+    fn().catch((err) => {
+      const key = "oc_dyn_import_retry"
+      if (!sessionStorage.getItem(key)) {
+        sessionStorage.setItem(key, "1")
+        window.location.reload()
+      }
+      throw err
+    })
+  )
+}
+
+const DirectoryLayout = safeLazy(() => import("@/pages/directory-layout"))
+const LegacyLayout = safeLazy(() => import("@/pages/layout"))
+const NewLayout = safeLazy(() => import("@/pages/layout-new"))
+const SessionPage = safeLazy(() => import("@/pages/session").then((m) => ({ default: m.SessionPage })))
+const TargetSessionRouteContent = safeLazy(() => import("@/pages/session").then((m) => ({ default: m.TargetSessionRouteContent })))
+const NewHome = safeLazy(() => import("@/pages/home").then((m) => ({ default: m.NewHome })))
+const LegacyHome = safeLazy(() => import("@/pages/home/legacy-home").then((m) => ({ default: m.LegacyHome })))
+const FleetPage = safeLazy(() => import("@/pages/fleet").then((m) => ({ default: m.FleetPage })))
+const NewSession = safeLazy(() => import("@/pages/new-session"))
+const FlowdeckDashboard = safeLazy(() => import("@/pages/flowdeck"))
+const BetterHarnessPage = safeLazy(() => import("@/features/better-harness").then((m) => ({ default: m.BetterHarnessPage })))
 
 const SessionRoute = () => {
   const settings = useSettings()
