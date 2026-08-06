@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 
-import { Script } from "@opencode-ai/script"
+const channel = process.env.OPENCODE_CHANNEL || "dev"
 import { $ } from "bun"
 import { rm } from "node:fs/promises"
 import { fileURLToPath } from "node:url"
@@ -20,7 +20,7 @@ try {
   await $`bun run typecheck`
   await $`bun run test`
   await pack()
-  await $`npm publish ${tarball} --access public --tag ${Script.channel}`
+  await $`npm publish ${tarball} --access public --tag ${channel}`
 } finally {
   await rm(tarball, { force: true })
 }
