@@ -367,9 +367,41 @@
   width: 100%;
   border: 0.5px solid var(--v2-border-border-base);
   border-radius: 6px;
-  background: transparent;
+  background: color-mix(in srgb, var(--v2-background-bg-layer-01) 82%, transparent);
   position: relative;
   overflow: hidden;
+
+  &[data-pending="true"] {
+    border-color: color-mix(in srgb, var(--v2-border-highlight) 64%, var(--v2-border-border-base));
+  }
+
+  [data-slot="bash-command"] {
+    display: grid;
+    grid-template-columns: 14px minmax(0, 1fr);
+    align-items: start;
+    gap: 6px;
+    min-height: 34px;
+    padding: 8px 38px 8px 12px;
+    color: var(--v2-text-text-base);
+    background: color-mix(in srgb, var(--v2-background-bg-layer-02) 76%, transparent);
+    border-bottom: 0.5px solid var(--v2-border-border-muted);
+
+    code {
+      min-width: 0;
+      font-family: var(--font-family-mono);
+      font-size: 12px;
+      line-height: 18px;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+  }
+
+  [data-slot="bash-prompt"] {
+    color: var(--v2-text-text-accent);
+    font-family: var(--font-family-mono);
+    font-weight: var(--font-weight-medium);
+    line-height: 18px;
+  }
 
   [data-slot="bash-copy"] {
     position: absolute;
@@ -400,7 +432,7 @@
 
   [data-slot="bash-pre"] {
     margin: 0;
-    padding: 12px;
+    padding: 10px 12px 12px 32px;
   }
 
   [data-slot="bash-pre"] code {
@@ -411,6 +443,13 @@
     white-space: pre-wrap;
     overflow-wrap: anywhere;
   }
+}
+
+[data-component="shell-tool"][data-status="running"] [data-component="bash-output"],
+[data-component="shell-tool"][data-status="pending"] [data-component="bash-output"],
+[data-component="edit-tool"][data-status="running"] > [data-component="collapsible"],
+[data-component="edit-tool"][data-status="pending"] > [data-component="collapsible"] {
+  box-shadow: inset 2px 0 0 var(--v2-text-text-accent);
 }
 
 [data-component="edit-trigger"],
@@ -1202,6 +1241,18 @@
   > [data-component="collapsible"] > [data-slot="collapsible-content"] {
     border: none;
     background: transparent;
+  }
+
+  > [data-component="collapsible"] > [data-slot="collapsible-trigger"] {
+    border-radius: 6px;
+    transition:
+      background-color 0.15s ease,
+      box-shadow 0.15s ease;
+  }
+
+  &[data-status="running"] > [data-component="collapsible"] > [data-slot="collapsible-trigger"],
+  &[data-status="pending"] > [data-component="collapsible"] > [data-slot="collapsible-trigger"] {
+    background: color-mix(in srgb, var(--v2-background-bg-layer-01) 72%, transparent);
   }
 
   > [data-component="collapsible"] > [data-slot="collapsible-trigger"][aria-expanded="true"] {

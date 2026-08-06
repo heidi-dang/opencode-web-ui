@@ -92,14 +92,16 @@ export function ModelActivityHeartbeat(props: { sessionID: string }) {
   return (
     <div
       class="model-activity-heartbeat"
+      data-state={state()}
       title={statusLabel()}
       role="status"
       aria-live="polite"
       aria-label={statusLabel()}
     >
-      <div 
-        class={`heartbeat-indicator ${pulseClass()}`} 
+      <div
+        class={`heartbeat-indicator ${pulseClass()}`}
         style={{
+          color: indicatorColor(),
           "background-color": indicatorColor(),
         }}
       />

@@ -132,11 +132,6 @@ function StreamingStatusBarInner(props: { activityHint: ActivityHint }) {
       aria-live="polite"
       aria-label={language.t("session.status.accessibleName")}
     >
-      {/* Animated model activity heartbeat */}
-      <div style={{ "flex-shrink": "0", display: "flex", "align-items": "center", "justify-content": "center" }}>
-        <ModelActivityHeartbeat sessionID={params.id ?? ""} />
-      </div>
-
       {/* Status phrase — shown on larger screens */}
       <div class="status-text-verbose" style={{ flex: "1", overflow: "hidden" }}>
         <span
@@ -175,19 +170,11 @@ function StreamingStatusBarInner(props: { activityHint: ActivityHint }) {
       </div>
 
       {/* Realtime token and cost metrics */}
-      <Show when={tokens() > 0 || cost() > 0}>
-        <div
-          style={{
-            display: "flex",
-            "align-items": "center",
-            gap: "8px",
-            "flex-shrink": "0",
-            "font-size": "11px",
-            "white-space": "nowrap",
-          }}
-        >
+      <div class="streaming-status-telemetry">
+        <ModelActivityHeartbeat sessionID={params.id ?? ""} />
+        <Show when={tokens() > 0 || cost() > 0}>
           <Show when={tokens() > 0}>
-            <span style={{ color: "var(--v2-state-fg-danger)" }}>
+            <span class="streaming-token-usage">
               <NumberTicker value={tokens()} format={formatTokens} /> tokens
             </span>
           </Show>
@@ -196,8 +183,8 @@ function StreamingStatusBarInner(props: { activityHint: ActivityHint }) {
               <NumberTicker value={cost()} format={formatCost} />
             </span>
           </Show>
-        </div>
-      </Show>
+        </Show>
+      </div>
 
       {/* Elapsed timer */}
       <Show when={elapsedSeconds() > 0}>

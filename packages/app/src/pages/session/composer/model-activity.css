@@ -2,16 +2,27 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 14px;
-  height: 14px;
+  width: 18px;
+  height: 18px;
   cursor: help;
 }
 
 .heartbeat-indicator {
-  width: 6px;
-  height: 6px;
+  position: relative;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   flex-shrink: 0;
+  box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 16%, transparent);
+}
+
+.heartbeat-indicator::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border: 1px solid currentColor;
+  border-radius: inherit;
+  opacity: 0.2;
 }
 
 /* Animations for states */
@@ -59,7 +70,7 @@
 }
 
 .heartbeat-fast {
-  animation: heartbeat-pulse-fast 0.6s ease-in-out infinite;
+  animation: heartbeat-pulse-fast 0.72s ease-in-out infinite;
 }
 
 .heartbeat-slow {
@@ -67,9 +78,7 @@
 }
 
 .heartbeat-waiting {
-  /* Static wait state, no pulse but visible */
-  opacity: 0.9;
-  transform: scale(1);
+  animation: heartbeat-pulse-slow 1.6s ease-in-out infinite;
 }
 
 .heartbeat-stalled {

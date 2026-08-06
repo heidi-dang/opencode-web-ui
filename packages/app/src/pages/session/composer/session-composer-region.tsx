@@ -43,8 +43,9 @@ export function SessionComposerRegion(props: {
     const lastPart = parts[parts.length - 1]
     switch (lastPart.type) {
       case "tool":
-        if (lastPart.tool?.includes("command")) return "shell"
-        if (lastPart.tool?.includes("file") || lastPart.tool?.includes("grep")) return "file"
+        if (["bash", "shell", "command"].some((name) => lastPart.tool?.includes(name))) return "shell"
+        if (["edit", "write", "patch", "file", "read", "grep", "glob"].some((name) => lastPart.tool?.includes(name)))
+          return "file"
         return "tool"
       case "text":
         return "text"

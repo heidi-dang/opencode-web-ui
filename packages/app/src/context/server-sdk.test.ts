@@ -1,5 +1,11 @@
 import { describe, expect, test } from "bun:test"
-import { adaptServerEvent, coalesceServerEvents, enqueueServerEvent, resumeStreamAfterPageShow } from "./server-sdk"
+import {
+  adaptServerEvent,
+  coalesceServerEvents,
+  enqueueServerEvent,
+  resumeStreamAfterPageShow,
+  streamReconnectDelay,
+} from "./server-sdk"
 import type { OpenCodeEvent } from "@opencode-ai/client/promise"
 import type { Event } from "@opencode-ai/sdk/v2/client"
 
@@ -13,6 +19,10 @@ describe("resumeStreamAfterPageShow", () => {
 
     expect(starts).toBe(1)
   })
+})
+
+test("stream reconnects back off without exceeding five seconds", () => {
+  expect([1, 2, 3, 4, 5, 8].map(streamReconnectDelay)).toEqual([250, 500, 1_000, 2_000, 4_000, 5_000])
 })
 
 describe("adaptServerEvent", () => {

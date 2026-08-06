@@ -2108,11 +2108,9 @@ ToolRegistry.register({
     const i18n = useI18n()
     const pending = () => props.status === "pending" || props.status === "running"
     const sawPending = pending()
-    const text = createMemo(() => {
-      const cmd = props.input.command ?? props.metadata.command ?? ""
-      const out = stripAnsi(props.output || props.metadata.output || "").replace(/\r\n?/g, "\n")
-      return `$ ${cmd}${out ? "\n\n" + out : ""}`
-    })
+    const command = createMemo(() => props.input.command ?? props.metadata.command ?? "")
+    const output = createMemo(() => stripAnsi(props.output || props.metadata.output || "").replace(/\r\n?/g, "\n"))
+    const text = createMemo(() => `$ ${command()}${output() ? "\n\n" + output() : ""}`)
     const [copied, setCopied] = createSignal(false)
 
     const handleCopy = async () => {
@@ -2125,49 +2123,62 @@ ToolRegistry.register({
     }
 
     return (
-      <BasicTool
-        {...props}
-        icon="console"
-        allowOpenWhilePending
-        trigger={(open) => (
-          <div data-slot="basic-tool-tool-info-structured">
-            <div data-slot="basic-tool-tool-info-main">
-              <span data-slot="basic-tool-tool-title">
-                <TextShimmer text={i18n.t("ui.tool.shell")} active={pending()} />
-              </span>
-              <Show when={!open() && props.input.command}>
-                <ShellSubmessage text={props.input.command} animate={sawPending} />
-              </Show>
+      <div data-component="shell-tool" data-status={props.status ?? "completed"}>
+        <BasicTool
+          {...props}
+          icon="console"
+          allowOpenWhilePending
+          trigger={(open) => (
+            <div data-slot="basic-tool-tool-info-structured">
+              <div data-slot="basic-tool-tool-info-main">
+                <span data-slot="basic-tool-tool-title">
+                  <TextShimmer text={i18n.t("ui.tool.shell")} active={pending()} />
+                </span>
+                <Show when={!open() && props.input.command}>
+                  <ShellSubmessage text={props.input.command} animate={sawPending} />
+                </Show>
+              </div>
             </div>
+          )}
+        >
+          <div data-component="bash-output" data-pending={pending() ? "true" : undefined}>
+            <div data-slot="bash-copy">
+              <TooltipV2
+                value={copied() ? i18n.t("ui.message.copied") : i18n.t("ui.message.copy")}
+                placement="top"
+              >
+                <IconButtonV2
+                  icon={<IconV2 name={copied() ? "check" : "outline-copy"} size="small" />}
+                  size="normal"
+                  variant="ghost-muted"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={handleCopy}
+                  aria-label={copied() ? i18n.t("ui.message.copied") : i18n.t("ui.message.copy")}
+                />
+              </TooltipV2>
+            </div>
+            <div data-slot="bash-command">
+              <span data-slot="bash-prompt" aria-hidden="true">
+                $
+              </span>
+              <code>{command()}</code>
+            </div>
+            <Show when={output()}>
+              <div
+                data-slot="bash-scroll"
+                data-scrollable
+                tabIndex={0}
+                role="region"
+                aria-label={i18n.t("ui.scrollView.ariaLabel")}
+              >
+                <pre data-slot="bash-pre">
+                  <code>{output()}</code>
+                </pre>
+              </div>
+            </Show>
           </div>
-        )}
-      >
-        <div data-component="bash-output">
-          <div data-slot="bash-copy">
-            <TooltipV2 value={copied() ? i18n.t("ui.message.copied") : i18n.t("ui.message.copy")} placement="top">
-              <IconButtonV2
-                icon={<IconV2 name={copied() ? "check" : "outline-copy"} size="small" />}
-                size="normal"
-                variant="ghost-muted"
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={handleCopy}
-                aria-label={copied() ? i18n.t("ui.message.copied") : i18n.t("ui.message.copy")}
-              />
-            </TooltipV2>
-          </div>
-          <div
-            data-slot="bash-scroll"
-            data-scrollable
-            tabIndex={0}
-            role="region"
-            aria-label={i18n.t("ui.scrollView.ariaLabel")}
-          >
-            <pre data-slot="bash-pre">
-              <code>{text()}</code>
-            </pre>
-          </div>
-        </div>
-      </BasicTool>
+        </BasicTool>
+      </div>
     )
   },
 })
@@ -2221,7 +2232,7 @@ ToolRegistry.register({
     })
 
     return (
-      <div data-component="edit-tool">
+      <div data-component="edit-tool" data-status={props.status ?? "completed"}>
         <BasicTool
           {...props}
           icon="code-lines"
@@ -2233,11 +2244,11 @@ ToolRegistry.register({
                   <span data-slot="message-part-title-text">
                     <TextShimmer text={i18n.t("ui.messagePart.title.edit")} active={pending()} />
                   </span>
-                  <Show when={!pending()}>
+                  <Show when={filename()}>
                     <span data-slot="message-part-title-filename">{filename()}</span>
                   </Show>
                 </div>
-                <Show when={!pending() && props.input.filePath?.includes("/")}>
+                <Show when={props.input.filePath?.includes("/")}>
                   <div data-slot="message-part-path">
                     <span data-slot="message-part-directory">{getDirectory(props.input.filePath!)}</span>
                   </div>
