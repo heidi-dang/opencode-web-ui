@@ -168,7 +168,13 @@ export function FleetPage() {
             <h1 class="text-xl font-semibold tracking-tight">{t("fleet.page.title")}</h1>
             <div class="hidden sm:flex flex-1 justify-center items-center gap-2 text-xs text-v2-text-text-muted" aria-live="polite" aria-atomic="true">
               <Show when={lastRefreshDisplay() || (!initialLoadDone())}>
-                <div class="h-2 w-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
+                <div
+                  class="h-2 w-2 rounded-full"
+                  style={{
+                    background: "var(--v2-state-fg-success)",
+                    "box-shadow": "var(--v2-glow-status-success)",
+                  }}
+                />
               </Show>
               {lastRefreshDisplay()
                 ? t("fleet.page.lastUpdated", { time: lastRefreshDisplay() })
@@ -177,7 +183,13 @@ export function FleetPage() {
             <div class="flex items-center gap-2">
               <div class="sm:hidden flex items-center gap-2 text-xs text-v2-text-text-muted">
                  <Show when={lastRefreshDisplay() || (!initialLoadDone())}>
-                  <div class="h-2 w-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
+                  <div
+                    class="h-2 w-2 rounded-full"
+                    style={{
+                      background: "var(--v2-state-fg-success)",
+                      "box-shadow": "var(--v2-glow-status-success)",
+                    }}
+                  />
                  </Show>
               </div>
               <button
