@@ -3,6 +3,7 @@ import {
   adaptServerEvent,
   coalesceServerEvents,
   enqueueServerEvent,
+  isLatencySensitiveServerEvent,
   resumeStreamAfterPageShow,
   streamReconnectDelay,
 } from "./server-sdk"
@@ -202,5 +203,54 @@ describe("enqueueServerEvent", () => {
     enqueue("busy")
 
     expect(events).toHaveLength(2)
+  })
+})
+
+describe("isLatencySensitiveServerEvent", () => {
+  const event = (payload: Event) => ({ directory: "/repo", payload })
+
+  test("keeps stream deltas and text snapshots on the bounded batching lane", () => {
+    expect(
+      isLatencySensitiveServerEvent(
+        event({
+          type: "message.part.delta",
+          properties: { sessionID: "session", messageID: "message", partID: "part", field: "text", delta: "a" },
+        } as Event),
+      ),
+    ).toBe(false)
+    expect(
+      isLatencySensitiveServerEvent(
+        event({
+          type: "message.part.updated",
+          properties: {
+            part: { id: "part", sessionID: "session", messageID: "message", type: "text", text: "a" },
+          },
+        } as Event),
+      ),
+    ).toBe(false)
+  })
+
+  test("flushes todo, status, and tool lifecycle events without waiting for the batch timer", () => {
+    const todo = event({ id: "todo-event", type: "todo.updated", properties: { sessionID: "session", todos: [] } } as Event)
+    const status = event({
+      type: "session.status",
+      properties: { sessionID: "session", status: { type: "busy" } },
+    } as Event)
+    const tool = event({
+      type: "message.part.updated",
+      properties: {
+        part: {
+          id: "part",
+          sessionID: "session",
+          messageID: "message",
+          type: "tool",
+          tool: "bash",
+          callID: "call",
+          state: { status: "running", input: {} },
+        },
+      },
+    } as Event)
+
+    expect([todo, status, tool].map(isLatencySensitiveServerEvent)).toEqual([true, true, true])
   })
 })

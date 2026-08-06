@@ -1,6 +1,7 @@
 import { base64Encode } from "@opencode-ai/core/util/encode"
 import { Event } from "@opencode-ai/schema/event"
 import { SessionStatusEvent } from "@opencode-ai/schema/session-status-event"
+import { SessionTodo } from "@opencode-ai/schema/session-todo"
 import { SessionV1 } from "@opencode-ai/schema/session-v1"
 import type {
   AssistantMessage,
@@ -37,6 +38,7 @@ type TimelinePayload = Extract<
       | "message.part.removed"
       | "message.part.delta"
       | "session.status"
+      | "todo.updated"
   }
 >
 
@@ -80,6 +82,7 @@ const timelineEventSchema = Schema.Union([
   eventSchema("message.part.removed", SessionV1.Event.PartRemoved.data),
   eventSchema("message.part.delta", SessionV1.Event.PartDelta.data),
   eventSchema("session.status", SessionStatusEvent.Status.data),
+  eventSchema("todo.updated", SessionTodo.Event.Updated.data),
 ])
 const decodeEvent = Schema.decodeUnknownSync(timelineEventSchema)
 let eventSequence = 0
@@ -220,6 +223,7 @@ function describeEvent(event: EventPayload) {
       .filter((value) => value !== undefined)
       .join(":")
   }
+  if (event.payload.type === "todo.updated") return `${event.payload.type}:${event.payload.properties.todos.length}`
   return event.payload.type
 }
 
@@ -330,6 +334,10 @@ export function partUpdated(part: Part | PartSeed<"assistant">) {
     part: owned,
     time: 1700000002000,
   })
+}
+
+export function todoUpdated(todos: SessionTodo.Info[]) {
+  return event("todo.updated", { sessionID, todos })
 }
 
 export function partDelta(partID: string, delta: string, messageID = assistantID) {

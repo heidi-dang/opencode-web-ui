@@ -452,6 +452,21 @@
   box-shadow: inset 2px 0 0 var(--v2-text-text-accent);
 }
 
+@media (max-width: 640px), (hover: none) {
+  [data-component="bash-output"] [data-slot="bash-copy"] {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  [data-component="bash-output"] [data-slot="bash-command"] {
+    padding-right: 42px;
+  }
+
+  [data-component="bash-output"] [data-slot="bash-pre"] {
+    padding-left: 12px;
+  }
+}
+
 [data-component="edit-trigger"],
 [data-component="write-trigger"] {
   display: flex;

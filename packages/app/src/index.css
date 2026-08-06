@@ -614,7 +614,6 @@ kbd, [data-slot="desktop-app-menu-keybind"] {
 
   /* Stop todo dock animations */
   .todo-dot-glow,
-  .todo-item-enter,
   .todo-complete-flash,
   .status-pulse-emerald {
     animation: none;
@@ -830,23 +829,7 @@ kbd, [data-slot="desktop-app-menu-keybind"] {
   animation: status-phrase-out 0.25s ease-in both;
 }
 
-/* 4. TODO item entrance animation */
-@keyframes todo-item-enter {
-  from {
-    opacity: 0;
-    transform: translateX(-10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-.todo-item-enter {
-  animation: todo-item-enter 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-/* 5. TODO item completion flash */
+/* 4. TODO item completion flash */
 @keyframes todo-complete-flash {
   0%   { background-color: transparent; }
   30%  { background-color: rgba(16, 185, 129, 0.12); border-radius: 6px; }
@@ -857,7 +840,7 @@ kbd, [data-slot="desktop-app-menu-keybind"] {
   animation: todo-complete-flash 0.6s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* 6. TODO in-progress dot — accent glow ring using Deep Aurora tokens */
+/* 5. TODO in-progress dot — accent glow ring using Deep Aurora tokens */
 @keyframes todo-dot-glow {
   0%, 100% {
     box-shadow: 0 0 0 0 var(--v2-border-highlight);
@@ -874,7 +857,7 @@ kbd, [data-slot="desktop-app-menu-keybind"] {
   border-radius: 50%;
 }
 
-/* 7. Progress ring stroke animation */
+/* 6. Progress ring stroke animation */
 @keyframes progress-ring-fill {
   from { stroke-dashoffset: var(--ring-circumference); }
   to   { stroke-dashoffset: var(--ring-offset); }
@@ -886,7 +869,7 @@ kbd, [data-slot="desktop-app-menu-keybind"] {
   transform-origin: 50% 50%;
 }
 
-/* 8. Completion celebration — scale + glow burst */
+/* 7. Completion celebration — scale + glow burst */
 @keyframes progress-complete-burst {
   0%   { transform: scale(1); filter: brightness(1); }
   35%  { transform: scale(1.15); filter: brightness(1.4) drop-shadow(0 0 8px rgba(16, 185, 129, 0.7)); }
@@ -898,7 +881,7 @@ kbd, [data-slot="desktop-app-menu-keybind"] {
   animation: progress-complete-burst 0.65s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* 9. Skeleton shimmer for code preview */
+/* 8. Skeleton shimmer for code preview */
 @keyframes skeleton-shimmer {
   0%   { background-position: -400px 0; }
   100% { background-position: 400px 0; }
@@ -916,7 +899,7 @@ kbd, [data-slot="desktop-app-menu-keybind"] {
   border-radius: 4px;
 }
 
-/* 10. Status bar gradient background while streaming — using Deep Aurora tokens */
+/* 9. Status bar gradient background while streaming — using Deep Aurora tokens */
 .streaming-status-bar {
   background: var(--v2-gradient-brand-subtle);
   background-size: 200% 100%;
@@ -946,7 +929,7 @@ kbd, [data-slot="desktop-app-menu-keybind"] {
   letter-spacing: -0.01em;
 }
 
-/* 11. Elapsed time counter fade-in */
+/* 10. Elapsed time counter fade-in */
 @keyframes elapsed-fade-in {
   from { opacity: 0; }
   to   { opacity: 1; }
@@ -957,11 +940,12 @@ kbd, [data-slot="desktop-app-menu-keybind"] {
   font-variant-numeric: tabular-nums;
 }
 
-/* 12. Mobile-responsive overrides for streaming bar */
+/* 11. Mobile-responsive overrides for streaming bar */
 @media (max-width: 640px) {
   .streaming-status-bar {
-    padding-left: 0.75rem;
-    padding-right: 0.75rem;
+    gap: 5px !important;
+    padding-left: 0.5rem !important;
+    padding-right: 0.5rem !important;
   }
 
   .streaming-status-bar .status-text-verbose {
@@ -975,6 +959,28 @@ kbd, [data-slot="desktop-app-menu-keybind"] {
   .progress-ring-container {
     width: 22px;
     height: 22px;
+  }
+
+  .streaming-status-telemetry {
+    gap: 5px;
+    max-width: min(58vw, 180px);
+    padding: 1px 6px 1px 2px;
+  }
+
+  .streaming-token-usage {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .streaming-cost {
+    display: none;
+  }
+}
+
+@media (max-width: 390px) {
+  .streaming-token-label {
+    display: none;
   }
 }
 

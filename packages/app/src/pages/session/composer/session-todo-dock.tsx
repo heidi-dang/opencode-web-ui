@@ -234,24 +234,19 @@ function TodoList(props: { todos: Todo[] }) {
     <div class="relative">
       <div
         class={isV2() ? "px-3 pb-3 flex flex-col gap-1.5 overflow-y-auto no-scrollbar" : "px-3 pb-11 flex flex-col gap-1.5 max-h-42 overflow-y-auto no-scrollbar"}
-        style={{ "overflow-anchor": "none", "max-height": isV2() ? "35vh" : undefined }}
+        style={{
+          "overflow-anchor": "none",
+          "overscroll-behavior": "contain",
+          "touch-action": "pan-y",
+          "max-height": isV2() ? "35vh" : undefined,
+        }}
         onScroll={(e) => {
           setStore("stuck", e.currentTarget.scrollTop > 0)
         }}
       >
         <Index each={props.todos}>
-          {(todo, index) => (
-            <div
-              class={isV2() ? "todo-item-enter" : ""}
-              style={
-                isV2()
-                  ? {
-                      "animation-delay": `${index * 40}ms`,
-                      "animation-fill-mode": "both",
-                    }
-                  : undefined
-              }
-            >
+          {(todo) => (
+            <div>
               <Checkbox
                 readOnly
                 checked={todo().status === "completed"}

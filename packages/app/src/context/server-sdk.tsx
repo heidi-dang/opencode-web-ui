@@ -76,6 +76,15 @@ export function enqueueServerEvent(queue: QueuedServerEvent[], event: QueuedServ
   return true
 }
 
+export function isLatencySensitiveServerEvent(event: QueuedServerEvent) {
+  if (currentDelta(event.payload.current)) return false
+  if (event.payload.type === "message.part.delta" || event.payload.type === "lsp.updated") return false
+  if (event.payload.type !== "message.part.updated") return true
+
+  const part = event.payload.properties.part
+  return part.type !== "text" && part.type !== "reasoning"
+}
+
 export function coalesceServerEvents(events: QueuedServerEvent[]) {
   const output: QueuedServerEvent[] = []
   events.forEach((event) => {
@@ -289,7 +298,11 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
             if (legacy && event.payload.type === "sync") continue
             const directory = legacy ? (event.directory ?? "global") : (event.location?.directory ?? "global")
             const payload = legacy ? (event.payload as Event) : adaptServerEvent(event)
-            if (enqueueServerEvent(queue, { directory, payload })) schedule()
+            const queued = { directory, payload }
+            if (enqueueServerEvent(queue, queued)) {
+              if (isLatencySensitiveServerEvent(queued)) flush()
+              else schedule()
+            }
 
             if (Date.now() - yielded < STREAM_YIELD_MS) continue
             yielded = Date.now()

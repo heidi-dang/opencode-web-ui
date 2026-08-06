@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import type { retry } from "@opencode-ai/core/util/retry"
 import type { OpenCodeEvent, SessionApi } from "@opencode-ai/client/promise"
-import type { Message, OpencodeClient, Part, Session } from "@opencode-ai/sdk/v2/client"
+import type { Message, OpencodeClient, Part, Session, Todo } from "@opencode-ai/sdk/v2/client"
 import { createServerSession } from "./server-session"
 import type { ServerApi } from "@/utils/server"
 
@@ -162,6 +162,37 @@ function setup(sessions: Record<string, Session>) {
 }
 
 describe("server session", () => {
+  test("does not clear an SSE todo snapshot during a forced V2 refresh", async () => {
+    const todos = [{ content: "Keep the live todo", status: "in_progress", priority: "high" }] as Todo[]
+    const store = createServerSession({} as OpencodeClient, { protocol: Promise.resolve("v2") })
+
+    store.remember(session("child"))
+    store.apply({ type: "todo.updated", properties: { sessionID: "child", todos } })
+    await store.todo("child", { force: true })
+
+    expect(store.data.todo.child).toEqual(todos)
+  })
+
+  test("does not let a stale V1 todo refresh overwrite a newer SSE snapshot", async () => {
+    const pending = Promise.withResolvers<{ data: Todo[] }>()
+    const stale = [{ content: "Stale", status: "pending", priority: "low" }] as Todo[]
+    const live = [{ content: "Live", status: "in_progress", priority: "high" }] as Todo[]
+    const client = {
+      session: {
+        todo: () => pending.promise,
+      },
+    } as unknown as OpencodeClient
+    const store = createServerSession(client, { protocol: Promise.resolve("v1") })
+
+    store.remember(session("child"))
+    const refresh = store.todo("child", { force: true })
+    store.apply({ type: "todo.updated", properties: { sessionID: "child", todos: live } })
+    pending.resolve({ data: stale })
+    await refresh
+
+    expect(store.data.todo.child).toEqual(live)
+  })
+
   test("projects V2 session events into current and legacy message state", () => {
     const ctx = setup({ child: session("child") })
     ctx.store.remember(session("child"))

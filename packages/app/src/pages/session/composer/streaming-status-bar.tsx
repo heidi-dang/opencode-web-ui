@@ -4,6 +4,7 @@ import { useParams } from "@solidjs/router"
 import { useSettings } from "@/context/settings"
 import { NumberTicker } from "@/components/ui/number-ticker"
 import { useLanguage } from "@/context/language"
+import { createMediaQuery } from "@solid-primitives/media"
 import { ModelActivityHeartbeat } from "./model-activity-heartbeat"
 
 export type ActivityHint = "thinking" | "tool" | "shell" | "file" | "text" | "step"
@@ -30,7 +31,17 @@ function formatElapsed(seconds: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`
 }
 
-
+const tokenFormatter = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 })
+const compactTokenFormatter = new Intl.NumberFormat("en-US", {
+  notation: "compact",
+  maximumFractionDigits: 1,
+})
+const costFormatter = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  minimumFractionDigits: 4,
+  maximumFractionDigits: 4,
+})
 
 interface StreamingStatusBarProps {
   activityHint?: ActivityHint
@@ -61,22 +72,23 @@ function StreamingStatusBarInner(props: { activityHint: ActivityHint }) {
   const [phrase, setPhrase] = createSignal<string>(pick(getPhrases(language, props.activityHint)))
   const [phraseFading, setPhraseFading] = createSignal(false)
   const [elapsedSeconds, setElapsedSeconds] = createSignal(0)
-  const [isMounted, setIsMounted] = createSignal(false)
+  const compact = createMediaQuery("(max-width: 640px)")
 
   const startTime = Date.now()
   let elapsedInterval: ReturnType<typeof setInterval> | undefined
   let phraseInterval: ReturnType<typeof setInterval> | undefined
+  let phraseTimer: ReturnType<typeof setTimeout> | undefined
 
   const cyclePhrase = () => {
+    if (phraseTimer !== undefined) clearTimeout(phraseTimer)
     setPhraseFading(true)
-    setTimeout(() => {
+    phraseTimer = setTimeout(() => {
+      phraseTimer = undefined
       setPhrase(pick(getPhrases(language, props.activityHint)))
       setPhraseFading(false)
     }, 250)
   }
 
-  // Slight delay before showing to avoid flash on quick completions
-  const mountTimer = setTimeout(() => setIsMounted(true), 300)
   elapsedInterval = setInterval(() => {
     setElapsedSeconds(Math.floor((Date.now() - startTime) / 1000))
   }, 1000)
@@ -93,7 +105,7 @@ function StreamingStatusBarInner(props: { activityHint: ActivityHint }) {
   )
 
   onCleanup(() => {
-    clearTimeout(mountTimer)
+    if (phraseTimer !== undefined) clearTimeout(phraseTimer)
     if (elapsedInterval !== undefined) clearInterval(elapsedInterval)
     if (phraseInterval !== undefined) clearInterval(phraseInterval)
   })
@@ -109,8 +121,9 @@ function StreamingStatusBarInner(props: { activityHint: ActivityHint }) {
 
   const cost = createMemo(() => session()?.cost ?? 0)
 
-  const formatTokens = (val: number) => new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(Math.round(val))
-  const formatCost = (val: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 4, maximumFractionDigits: 4 }).format(val)
+  const formatTokens = (value: number) =>
+    (compact() ? compactTokenFormatter : tokenFormatter).format(Math.round(value))
+  const formatCost = (value: number) => costFormatter.format(value)
 
   return (
     <div
@@ -121,8 +134,7 @@ function StreamingStatusBarInner(props: { activityHint: ActivityHint }) {
         "align-items": "center",
         gap: "8px",
         padding: "5px 16px",
-        opacity: isMounted() ? "1" : "0",
-        transition: "opacity 0.5s ease",
+        opacity: "1",
         "border-radius": "8px 8px 0 0",
         "min-height": "30px",
         overflow: "hidden",
@@ -174,12 +186,13 @@ function StreamingStatusBarInner(props: { activityHint: ActivityHint }) {
         <ModelActivityHeartbeat sessionID={params.id ?? ""} />
         <Show when={tokens() > 0 || cost() > 0}>
           <Show when={tokens() > 0}>
-            <span class="streaming-token-usage">
-              <NumberTicker value={tokens()} format={formatTokens} /> tokens
+            <span class="streaming-token-usage" aria-label={`${tokenFormatter.format(Math.round(tokens()))} tokens`}>
+              <NumberTicker value={tokens()} format={formatTokens} />
+              <span class="streaming-token-label"> tokens</span>
             </span>
           </Show>
           <Show when={cost() > 0}>
-            <span style={{ color: "var(--v2-state-fg-success)" }}>
+            <span class="streaming-cost" style={{ color: "var(--v2-state-fg-success)" }}>
               <NumberTicker value={cost()} format={formatCost} />
             </span>
           </Show>

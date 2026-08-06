@@ -212,6 +212,7 @@ export function createServerSession(
   const requests = new Map<string, Promise<Session>>()
   const inflight = new Map<string, Promise<void>>()
   const inflightTodo = new Map<string, Promise<void>>()
+  const todoRevisions = new Map<string, number>()
   const optimistic = new Map<string, Map<string, OptimisticItem>>()
   const v2 = createV2SessionReducer()
   const messageLoads = new Map<string, MessageLoadState>()
@@ -490,6 +491,7 @@ export function createServerSession(
       requests.delete(sessionID)
       inflight.delete(sessionID)
       inflightTodo.delete(sessionID)
+      todoRevisions.delete(sessionID)
       messageLoads.delete(sessionID)
       v2.clear(sessionID)
       pendingParts.delete(sessionID)
@@ -1021,6 +1023,7 @@ export function createServerSession(
       }
       case "todo.updated": {
         const props = event.properties as { sessionID: string; todos: Todo[] }
+        todoRevisions.set(props.sessionID, (todoRevisions.get(props.sessionID) ?? 0) + 1)
         setData("todo", props.sessionID, props.todos)
         return
       }
@@ -1383,13 +1386,15 @@ export function createServerSession(
       touch(sessionID)
       if (data.todo[sessionID] !== undefined && !request?.force) return
       if ((await options?.protocol) === "v2") {
-        setData("todo", sessionID, [])
+        if (data.todo[sessionID] === undefined) setData("todo", sessionID, [])
         return
       }
       return runInflight(inflightTodo, sessionID, () => {
         const active = generation(sessionID)
+        const revision = todoRevisions.get(sessionID) ?? 0
         return (options?.retry ?? retry)(() => client.session.todo({ sessionID })).then((result) => {
           if (generations.get(sessionID) !== active) return
+          if ((todoRevisions.get(sessionID) ?? 0) !== revision) return
           setData("todo", sessionID, reconcile(result.data ?? [], { key: "id" }))
         })
       })

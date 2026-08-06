@@ -30,6 +30,7 @@ test("animates todo lifecycle without replaying it across session tabs", async (
   const sessionStatus: Record<string, { type: "busy" | "idle" }> = {}
 
   await mockOpenCodeServer(page, {
+    protocol: "v2",
     directory,
     project: {
       id: projectID,
@@ -82,6 +83,11 @@ test("animates todo lifecycle without replaying it across session tabs", async (
   await expect(dock).toBeVisible()
   await expect(dock.locator('[data-state="in_progress"]')).toHaveCount(1)
   expect((await opening).some((sample) => sample.opacity > 0.05 && sample.opacity < 0.95)).toBe(true)
+
+  events.push(statusEvent(sourceID, "busy"))
+  await page.waitForTimeout(100)
+  await expect(dock).toBeVisible()
+  await expect(dock.locator('[data-state="in_progress"]')).toHaveCount(1)
 
   await switchSession(page, otherID, otherTitle)
   await expect(dock).toHaveCount(0)

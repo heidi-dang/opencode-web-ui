@@ -843,16 +843,18 @@ export default function Page() {
         return [
           sdk().directory,
           id,
+          serverSDK().protocolKind(),
           id ? (sync().data.session_status[id]?.type ?? "idle") : "idle",
           id ? composer.blocked() : false,
         ] as const
       },
-      ([dir, id, status, blocked]) => {
+      ([dir, id, protocol, status, blocked]) => {
         if (todoFrame !== undefined) cancelAnimationFrame(todoFrame)
         if (todoTimer !== undefined) window.clearTimeout(todoTimer)
         todoFrame = undefined
         todoTimer = undefined
         if (!id) return
+        if (protocol !== "v1") return
         if (status === "idle" && !blocked) return
         const cached = untrack(() => sync().data.todo[id] !== undefined)
 
