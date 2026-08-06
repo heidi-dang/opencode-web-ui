@@ -225,10 +225,13 @@
 @media (forced-colors: active) {
   /* Remove glass effects in forced-colors mode */
   [data-component="sidebar-panel"],
-  [data-component="sidebar-rail"] {
-    background: Canvas;
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
+  [data-component="sidebar-rail"],
+  .glass-panel,
+  .glass-card {
+    background: Canvas !important;
+    border: 1px solid CanvasText !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
   }
 }
 
