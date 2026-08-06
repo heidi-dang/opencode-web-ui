@@ -56,19 +56,40 @@ export function getEffectiveServerUrl(url: string): string {
 function createBasePathFetch(fetcher: typeof globalThis.fetch, base: URL): typeof globalThis.fetch {
   const basePath = base.pathname.replace(/\/+$/, "")
   const rewrite = (input: RequestInfo | URL) => {
-    if (!basePath) return input
+    if (!basePath) return
     const raw = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url
     const url = new URL(raw, base)
-    if (url.origin !== base.origin) return input
-    if (url.pathname === basePath || url.pathname.startsWith(`${basePath}/`)) return input
+    if (url.origin !== base.origin) return
+    if (url.pathname === basePath || url.pathname.startsWith(`${basePath}/`)) return
     url.pathname = `${basePath}${url.pathname === "/" ? "" : url.pathname}`
-    if (input instanceof Request) return new Request(url, input)
-    if (input instanceof URL) return url
-    return url.toString()
+    return url
   }
 
   return Object.assign(
-    (input: RequestInfo | URL, init?: RequestInit) => fetcher(rewrite(input), init),
+    async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = rewrite(input)
+      if (!url) return fetcher(input, init)
+      if (!(input instanceof Request)) return fetcher(input instanceof URL ? url : url.toString(), init)
+
+      // Passing a cloned Request forwards its body as a ReadableStream, which WebKit
+      // cannot upload. Materialize rewritten request bodies before calling fetch.
+      const request = new Request(input, init)
+      const body = request.method === "GET" || request.method === "HEAD" ? undefined : await request.arrayBuffer()
+      return fetcher(url.toString(), {
+        method: request.method,
+        headers: request.headers,
+        body,
+        cache: request.cache,
+        credentials: request.credentials,
+        integrity: request.integrity,
+        keepalive: request.keepalive,
+        mode: request.mode,
+        redirect: request.redirect,
+        referrer: request.referrer,
+        referrerPolicy: request.referrerPolicy,
+        signal: request.signal,
+      })
+    },
     { preconnect: fetcher.preconnect },
   )
 }

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { authFromToken, authTokenFromCredentials, getEffectiveServerUrl } from "./server"
+import { authFromToken, authTokenFromCredentials, createSdkForServer, getEffectiveServerUrl } from "./server"
 
 describe("authFromToken", () => {
   test("decodes basic auth credentials from auth_token", () => {
@@ -51,5 +51,35 @@ describe("getEffectiveServerUrl", () => {
         configurable: true
       })
     }
+  })
+})
+
+test("proxy path rewrites materialize Request bodies for WebKit uploads", async () => {
+  let capturedInput: RequestInfo | URL | undefined
+  let capturedInit: RequestInit | undefined
+  const fetcher = Object.assign(
+    async (input: RequestInfo | URL, init?: RequestInit) => {
+      capturedInput = input
+      capturedInit = init
+      return new Response(undefined, { status: 204 })
+    },
+    { preconnect: globalThis.fetch.preconnect },
+  )
+  const client = createSdkForServer({
+    server: { url: "http://localhost:4096/proxy/base" },
+    fetch: fetcher,
+    directory: "/repo",
+    throwOnError: true,
+  })
+
+  await client.session.promptAsync({
+    sessionID: "ses_1",
+    parts: [{ type: "text", text: "hello" }],
+  })
+
+  expect(capturedInput).toBe("http://localhost:4096/proxy/base/session/ses_1/prompt_async")
+  expect(capturedInit?.body).toBeInstanceOf(ArrayBuffer)
+  expect(JSON.parse(new TextDecoder().decode(capturedInit?.body as ArrayBuffer))).toMatchObject({
+    parts: [{ type: "text", text: "hello" }],
   })
 })
