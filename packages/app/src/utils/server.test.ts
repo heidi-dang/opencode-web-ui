@@ -31,10 +31,10 @@ describe("getEffectiveServerUrl", () => {
     // Simulate https environment
     const originalLocation = globalThis.location
     try {
-      // @ts-ignore
-      delete globalThis.location
-      // @ts-ignore
-      globalThis.location = { protocol: "https:", origin: "https://ai.tnaprovider.com.au" }
+      Object.defineProperty(globalThis, "location", {
+        value: { protocol: "https:", origin: "https://ai.tnaprovider.com.au" },
+        configurable: true
+      })
 
       const { getEffectiveServerUrl: getEffective } = require("./server")
 
@@ -46,7 +46,10 @@ describe("getEffectiveServerUrl", () => {
       // Valid port should generate clean /direct/ URL
       expect(getEffective("http://100.97.224.96:4096")).toBe("https://ai.tnaprovider.com.au/direct/100.97.224.96/4096")
     } finally {
-      globalThis.location = originalLocation
+      Object.defineProperty(globalThis, "location", {
+        value: originalLocation,
+        configurable: true
+      })
     }
   })
 })

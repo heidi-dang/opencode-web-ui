@@ -1,6 +1,19 @@
-import type { SessionApi } from "@opencode-ai/client/promise"
+import type { SessionApi, SessionInfo } from "@opencode-ai/client/promise"
 import { normalizeSessionInfo } from "@/utils/session"
-import type { OpencodeClient } from "@opencode-ai/sdk/v2/client"
+import type { OpencodeClient, Session } from "@opencode-ai/sdk/v2/client"
+
+function isRecord(item: unknown): item is Record<string, unknown> {
+  return item !== null && typeof item === "object"
+}
+
+function isValidSessionInput(item: unknown): item is Session | SessionInfo {
+  return isRecord(item) && typeof item.id === "string"
+}
+
+function parseSessionData(data: unknown): Session[] {
+  const arr = Array.isArray(data) ? data : (typeof data === "object" && data !== null ? Object.values(data) : [])
+  return arr.filter(isValidSessionInput).map(normalizeSessionInfo)
+}
 
 export async function loadRootSessions(input: { api: Pick<SessionApi, "list">; directory: string; limit: number }) {
   const result = await input.api.list({
@@ -9,9 +22,8 @@ export async function loadRootSessions(input: { api: Pick<SessionApi, "list">; d
     limit: input.limit,
     order: "desc",
   })
-  const dataArray = Array.isArray(result.data) ? result.data : Object.values(result.data ?? {})
   return {
-    data: dataArray.map((item) => normalizeSessionInfo(item as any)),
+    data: parseSessionData(result.data),
     limit: input.limit,
     limited: true,
   } as const
@@ -24,8 +36,7 @@ export async function loadRootSessionsV1(input: { client: OpencodeClient; direct
   } catch {
     result = await input.client.session.list({ directory: input.directory, roots: true })
   }
-  const dataArray = Array.isArray(result.data) ? result.data : Object.values(result.data ?? {})
-  return { data: dataArray.map((item) => normalizeSessionInfo(item as any)), limit: input.limit, limited: true } as const
+  return { data: parseSessionData(result.data), limit: input.limit, limited: true } as const
 }
 
 export function estimateRootSessionTotal(input: { count: number; limit: number; limited: boolean }) {

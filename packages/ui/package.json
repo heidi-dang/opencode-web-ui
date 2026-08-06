@@ -58,6 +58,7 @@
   "scripts": {
     "build": "rm -rf dist && tsc -p tsconfig.build.json",
     "typecheck": "tsgo --noEmit",
+    "typecheck:scripts": "tsgo --noEmit -p tsconfig.scripts.json",
     "test": "bun test src --only-failures",
     "dev": "vite",
     "generate:tailwind": "bun run script/tailwind.ts",

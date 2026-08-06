@@ -50,7 +50,12 @@ const hopByHopHeaders = [
 
 const MAX_REQUEST_BODY_BYTES = 10 * 1024 * 1024
 
+const buildId = process.env.VITE_SENTRY_RELEASE || process.env.GITHUB_SHA || Date.now().toString(36)
+
 export default defineConfig({
+  define: {
+    __BUILD_ID__: JSON.stringify(buildId),
+  },
   plugins: [desktopPlugin, sentry].filter(Boolean),
   server: {
     host: "127.0.0.1",

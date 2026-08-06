@@ -17,7 +17,7 @@ import { useLanguage } from "@/context/language"
 import { usePlatform } from "@/context/platform"
 import { normalizeServerUrl, ServerConnection, useServer } from "@/context/server"
 import { detectServerProtocol } from "@/utils/server-protocol"
-import { type ServerHealth, useCheckServerHealth } from "@/utils/server-health"
+import { checkServerHealth, type ServerHealth, useCheckServerHealth } from "@/utils/server-health"
 import { useSettings } from "@/context/settings"
 import { useTabs } from "@/context/tabs"
 
@@ -37,6 +37,7 @@ interface ServerFormProps {
   onUsernameChange: (value: string) => void
   onPasswordChange: (value: string) => void
   onSubmit: () => void
+  onTest: () => void
   onBack: () => void
 }
 
@@ -85,19 +86,22 @@ type ServerHealthState = {
 }
 
 function useServerPreview() {
-  const checkServerHealth = useCheckServerHealth()
+  const platform = usePlatform()
+  let abortController: AbortController | undefined
 
   const looksComplete = (value: string) => {
     const normalized = normalizeServerUrl(value)
     if (!normalized) return false
-    const host = normalized.replace(/^https?:\/\//, "").split("/")[0]
-    if (!host || host.startsWith("http")) return false
-    if (host.startsWith("localhost") || host.startsWith("127.0.0.1")) return true
-    
-    // Ensure it looks like a complete IP address or a complete domain
-    const isIp = /^(\d{1,3}\.){3}\d{1,3}(:\d+)?$/.test(host)
-    const isDomain = /^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(:\d+)?$/.test(host)
-    return isIp || isDomain
+    try {
+      const url = new URL(normalized)
+      if (url.port) {
+        const port = parseInt(url.port, 10)
+        if (isNaN(port) || port <= 0 || port > 65535) return false
+      }
+      return true
+    } catch {
+      return false
+    }
   }
 
   const previewStatus = async (
@@ -106,6 +110,12 @@ function useServerPreview() {
     password: string,
     setStatusState: (value: ServerHealthState | undefined) => void,
   ) => {
+    if (abortController) {
+      abortController.abort()
+    }
+    abortController = new AbortController()
+    const signal = abortController.signal
+
     setStatusState(undefined)
     if (!looksComplete(value)) return
     const normalized = normalizeServerUrl(value)
@@ -113,12 +123,19 @@ function useServerPreview() {
     const http: ServerConnection.HttpBase = { url: normalized }
     if (username) http.username = username
     if (password) http.password = password
-    const result = await checkServerHealth(http)
-    setStatusState({
-      healthy: result.healthy,
-      requiresAuth: result.requiresAuth,
-      authFailed: result.authFailed,
-    })
+    
+    try {
+      const result = await checkServerHealth(http, platform.fetch ?? globalThis.fetch, { signal })
+      if (signal.aborted) return
+      setStatusState({
+        healthy: result.healthy,
+        requiresAuth: result.requiresAuth,
+        authFailed: result.authFailed,
+      })
+    } catch {
+      if (signal.aborted) return
+      setStatusState({ healthy: false })
+    }
   }
 
   return { previewStatus }
@@ -158,20 +175,14 @@ function ServerForm(props: ServerFormProps) {
     props.onChange(constructed)
   }
 
-  let timeout: ReturnType<typeof setTimeout> | undefined
-  const debouncedUpdateUrl = (h: string, p: string) => {
-    if (timeout) clearTimeout(timeout)
-    timeout = setTimeout(() => updateUrl(h, p), 400)
-  }
-
   const handleHostChange = (val: string) => {
     setHost(val)
-    debouncedUpdateUrl(val, port())
+    updateUrl(val, port())
   }
 
   const handlePortChange = (val: string) => {
     setPort(val)
-    debouncedUpdateUrl(host(), val)
+    updateUrl(host(), val)
   }
 
   const keyDown = (event: KeyboardEvent) => {
@@ -289,6 +300,18 @@ function ServerForm(props: ServerFormProps) {
         <Show when={props.error}>
           <div class="text-xs text-rose-400 font-medium">{props.error}</div>
         </Show>
+        
+        <div class="flex justify-end pt-2">
+          <Button
+            variant="secondary"
+            size="small"
+            onClick={props.onTest}
+            disabled={props.busy || !props.value}
+            class="text-xs px-3"
+          >
+            Test Connection
+          </Button>
+        </div>
       </div>
     </div>
   )
@@ -520,10 +543,7 @@ export function useServerManagementController(options: { onSelect?: () => void; 
 
   const handleAddChange = (value: string) => {
     if (addMutation.isPending) return
-    setStore("addServer", { url: value, error: "" })
-    void previewStatus(value, store.addServer.username, store.addServer.password, (next) =>
-      setStore("addServer", { status: next }),
-    )
+    setStore("addServer", { url: value, error: "", status: undefined })
   }
 
   const handleAddNameChange = (value: string) => {
@@ -533,26 +553,17 @@ export function useServerManagementController(options: { onSelect?: () => void; 
 
   const handleAddUsernameChange = (value: string) => {
     if (addMutation.isPending) return
-    setStore("addServer", { username: value, error: "" })
-    void previewStatus(store.addServer.url, value, store.addServer.password, (next) =>
-      setStore("addServer", { status: next }),
-    )
+    setStore("addServer", { username: value, error: "", status: undefined })
   }
 
   const handleAddPasswordChange = (value: string) => {
     if (addMutation.isPending) return
-    setStore("addServer", { password: value, error: "" })
-    void previewStatus(store.addServer.url, store.addServer.username, value, (next) =>
-      setStore("addServer", { status: next }),
-    )
+    setStore("addServer", { password: value, error: "", status: undefined })
   }
 
   const handleEditChange = (value: string) => {
     if (editMutation.isPending) return
-    setStore("editServer", { value, error: "" })
-    void previewStatus(value, store.editServer.username, store.editServer.password, (next) =>
-      setStore("editServer", { status: next }),
-    )
+    setStore("editServer", { value, error: "", status: undefined })
   }
 
   const handleEditNameChange = (value: string) => {
@@ -562,18 +573,27 @@ export function useServerManagementController(options: { onSelect?: () => void; 
 
   const handleEditUsernameChange = (value: string) => {
     if (editMutation.isPending) return
-    setStore("editServer", { username: value, error: "" })
-    void previewStatus(store.editServer.value, value, store.editServer.password, (next) =>
-      setStore("editServer", { status: next }),
-    )
+    setStore("editServer", { username: value, error: "", status: undefined })
   }
 
   const handleEditPasswordChange = (value: string) => {
     if (editMutation.isPending) return
-    setStore("editServer", { password: value, error: "" })
-    void previewStatus(store.editServer.value, store.editServer.username, value, (next) =>
-      setStore("editServer", { status: next }),
-    )
+    setStore("editServer", { password: value, error: "", status: undefined })
+  }
+
+  const testConnection = () => {
+    const isAdd = isAddMode()
+    const value = isAdd ? store.addServer.url : store.editServer.value
+    const username = isAdd ? store.addServer.username : store.editServer.username
+    const password = isAdd ? store.addServer.password : store.editServer.password
+    
+    void previewStatus(value, username, password, (next) => {
+      if (isAdd) {
+        setStore("addServer", { status: next })
+      } else {
+        setStore("editServer", { status: next })
+      }
+    })
   }
 
   const mode = createMemo<"list" | "add" | "edit">(() => {
@@ -690,6 +710,7 @@ export function useServerManagementController(options: { onSelect?: () => void; 
     resetForm,
     submitForm,
     handleRemove,
+    testConnection,
     handleFormChange: () => (isAddMode() ? handleAddChange : handleEditChange),
     handleFormNameChange: () => (isAddMode() ? handleAddNameChange : handleEditNameChange),
     handleFormUsernameChange: () => (isAddMode() ? handleAddUsernameChange : handleEditUsernameChange),
@@ -827,6 +848,7 @@ export function ServerConnectionForm(props: { controller: ReturnType<typeof useS
         onUsernameChange={props.controller.handleFormUsernameChange()}
         onPasswordChange={props.controller.handleFormPasswordChange()}
         onSubmit={props.controller.submitForm}
+        onTest={props.controller.testConnection}
         onBack={props.controller.resetForm}
       />
       <div class="shrink-0 pb-5">

@@ -26,31 +26,47 @@ export function normalizeServerUrl(input: string) {
   const trimmed = input.trim()
   if (!trimmed) return
   const withProtocol = /^https?:\/\//.test(trimmed) ? trimmed : `http://${trimmed}`
-  let clean = withProtocol.replace(/\/+$/, "")
 
-  if (clean.endsWith("/opencode-server") && !clean.includes("localhost") && !clean.includes("127.0.0.1")) {
-    if (typeof location === "object" && location.hostname && !clean.includes(location.hostname)) {
-      clean = clean.replace(/\/opencode-server$/, "")
+  let url: URL
+  try {
+    url = new URL(withProtocol)
+  } catch {
+    return undefined
+  }
+
+  // Support numeric port validation
+  if (url.port) {
+    const port = parseInt(url.port, 10)
+    if (isNaN(port) || port <= 0 || port > 65535) return undefined
+  }
+
+  let cleanPath = url.pathname.replace(/\/+$/, "")
+  const isLocalHost = url.hostname === "localhost" || url.hostname === "127.0.0.1"
+
+  if (typeof location === "object" && location.hostname) {
+    // Protect against duplicate proxy transformation when returning to local context
+    if (cleanPath.endsWith("/opencode-server") && !isLocalHost && url.hostname !== location.hostname) {
+      cleanPath = cleanPath.replace(/\/opencode-server$/, "")
+    }
+
+    const isLocalTarget = isLocalHost || url.hostname === location.hostname
+    if (
+      location.hostname !== "localhost" &&
+      location.hostname !== "127.0.0.1" &&
+      isLocalTarget &&
+      (url.port === "4096" || cleanPath.endsWith("/opencode-server"))
+    ) {
+      const originUrl = new URL(location.origin)
+      const originPath = originUrl.pathname.replace(/\/+$/, "")
+      if (!originPath.endsWith("/opencode-server")) {
+        return `${location.origin}/opencode-server`
+      }
+      return location.origin
     }
   }
 
-  if (
-    typeof location === "object" &&
-    location.hostname &&
-    location.hostname !== "localhost" &&
-    location.hostname !== "127.0.0.1" &&
-    location.hostname !== ""
-  ) {
-    const targetHost = clean.replace(/^https?:\/\//, "").split("/")[0].split(":")[0]
-    const isLocalTarget =
-      targetHost === "localhost" ||
-      targetHost === "127.0.0.1" ||
-      targetHost === location.hostname
-    if (isLocalTarget && (clean.includes(":4096") || clean.endsWith("/opencode-server"))) {
-      return `${location.origin}/opencode-server`
-    }
-  }
-  return clean
+  url.pathname = cleanPath
+  return url.toString().replace(/\/+$/, "")
 }
 
 export function serverName(conn?: ServerConnection.Any, ignoreDisplayName = false) {

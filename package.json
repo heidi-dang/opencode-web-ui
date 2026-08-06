@@ -10,7 +10,7 @@
     "build": "bun run --cwd packages/app build",
     "serve": "bun --cwd packages/app serve",
     "preview": "bun --cwd packages/app serve",
-    "typecheck": "bun --cwd packages/app typecheck"
+    "typecheck": "bun --cwd packages/ui typecheck && bun --cwd packages/ui typecheck:scripts && bun --cwd packages/app typecheck"
   },
   "workspaces": {
     "packages": [

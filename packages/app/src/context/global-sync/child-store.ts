@@ -250,7 +250,25 @@ export function createChildStoreManager(input: {
               return instanceQueriesEnabled() && !lspQuery.isLoading
             },
             get lsp(): LspStatus[] {
-              return lspQuery.isLoading ? [] : ((lspQuery.data ?? []) as LspStatus[])
+              if (lspQuery.isLoading || !lspQuery.data) return []
+              
+              // Helper to check LspStatus shape
+              const isRecord = (item: unknown): item is Record<string, unknown> => {
+                return item !== null && typeof item === "object"
+              }
+              const isLspStatus = (item: unknown): item is LspStatus => {
+                return isRecord(item) && typeof item.name === "string" && typeof item.state === "string"
+              }
+
+              let raw = lspQuery.data
+              let arr: unknown[] = []
+              if (Array.isArray(raw)) {
+                arr = raw
+              } else if (raw !== null && typeof raw === "object") {
+                arr = Object.values(raw)
+              }
+
+              return arr.filter(isLspStatus)
             },
             vcs: vcsStore.value,
             limit: 5,
