@@ -19,7 +19,7 @@
   --color-foreground: var(--text-strong);
   --color-border: var(--border-weak-base);
   --color-ring: var(--border-focus);
-  --color-primary: #3b82f6;
+  --color-primary: var(--v2-blue-600);
   --color-primary-foreground: #ffffff;
   --color-destructive: var(--surface-critical-strong);
   --color-destructive-foreground: #ffffff;
@@ -29,7 +29,7 @@
   --color-v2-background-bg-raised: var(--v2-background-bg-layer-01);
   --color-v2-background-bg-sunken: var(--v2-background-bg-deep);
   --color-v2-border-border-default: var(--v2-border-border-base);
-  --color-v2-interactive-interactive-primary: #3b82f6;
+  --color-v2-interactive-interactive-primary: var(--v2-blue-600);
   --color-v2-interactive-interactive-primary-bg: rgba(59, 130, 246, 0.12);
   --color-v2-status-danger-fg: var(--v2-state-fg-danger);
 }
@@ -545,15 +545,15 @@ kbd, [data-slot="desktop-app-menu-keybind"] {
 /* AI Thinking & Streaming Glowing Accents */
 @keyframes glow-pulse {
   0%, 100% {
-    box-shadow: 0 0 12px rgba(99, 102, 241, 0.2);
+    box-shadow: var(--v2-glow-accent-sm);
   }
   50% {
-    box-shadow: 0 0 20px rgba(99, 102, 241, 0.45);
+    box-shadow: var(--v2-glow-accent-md);
   }
 }
 
 .streaming-active-glow {
-  animation: glow-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  animation: glow-pulse 2s var(--v2-motion-easing-standard) infinite;
   border-radius: var(--radius-lg, 8px);
 }
 
@@ -565,6 +565,22 @@ kbd, [data-slot="desktop-app-menu-keybind"] {
 @media (prefers-reduced-motion: reduce) {
   /* Stop our custom glow/streaming animation */
   .streaming-active-glow {
+    animation: none;
+  }
+
+  /* Stop enhanced streaming animations */
+  .streaming-active-glow-enhanced,
+  .streaming-border-animated,
+  .streaming-status-bar {
+    animation: none;
+    background: var(--v2-background-bg-layer-01);
+  }
+
+  /* Stop todo dock animations */
+  .todo-dot-glow,
+  .todo-item-enter,
+  .todo-complete-flash,
+  .status-pulse-emerald {
     animation: none;
   }
 
@@ -646,27 +662,31 @@ kbd, [data-slot="desktop-app-menu-keybind"] {
   }
 }
 
-/* ─── Premium Glassmorphism & UI Polish Design Tokens ─────────────────────── */
+/* ─── Premium Glassmorphism & UI Polish Design Tokens ─────────────────────────── */
+/* Uses Deep Aurora semantic tokens from packages/ui/src/v2/styles/theme.css  */
 .glass-panel {
-  background: rgba(18, 19, 26, 0.75);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  background: var(--v2-surface-glass);
+  backdrop-filter: var(--v2-blur-floating);
+  -webkit-backdrop-filter: var(--v2-blur-floating);
+  border: 1px solid var(--v2-border-border-muted);
+  box-shadow: var(--v2-elevation-panel);
 }
 
 .glass-card {
-  background: rgba(26, 28, 38, 0.6);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  background: var(--v2-surface-glass);
+  backdrop-filter: var(--v2-blur-floating);
+  -webkit-backdrop-filter: var(--v2-blur-floating);
+  border: 1px solid var(--v2-border-border-muted);
+  transition:
+    transform var(--v2-motion-fast) var(--v2-motion-easing-expressive),
+    box-shadow var(--v2-motion-fast) var(--v2-motion-easing-expressive),
+    border-color var(--v2-motion-fast) var(--v2-motion-easing-expressive);
 }
 
 .glass-card:hover {
-  transform: translateY(-2px);
-  border-color: rgba(139, 92, 246, 0.3);
-  box-shadow: 0 10px 24px -5px rgba(139, 92, 246, 0.15);
+  transform: translateY(-1px);
+  border-color: var(--v2-border-highlight);
+  box-shadow: var(--v2-glow-accent-sm);
 }
 
 @keyframes live-status-ping {
@@ -739,18 +759,18 @@ kbd, [data-slot="desktop-app-menu-keybind"] {
   animation: streaming-border-flow 3s ease infinite;
 }
 
-/* 2. Enhanced glow-pulse — richer multi-stop shadow */
+/* 2. Enhanced glow-pulse — richer multi-stop shadow using Deep Aurora tokens */
 @keyframes glow-pulse-enhanced {
   0%, 100% {
-    box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.25), 0 0 16px rgba(99, 102, 241, 0.15);
+    box-shadow: var(--v2-glow-accent-sm);
   }
   50% {
-    box-shadow: 0 0 0 1px rgba(139, 92, 246, 0.45), 0 0 28px rgba(139, 92, 246, 0.3);
+    box-shadow: var(--v2-glow-accent-md);
   }
 }
 
 .streaming-active-glow-enhanced {
-  animation: glow-pulse-enhanced 2.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  animation: glow-pulse-enhanced 2.2s var(--v2-motion-easing-standard) infinite;
   border-radius: var(--radius-lg, 8px);
 }
 
@@ -800,14 +820,14 @@ kbd, [data-slot="desktop-app-menu-keybind"] {
   animation: todo-complete-flash 0.6s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* 6. TODO in-progress dot — enhanced pulsing glow ring */
+/* 6. TODO in-progress dot — accent glow ring using Deep Aurora tokens */
 @keyframes todo-dot-glow {
   0%, 100% {
-    box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.6);
+    box-shadow: 0 0 0 0 var(--v2-border-highlight);
     transform: scale(1);
   }
   50% {
-    box-shadow: 0 0 0 4px rgba(99, 102, 241, 0);
+    box-shadow: 0 0 0 4px transparent;
     transform: scale(1.15);
   }
 }
@@ -859,17 +879,12 @@ kbd, [data-slot="desktop-app-menu-keybind"] {
   border-radius: 4px;
 }
 
-/* 10. Status bar gradient background while streaming */
+/* 10. Status bar gradient background while streaming — using Deep Aurora tokens */
 .streaming-status-bar {
-  background: linear-gradient(
-    90deg,
-    rgba(99, 102, 241, 0.08),
-    rgba(139, 92, 246, 0.05),
-    rgba(99, 102, 241, 0.08)
-  );
+  background: var(--v2-gradient-brand-subtle);
   background-size: 200% 100%;
   animation: streaming-border-flow 4s ease infinite;
-  border-top: 1px solid rgba(99, 102, 241, 0.18);
+  border-top: 1px solid var(--v2-border-highlight);
 }
 
 /* 11. Elapsed time counter fade-in */
