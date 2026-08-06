@@ -22,6 +22,7 @@ import { ScopedKey } from "@/utils/server-scope"
 import { createPromptSubmissionState } from "./submission-state"
 import { normalizeSessionInfo } from "@/utils/session"
 import { Event } from "@opencode-ai/schema/event"
+import { sessionTitle } from "@/utils/session-title"
 
 type PendingPrompt = {
   abort: AbortController
@@ -430,6 +431,17 @@ export function createPromptSubmit(input: PromptSubmitInput) {
         description: language.t("prompt.toast.promptSendFailed.description"),
       })
       return
+    }
+
+    if (isNewSession && text.trim().length > 0) {
+      const title = text.split("\n")[0].trim().substring(0, 100) || "New session"
+      sdk()
+        .api.session.rename({
+          sessionID: session.id,
+          directory: sessionDirectory,
+          title,
+        })
+        .catch(() => {})
     }
 
     const model = {
