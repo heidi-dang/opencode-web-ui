@@ -907,6 +907,11 @@ kbd, [data-slot="desktop-app-menu-keybind"] {
   border-top: 1px solid var(--v2-border-highlight);
 }
 
+.streaming-status-bar .status-text-verbose {
+  flex: 0 1 42%;
+  max-width: 22rem;
+}
+
 .streaming-status-telemetry {
   display: flex;
   align-items: center;
@@ -914,9 +919,10 @@ kbd, [data-slot="desktop-app-menu-keybind"] {
   flex: 0 0 auto;
   min-width: 0;
   font-size: 11px;
+  line-height: 1.4;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
-  padding: 2px 7px 2px 4px;
+  padding: 2px 7px;
   border: 1px solid color-mix(in srgb, var(--v2-border-highlight) 58%, transparent);
   border-radius: 999px;
   background: color-mix(in srgb, var(--v2-background-bg-layer-01) 76%, transparent);
@@ -953,7 +959,11 @@ kbd, [data-slot="desktop-app-menu-keybind"] {
   }
 
   .streaming-status-bar .status-text-compact {
-    display: flex;
+    display: none;
+  }
+
+  .model-activity-waveform {
+    gap: 5px;
   }
 
   .progress-ring-container {
@@ -964,7 +974,7 @@ kbd, [data-slot="desktop-app-menu-keybind"] {
   .streaming-status-telemetry {
     gap: 5px;
     max-width: min(58vw, 180px);
-    padding: 1px 6px 1px 2px;
+    padding: 1px 6px;
   }
 
   .streaming-token-usage {

@@ -5,7 +5,7 @@ import { useSettings } from "@/context/settings"
 import { NumberTicker } from "@/components/ui/number-ticker"
 import { useLanguage } from "@/context/language"
 import { createMediaQuery } from "@solid-primitives/media"
-import { ModelActivityHeartbeat } from "./model-activity-heartbeat"
+import { ModelActivityWaveform } from "./model-activity-waveform"
 
 export type ActivityHint = "thinking" | "tool" | "shell" | "file" | "text" | "step"
 
@@ -49,7 +49,7 @@ interface StreamingStatusBarProps {
 
 /**
  * Animated status bar shown only in the V2 new layout while the AI is working.
- * Shows contextual cycling phrases, a pulsing dot, and an elapsed timer.
+ * Shows contextual cycling phrases, a live activity waveform, and an elapsed timer.
  */
 export function StreamingStatusBar(props: StreamingStatusBarProps) {
   const sync = useSync()
@@ -120,6 +120,7 @@ function StreamingStatusBarInner(props: { activityHint: ActivityHint }) {
   })
 
   const cost = createMemo(() => session()?.cost ?? 0)
+  const hasTelemetry = createMemo(() => tokens() > 0 || cost() > 0)
 
   const formatTokens = (value: number) =>
     (compact() ? compactTokenFormatter : tokenFormatter).format(Math.round(value))
@@ -145,7 +146,7 @@ function StreamingStatusBarInner(props: { activityHint: ActivityHint }) {
       aria-label={language.t("session.status.accessibleName")}
     >
       {/* Status phrase — shown on larger screens */}
-      <div class="status-text-verbose" style={{ flex: "1", overflow: "hidden" }}>
+      <div class="status-text-verbose" style={{ overflow: "hidden" }}>
         <span
           class={phraseFading() ? "status-phrase-exit" : "status-phrase-enter"}
           style={{
@@ -164,40 +165,24 @@ function StreamingStatusBarInner(props: { activityHint: ActivityHint }) {
         </span>
       </div>
 
-      {/* Compact label — shown on mobile */}
-      <div
-        class="status-text-compact"
-        style={{ flex: "1", "align-items": "center", gap: "4px", overflow: "hidden" }}
-      >
-        <span
-          style={{
-            "font-size": "11px",
-            color: "var(--v2-text-text-muted)",
-            "white-space": "nowrap",
-          }}
-          aria-hidden="true"
-        >
-          {language.t("session.status.workingCompact")}
-        </span>
-      </div>
-
-      {/* Realtime token and cost metrics */}
-      <div class="streaming-status-telemetry">
-        <ModelActivityHeartbeat sessionID={params.id ?? ""} />
-        <Show when={tokens() > 0 || cost() > 0}>
-          <Show when={tokens() > 0}>
-            <span class="streaming-token-usage" aria-label={`${tokenFormatter.format(Math.round(tokens()))} tokens`}>
-              <NumberTicker value={tokens()} format={formatTokens} />
-              <span class="streaming-token-label"> tokens</span>
-            </span>
-          </Show>
-          <Show when={cost() > 0}>
-            <span class="streaming-cost" style={{ color: "var(--v2-state-fg-success)" }}>
-              <NumberTicker value={cost()} format={formatCost} />
-            </span>
-          </Show>
+      {/* Live activity travels from the phrase into realtime telemetry. */}
+      <ModelActivityWaveform sessionID={params.id ?? ""} hasTelemetry={hasTelemetry()}>
+        <Show when={hasTelemetry()}>
+          <div class="streaming-status-telemetry">
+            <Show when={tokens() > 0}>
+              <span class="streaming-token-usage" aria-label={`${tokenFormatter.format(Math.round(tokens()))} tokens`}>
+                <NumberTicker value={tokens()} format={formatTokens} />
+                <span class="streaming-token-label"> tokens</span>
+              </span>
+            </Show>
+            <Show when={cost() > 0}>
+              <span class="streaming-cost" style={{ color: "var(--v2-state-fg-success)" }}>
+                <NumberTicker value={cost()} format={formatCost} />
+              </span>
+            </Show>
+          </div>
         </Show>
-      </div>
+      </ModelActivityWaveform>
 
       {/* Elapsed timer */}
       <Show when={elapsedSeconds() > 0}>

@@ -1,0 +1,163 @@
+.model-activity-waveform {
+  --wave-packet-width: clamp(48px, 11vw, 76px);
+  --wave-color: var(--v2-text-text-faint);
+  --wave-signal-opacity-cap: 0.68;
+  --wave-depth-opacity-factor: 0.22;
+  --wave-arrival-bloom: 18%;
+  --wave-arrival-visible: 0;
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 8px;
+  color: var(--wave-color);
+  cursor: help;
+}
+
+.model-activity-waveform[data-tone="accent"] {
+  --wave-color: var(--v2-text-text-accent);
+}
+
+.model-activity-waveform[data-tone="warning"] {
+  --wave-color: var(--v2-state-fg-warning);
+}
+
+.model-activity-waveform[data-tone="danger"] {
+  --wave-color: var(--v2-state-fg-danger);
+}
+
+.model-activity-waveform[data-has-telemetry="true"] {
+  --wave-arrival-visible: 1;
+}
+
+[data-color-scheme="dark"] .model-activity-waveform {
+  --wave-signal-opacity-cap: 0.92;
+  --wave-depth-opacity-factor: 0.34;
+  --wave-arrival-bloom: 30%;
+}
+
+.model-activity-waveform [data-slot="model-activity-waveform-track"] {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 24px;
+  height: 28px;
+  padding-block: 2px;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.model-activity-waveform .model-activity-waveform-rail {
+  position: absolute;
+  inset: 50% 0 auto;
+  height: 1px;
+  background: currentColor;
+  opacity: 0.16;
+  transform: translateY(-50%);
+}
+
+.model-activity-waveform [data-slot="model-activity-waveform-runner"] {
+  position: absolute;
+  top: 2px;
+  left: calc(-1 * var(--wave-packet-width));
+  width: 100%;
+  height: 24px;
+}
+
+.model-activity-waveform [data-slot="model-activity-waveform-runner"] svg {
+  display: block;
+  width: var(--wave-packet-width);
+  height: 24px;
+  overflow: visible;
+}
+
+.model-activity-waveform .model-activity-waveform-lines {
+  transform-box: fill-box;
+  transform-origin: center;
+  transform: scaleY(var(--wave-amplitude));
+}
+
+.model-activity-waveform .model-activity-waveform-depth,
+.model-activity-waveform [data-slot="model-activity-waveform-signal"] {
+  fill: none;
+  stroke: currentColor;
+  vector-effect: non-scaling-stroke;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.model-activity-waveform .model-activity-waveform-depth {
+  stroke-width: 3.75;
+  opacity: calc(var(--wave-glow) * var(--wave-depth-opacity-factor));
+}
+
+.model-activity-waveform [data-slot="model-activity-waveform-signal"] {
+  stroke-width: 1.5;
+  opacity: min(var(--wave-glow), var(--wave-signal-opacity-cap));
+}
+
+.model-activity-waveform[data-tone="danger"] .model-activity-waveform-depth,
+.model-activity-waveform[data-tone="danger"] [data-slot="model-activity-waveform-signal"] {
+  stroke-dasharray: 5 3 12 4;
+  stroke-linecap: butt;
+}
+
+.model-activity-waveform [data-slot="model-activity-waveform-telemetry"] {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.model-activity-waveform .model-activity-waveform-arrival-glow {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  box-shadow: 0 0 8px color-mix(in srgb, var(--wave-color) var(--wave-arrival-bloom), transparent);
+  opacity: 0;
+  pointer-events: none;
+}
+
+@keyframes model-activity-waveform-travel {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(calc(100% + var(--wave-packet-width)), 0, 0);
+  }
+}
+
+@keyframes model-activity-waveform-arrival {
+  0%,
+  72%,
+  100% {
+    opacity: 0;
+  }
+  82% {
+    opacity: calc(var(--wave-arrival-visible) * 0.85);
+  }
+}
+
+.model-activity-waveform[data-motion="active"] [data-slot="model-activity-waveform-runner"] {
+  animation: model-activity-waveform-travel var(--wave-duration) linear infinite;
+  will-change: transform;
+}
+
+.model-activity-waveform[data-motion="active"] .model-activity-waveform-arrival-glow {
+  animation: model-activity-waveform-arrival var(--wave-duration) linear infinite;
+}
+
+.model-activity-waveform[data-motion="static"] [data-slot="model-activity-waveform-runner"] {
+  left: 50%;
+  width: var(--wave-packet-width);
+  transform: translateX(-50%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .model-activity-waveform [data-slot="model-activity-waveform-runner"],
+  .model-activity-waveform .model-activity-waveform-arrival-glow,
+  .model-activity-waveform [data-slot="model-activity-waveform-signal"],
+  .model-activity-waveform .streaming-status-telemetry {
+    animation: none !important;
+  }
+}
