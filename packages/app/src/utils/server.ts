@@ -36,6 +36,10 @@ export function getEffectiveServerUrl(url: string): string {
     try {
       const parsed = new URL(trimmed)
       const host = parsed.hostname
+      if (!host) return trimmed
+      if (parsed.port && (parsed.port.length < 2 || parseInt(parsed.port, 10) < 1 || parseInt(parsed.port, 10) > 65535)) {
+        return trimmed
+      }
       const port = parsed.port || "80"
       const pathname = parsed.pathname === "/" ? "" : parsed.pathname.replace(/\/+$/, "")
       return `${location.origin}/direct/${host}/${port}${pathname}`

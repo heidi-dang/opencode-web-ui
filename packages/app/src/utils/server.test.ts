@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { authFromToken, authTokenFromCredentials } from "./server"
+import { authFromToken, authTokenFromCredentials, getEffectiveServerUrl } from "./server"
 
 describe("authFromToken", () => {
   test("decodes basic auth credentials from auth_token", () => {
@@ -19,5 +19,31 @@ describe("authFromToken", () => {
 describe("authTokenFromCredentials", () => {
   test("encodes credentials with the default username", () => {
     expect(authTokenFromCredentials({ password: "secret" })).toBe(btoa("opencode:secret"))
+  })
+})
+
+describe("getEffectiveServerUrl", () => {
+  test("returns original URL when not in https or url is empty", () => {
+    expect(getEffectiveServerUrl("http://100.97.224.96:4096")).toBe("http://100.97.224.96:4096")
+  })
+
+  test("validates ports before constructing direct proxy URLs", () => {
+    // Simulate https environment
+    const originalLocation = globalThis.location
+    try {
+      // @ts-ignore
+      delete globalThis.location
+      // @ts-ignore
+      globalThis.location = { protocol: "https:", origin: "https://ai.tnaprovider.com.au" }
+
+      const { getEffectiveServerUrl: getEffective } = require("./server")
+
+      // Incomplete port during user typing should not generate broken /direct/ URLs
+      expect(getEffective("http://100.97.224.96:6")).toBe("http://100.97.224.96:6")
+      // Valid port should generate clean /direct/ URL
+      expect(getEffective("http://100.97.224.96:4096")).toBe("https://ai.tnaprovider.com.au/direct/100.97.224.96/4096")
+    } finally {
+      globalThis.location = originalLocation
+    }
   })
 })
