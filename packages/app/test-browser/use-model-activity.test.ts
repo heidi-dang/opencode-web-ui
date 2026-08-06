@@ -1,7 +1,7 @@
-import { describe, test, expect, beforeEach, afterEach, mock, vi } from "bun:test"
+import { describe, test, expect, beforeEach, afterEach, vi } from "bun:test"
 import { createRoot } from "solid-js"
 import { createStore, reconcile } from "solid-js/store"
-import { ActivityConfig } from "./activity-config"
+import { ActivityConfig } from "@/pages/session/composer/activity-config"
 
 let _mockData: any
 let _setMockData: any
@@ -20,16 +20,14 @@ createRoot(() => {
 })
 
 export const setMockData = (data: any) => {
-  _setMockData(data)
+  for (const [key, value] of Object.entries(data)) {
+    _setMockData(key, value && typeof value === "object" ? reconcile(value) : value)
+  }
 }
 
-mock.module("@/context/sync", () => ({
-  useSync: () => () => ({
-    data: _mockData,
-  }),
-}))
+import { useModelActivity } from "@/pages/session/composer/use-model-activity"
 
-import { useModelActivity } from "./use-model-activity"
+const sync = () => ({ data: _mockData })
 
 describe("useModelActivity", () => {
   let _now = 10000
@@ -57,7 +55,7 @@ describe("useModelActivity", () => {
 
   test("initializes in idle state", () => {
     createRoot((dispose) => {
-      const { state, timeSinceLastActivity } = useModelActivity(() => "session-1")
+      const { state, timeSinceLastActivity } = useModelActivity(() => "session-1", sync)
       expect(state()).toBe("idle")
       expect(timeSinceLastActivity()).toBe(0)
       dispose()
@@ -70,7 +68,7 @@ describe("useModelActivity", () => {
         __working: true,
         session_activity: { "session-1": { lastMeaningfulEventAt: Date.now() } },
       })
-      const { state, ewma } = useModelActivity(() => "session-1")
+      const { state, ewma } = useModelActivity(() => "session-1", sync)
       
       advance(200)
       setMockData({ session_activity: { "session-1": { lastMeaningfulEventAt: Date.now() } } })
@@ -93,7 +91,7 @@ describe("useModelActivity", () => {
         __working: true,
         session_activity: { "session-1": { lastMeaningfulEventAt: Date.now() } },
       })
-      const { state, ewma } = useModelActivity(() => "session-1")
+      const { state, ewma } = useModelActivity(() => "session-1", sync)
       
       advance(ActivityConfig.FAST_CADENCE_MS * 2)
       setMockData({ session_activity: { "session-1": { lastMeaningfulEventAt: Date.now() } } })
@@ -103,8 +101,8 @@ describe("useModelActivity", () => {
       
       advance(ActivityConfig.EVALUATION_INTERVAL_MS)
       
-      expect(state()).toBe("active-slow")
       expect(ewma()).toBeGreaterThan(ActivityConfig.FAST_CADENCE_MS)
+      expect(state()).toBe("active-slow")
       
       dispose()
     })
@@ -116,7 +114,7 @@ describe("useModelActivity", () => {
         __working: true,
         session_activity: { "session-1": { lastMeaningfulEventAt: Date.now() } },
       })
-      const { state } = useModelActivity(() => "session-1")
+      const { state } = useModelActivity(() => "session-1", sync)
       
       advance(ActivityConfig.STALL_THRESHOLD_MS + 100)
       
@@ -133,7 +131,7 @@ describe("useModelActivity", () => {
         session_activity: { "session-1": { lastMeaningfulEventAt: Date.now() } },
         question: { "session-1": [{ id: "q1" }] },
       })
-      const { state } = useModelActivity(() => "session-1")
+      const { state } = useModelActivity(() => "session-1", sync)
       
       advance(ActivityConfig.EVALUATION_INTERVAL_MS)
       
@@ -150,7 +148,7 @@ describe("useModelActivity", () => {
         session_activity: { "session-1": { lastMeaningfulEventAt: Date.now() } },
         todo: { "session-1": [{ status: "in_progress" }] },
       })
-      const { state } = useModelActivity(() => "session-1")
+      const { state } = useModelActivity(() => "session-1", sync)
       
       advance(ActivityConfig.EVALUATION_INTERVAL_MS)
       

@@ -53,6 +53,26 @@ export function getEffectiveServerUrl(url: string): string {
   return trimmed
 }
 
+function createBasePathFetch(fetcher: typeof globalThis.fetch, base: URL): typeof globalThis.fetch {
+  const basePath = base.pathname.replace(/\/+$/, "")
+  const rewrite = (input: RequestInfo | URL) => {
+    if (!basePath) return input
+    const raw = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url
+    const url = new URL(raw, base)
+    if (url.origin !== base.origin) return input
+    if (url.pathname === basePath || url.pathname.startsWith(`${basePath}/`)) return input
+    url.pathname = `${basePath}${url.pathname === "/" ? "" : url.pathname}`
+    if (input instanceof Request) return new Request(url, input)
+    if (input instanceof URL) return url
+    return url.toString()
+  }
+
+  return Object.assign(
+    (input: RequestInfo | URL, init?: RequestInit) => fetcher(rewrite(input), init),
+    { preconnect: fetcher.preconnect },
+  )
+}
+
 export function createSdkForServer({
   server,
   ...config
@@ -68,19 +88,7 @@ export function createSdkForServer({
 
   const parsed = new URL(getEffectiveServerUrl(server.url), typeof location === "object" ? location.href : "http://localhost")
 
-  const customFetch = (reqUrl: RequestInfo | URL, init?: RequestInit) => {
-    let finalStr = typeof reqUrl === "string" ? reqUrl : reqUrl instanceof URL ? reqUrl.toString() : reqUrl.url
-    if (parsed.pathname !== "/" && parsed.pathname !== "") {
-      if (finalStr.startsWith(parsed.origin)) {
-        const u = new URL(finalStr)
-        if (!u.pathname.startsWith(parsed.pathname)) {
-          u.pathname = parsed.pathname + (u.pathname === "/" ? "" : u.pathname)
-          finalStr = u.toString()
-        }
-      }
-    }
-    return (config.fetch ?? globalThis.fetch)(finalStr, init)
-  }
+  const customFetch = createBasePathFetch(config.fetch ?? globalThis.fetch, parsed)
 
   return createOpencodeClient({
     ...config,
@@ -99,19 +107,7 @@ export function createApiForServer(input: {
 }): OpenCodeClient {
   const parsed = new URL(getEffectiveServerUrl(input.server.url), typeof location === "object" ? location.href : "http://localhost")
 
-  const customFetch = (reqUrl: RequestInfo | URL, init?: RequestInit) => {
-    let finalStr = typeof reqUrl === "string" ? reqUrl : reqUrl instanceof URL ? reqUrl.toString() : reqUrl.url
-    if (parsed.pathname !== "/" && parsed.pathname !== "") {
-      if (finalStr.startsWith(parsed.origin)) {
-        const u = new URL(finalStr)
-        if (!u.pathname.startsWith(parsed.pathname)) {
-          u.pathname = parsed.pathname + (u.pathname === "/" ? "" : u.pathname)
-          finalStr = u.toString()
-        }
-      }
-    }
-    return (input.fetch ?? globalThis.fetch)(finalStr, init)
-  }
+  const customFetch = createBasePathFetch(input.fetch ?? globalThis.fetch, parsed)
 
   return OpenCode.make({
     baseUrl: parsed.origin,

@@ -1,9 +1,8 @@
-import { createSignal, createEffect, onCleanup, createMemo } from "solid-js"
+import { createSignal, createRenderEffect, onCleanup, createMemo } from "solid-js"
 import { useSync } from "@/context/sync"
 import { ActivityConfig, type ModelActivityState } from "./activity-config"
 
-export function useModelActivity(sessionID: () => string) {
-  const sync = useSync()
+export function useModelActivity(sessionID: () => string, sync = useSync()) {
 
   // Track the derived state
   const [state, setState] = createSignal<ModelActivityState>("idle")
@@ -25,28 +24,8 @@ export function useModelActivity(sessionID: () => string) {
   const todos = createMemo(() => sync().data.todo[sessionID()] ?? [])
   const waitingForTool = createMemo(() => todos().some(t => t.status === "in_progress"))
 
-  // Effect to process new events and update EWMA
-  createEffect(() => {
-    const currentEventTime = lastEventAt()
-    if (currentEventTime === 0) return
-    
-    setLastProcessedEventTime(prev => {
-      // If we haven't seen an event yet, just initialize
-      if (prev === 0) return currentEventTime
-      
-      const interval = currentEventTime - prev
-      if (interval > 0) {
-        // Update EWMA
-        setEwma(current => {
-          return ActivityConfig.EWMA_ALPHA * interval + (1 - ActivityConfig.EWMA_ALPHA) * current
-        })
-      }
-      return currentEventTime
-    })
-  })
-  
   // Evaluation loop
-  createEffect(() => {
+  createRenderEffect(() => {
     // If not working, clear timer and set appropriate resting state
     if (!isWorking()) {
       setState("idle")
@@ -58,7 +37,16 @@ export function useModelActivity(sessionID: () => string) {
     // Interval to evaluate stalled or fast/slow
     const evaluate = () => {
       const now = Date.now()
-      const last = Math.max(lastProcessedEventTime(), lastEventAt())
+      const eventTime = lastEventAt()
+      const previousEventTime = lastProcessedEventTime()
+      if (eventTime > 0 && eventTime !== previousEventTime) {
+        const interval = previousEventTime === 0 ? 0 : eventTime - previousEventTime
+        if (interval > 0) {
+          setEwma((current) => ActivityConfig.EWMA_ALPHA * interval + (1 - ActivityConfig.EWMA_ALPHA) * current)
+        }
+        setLastProcessedEventTime(eventTime)
+      }
+      const last = Math.max(lastProcessedEventTime(), eventTime)
       const timeSince = last === 0 ? 0 : now - last
       
       setTimeSinceLastActivity(timeSince)

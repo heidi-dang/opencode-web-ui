@@ -157,7 +157,7 @@ export async function sendFollowupDraft(input: FollowupSendInput) {
       return false
     }
 
-    await input.serverSync.session.prompt({
+    await input.api.prompt({
       sessionID: input.draft.sessionID,
       id: messageID,
       agent: input.draft.agent,
@@ -264,7 +264,7 @@ export function createPromptSubmit(input: PromptSubmitInput) {
       pending.delete(key)
       return Promise.resolve()
     }
-    return serverSync().session.interrupt({ sessionID })
+    return sdk().api.session.interrupt({ sessionID })
       .catch(() => {})
   }
 
@@ -391,7 +391,7 @@ export function createPromptSubmit(input: PromptSubmitInput) {
 
     let session = input.info()
     if (!session && isNewSession) {
-      const created = await serverSync().session.create({
+      const created = await sdk().api.session.create({
           agent: currentAgent.name,
           model: { id: currentModel.id, providerID: currentModel.provider.id, variant },
           location: { directory: sessionDirectory },
@@ -433,7 +433,7 @@ export function createPromptSubmit(input: PromptSubmitInput) {
 
     if (isNewSession && text.trim().length > 0) {
       const title = text.split("\n")[0].trim().substring(0, 100) || "New session"
-      serverSync().session.rename({
+      sdk().api.session.rename({
           sessionID: session.id,
           directory: sessionDirectory,
           title,
@@ -491,7 +491,7 @@ export function createPromptSubmit(input: PromptSubmitInput) {
     if (mode === "shell") {
       clearInput()
       const eventID = Event.ID.create()
-      serverSync().session.shell({
+      sdk().api.session.shell({
           sessionID: session.id,
           id: eventID,
           command: text,
@@ -516,7 +516,7 @@ export function createPromptSubmit(input: PromptSubmitInput) {
         clearInput()
         const messageID = Identifier.ascending("message")
         serverSync().session.set("session_status", session.id, { type: "busy" })
-        serverSync().session.command({
+        sdk().api.session.command({
             sessionID: session.id,
             id: messageID,
             command: commandName,
@@ -613,7 +613,7 @@ export function createPromptSubmit(input: PromptSubmitInput) {
     }
 
     void sendFollowupDraft({
-      api: serverSync().session,
+      api: sdk().api.session,
       sync: sync(),
       serverSync: serverSync(),
       draft,
