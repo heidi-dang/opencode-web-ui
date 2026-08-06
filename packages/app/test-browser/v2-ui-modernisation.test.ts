@@ -1,5 +1,6 @@
 import { describe, test, expect } from "bun:test"
 import themeCss from "../../ui/src/v2/styles/theme.css" with { type: "text" }
+import settingsCss from "../src/components/settings-v2/settings-v2.css" with { type: "text" }
 
 describe("V2 UI Modernisation — Design System & Visual Performance Invariants", () => {
   test("Theme CSS exports all canonical Deep Aurora tokens in light and dark modes", () => {
@@ -39,9 +40,26 @@ describe("V2 UI Modernisation — Design System & Visual Performance Invariants"
     const indexCssFile = Bun.file("src/index.css")
     const content = await indexCssFile.text()
 
-    // Keyframes should use v2 tokens, not raw rgba(99, 102, 241) or rgba(139, 92, 246)
+    // Keyframes & classes should use v2 tokens, not raw rgba(99, 102, 241) or rgba(139, 92, 246)
     expect(content).not.toContain("box-shadow: 0 0 12px rgba(99, 102, 241")
     expect(content).not.toContain("box-shadow: 0 0 20px rgba(99, 102, 241")
     expect(content).not.toContain("border-color: rgba(139, 92, 246")
+  })
+
+  test("Accessibility: forced-colors and prefers-reduced-motion overrides exist", async () => {
+    const indexCssFile = Bun.file("src/index.css")
+    const content = await indexCssFile.text()
+
+    expect(content).toContain("@media (forced-colors: active)")
+    expect(content).toContain("@media (prefers-reduced-motion: reduce)")
+    expect(content).toContain(".glass-panel")
+    expect(content).toContain(".glass-card")
+  })
+
+  test("Settings V2 contains responsive 200% zoom and forced-colors accessibility rules", () => {
+    expect(settingsCss).toContain("@media (forced-colors: active)")
+    expect(settingsCss).toContain("@media (prefers-reduced-motion: reduce)")
+    expect(settingsCss).toContain("--v2-background-bg-base")
+    expect(settingsCss).toContain("--v2-elevation-raised")
   })
 })

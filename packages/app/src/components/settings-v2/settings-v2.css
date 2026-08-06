@@ -673,3 +673,29 @@
   line-height: 1;
   color: var(--v2-state-fg-danger);
 }
+
+/* ─── 200% Zoom & High-Contrast Accessibility Enhancements ──────────────── */
+
+@media (max-width: 768px) {
+  [data-component="settings-v2-row"] {
+    flex-wrap: wrap !important;
+  }
+}
+
+@media (forced-colors: active) {
+  [data-component="settings-v2-list"] {
+    border: 1px solid CanvasText !important;
+    box-shadow: none !important;
+  }
+
+  .settings-v2-nav-footer {
+    border-top: 1px solid CanvasText !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-v2-panel,
+  .settings-v2-tab-header {
+    transition: none !important;
+  }
+}
