@@ -13,16 +13,19 @@ import { createBetterHarnessStore } from "../stores/better-harness";
 import { BetterHarnessUnavailable } from "../components/BetterHarnessUnavailable";
 import { ButtonV2 } from "@opencode-ai/ui/v2/button-v2";
 
+import { useServer } from "@/context/server";
+
 export function BetterHarnessPage() {
   const language = useLanguage();
   const t = (key: string, params?: Record<string, string | number | boolean>) => language.t(key, params);
   const params = useParams<{ serverKey: string; projectKey: string }>();
   const navigate = useNavigate();
   const [initialised, setInitialised] = createSignal(false);
+  const server = useServer();
 
-  // Get server and project context from route params
-  const serverKey = () => params.serverKey;
-  const projectKey = () => params.projectKey;
+  // Get server and project context from route params or defaults
+  const serverKey = () => params.serverKey || server.key;
+  const projectKey = () => params.projectKey || "";
 
   // Derive transport URL from the current page's origin
   const baseUrl = () => window.location.origin;

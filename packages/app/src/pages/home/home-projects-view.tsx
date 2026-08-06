@@ -186,6 +186,14 @@ export function HomeUtilityNav(props: {
       <HomeProjectNavButton
         type="button"
         class="text-v2-text-text-faint [&>[data-slot=icon-svg]]:text-v2-icon-icon-muted"
+        onClick={() => navigate("/better-harness")}
+      >
+        <IconV2 name="providers" size="small" />
+        <span class={HOME_PROJECT_NAV_LABEL}>Better Harness</span>
+      </HomeProjectNavButton>
+      <HomeProjectNavButton
+        type="button"
+        class="text-v2-text-text-faint [&>[data-slot=icon-svg]]:text-v2-icon-icon-muted"
         onClick={props.onOpenSettings}
       >
         <IconV2 name="settings-gear" size="small" />

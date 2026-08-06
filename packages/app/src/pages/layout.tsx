@@ -2254,11 +2254,7 @@ export default function LegacyLayout(props: ParentProps) {
         if (p && p.id) {
           navigate(`/server/${serverKey}/project/${p.id}/better-harness`);
         } else {
-          showToast({
-            title: "Project Required",
-            description: "Please open a project to use Better Harness.",
-            variant: "error",
-          });
+          navigate("/better-harness");
         }
       }}
       helpLabel={() => language.t("sidebar.help")}

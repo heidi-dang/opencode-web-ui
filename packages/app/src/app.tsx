@@ -653,6 +653,7 @@ function Routes(props: { serverScoped?: JSX.Element }) {
         <Route path="/" component={NewHome} />
         <Route path="/fleet" component={FleetPage} />
         <Route path="/flowdeck" component={FlowdeckDashboard} />
+        <Route path="/better-harness" component={BetterHarnessPage} />
         <Route path="/server/:serverKey/project/:projectKey/better-harness" component={BetterHarnessPage} />
         <Route path="/:dir/session/:id" component={NewLayoutLegacySessionRedirect} />
         <Route path="/server/:serverKey/session/:id" component={TargetSessionRoute} />
