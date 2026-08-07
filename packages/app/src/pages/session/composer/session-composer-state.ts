@@ -9,6 +9,7 @@ import { usePermission } from "@/context/permission"
 import { useSDK } from "@/context/sdk"
 import { useSync } from "@/context/sync"
 import { sessionPermissionRequest, sessionQuestionRequest } from "./session-request-tree"
+import { todoSignature } from "./todo-signature"
 
 export const todoState = (input: {
   count: number
@@ -136,8 +137,8 @@ export function createSessionComposerController(options?: { closeMs?: number | (
 
   createEffect(
     on(
-      () => [params.id, todos().length, done(), live()] as const,
-      ([id, count, complete, active], previous) => {
+      () => [params.id, todoSignature(todos()), todos().length, done(), live()] as const,
+      ([id, , count, complete, active], previous) => {
         if (raf) cancelAnimationFrame(raf)
         raf = undefined
 
