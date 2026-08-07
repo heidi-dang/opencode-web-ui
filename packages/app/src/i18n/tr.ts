@@ -203,6 +203,8 @@ export const dict = {
   "provider.custom.error.baseURL.format": "http:// veya https:// ile başlamalı",
   "provider.custom.error.required": "Gerekli",
   "provider.custom.error.duplicate": "Tekrar",
+  "provider.custom.error.apiKey.envEmpty": "Environment variable name cannot be empty",
+  "provider.custom.error.apiKey.envFormat": "Environment variable name must be uppercase letters, numbers, or underscores",
 
   "provider.disconnect.toast.disconnected.title": "{{provider}} bağlantısı kesildi",
   "provider.disconnect.toast.disconnected.description": "{{provider}} modelleri artık kullanılabilir değil.",

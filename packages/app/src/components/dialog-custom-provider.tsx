@@ -96,7 +96,10 @@ export function CustomProviderForm(props: { autofocus?: boolean } = {}) {
 
   const setField = (key: "providerID" | "name" | "baseURL" | "apiKey", value: string) => {
     setForm(key, value)
-    if (key === "apiKey") return
+    if (key === "apiKey") {
+      setForm("err", "apiKey", undefined)
+      return
+    }
     setForm("err", key, undefined)
   }
 
@@ -224,6 +227,8 @@ export function CustomProviderForm(props: { autofocus?: boolean } = {}) {
             description={language.t("provider.custom.field.apiKey.description")}
             value={form.apiKey}
             onChange={(v) => setField("apiKey", v)}
+            validationState={form.err.apiKey ? "invalid" : undefined}
+            error={form.err.apiKey}
           />
         </div>
 

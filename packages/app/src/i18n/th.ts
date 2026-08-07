@@ -199,6 +199,8 @@ export const dict = {
   "provider.custom.error.baseURL.format": "ต้องขึ้นต้นด้วย http:// หรือ https://",
   "provider.custom.error.required": "จำเป็น",
   "provider.custom.error.duplicate": "ซ้ำ",
+  "provider.custom.error.apiKey.envEmpty": "Environment variable name cannot be empty",
+  "provider.custom.error.apiKey.envFormat": "Environment variable name must be uppercase letters, numbers, or underscores",
 
   "provider.disconnect.toast.disconnected.title": "{{provider}} ที่ยกเลิกการเชื่อมต่อแล้ว",
   "provider.disconnect.toast.disconnected.description": "โมเดล {{provider}} ไม่พร้อมใช้งานอีกต่อไป",

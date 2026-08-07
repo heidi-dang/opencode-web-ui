@@ -185,6 +185,8 @@ export const dict = {
   "provider.custom.error.baseURL.format": "http:// または https:// で始まる必要があります",
   "provider.custom.error.required": "必須",
   "provider.custom.error.duplicate": "重複",
+  "provider.custom.error.apiKey.envEmpty": "Environment variable name cannot be empty",
+  "provider.custom.error.apiKey.envFormat": "Environment variable name must be uppercase letters, numbers, or underscores",
   "provider.disconnect.toast.disconnected.title": "{{provider}}が切断されました",
   "provider.disconnect.toast.disconnected.description": "{{provider}}のモデルは利用できなくなりました。",
   "model.tag.free": "無料",

@@ -38,6 +38,7 @@ export type FormState = {
     providerID?: string
     name?: string
     baseURL?: string
+    apiKey?: string
   }
 }
 
@@ -54,8 +55,22 @@ export function validateCustomProvider(input: ValidateArgs) {
   const baseURL = input.form.baseURL.trim()
   const apiKey = input.form.apiKey.trim()
 
-  const env = apiKey.match(/^\{env:([^}]+)\}$/)?.[1]?.trim()
-  const key = apiKey && !env ? apiKey : undefined
+  // API key may be a literal secret or an `{env: NAME}` reference to an
+  // environment variable resolved server-side. Detect the env reference before
+  // anything else so a malformed `{env:...}` can never leak through as a literal key.
+  const envPattern = /^\{env:([^}]*)\}$/
+  const envMatch = apiKey.match(envPattern)
+  const envName = envMatch?.[1]?.trim() ?? ""
+  const isEnvReference = envMatch !== null
+  const env = isEnvReference ? envName : undefined
+  const key = !isEnvReference && apiKey ? apiKey : undefined
+
+  const ENV_VAR_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/
+  const envError = isEnvReference && !envName
+    ? input.t("provider.custom.error.apiKey.envEmpty")
+    : isEnvReference && !ENV_VAR_NAME.test(envName)
+      ? input.t("provider.custom.error.apiKey.envFormat")
+      : undefined
 
   const idError = !providerID
     ? input.t("provider.custom.error.providerID.required")
@@ -123,9 +138,10 @@ export function validateCustomProvider(input: ValidateArgs) {
     providerID: idError ?? existsError,
     name: nameError,
     baseURL: urlError,
+    apiKey: envError,
   }
 
-  const ok = !idError && !existsError && !nameError && !urlError && modelsValid && headersValid
+  const ok = !idError && !existsError && !nameError && !urlError && !envError && modelsValid && headersValid
   if (!ok) return { err, models, headers }
 
   return {

@@ -197,6 +197,8 @@ export const dict = {
   "provider.custom.error.baseURL.format": "Må starte med http:// eller https://",
   "provider.custom.error.required": "Påkrevd",
   "provider.custom.error.duplicate": "Duplikat",
+  "provider.custom.error.apiKey.envEmpty": "Environment variable name cannot be empty",
+  "provider.custom.error.apiKey.envFormat": "Environment variable name must be uppercase letters, numbers, or underscores",
 
   "provider.disconnect.toast.disconnected.title": "{{provider}} frakoblet",
   "provider.disconnect.toast.disconnected.description": "Modeller fra {{provider}} er ikke lenger tilgjengelige.",

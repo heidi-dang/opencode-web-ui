@@ -185,6 +185,8 @@ export const dict = {
   "provider.custom.error.baseURL.format": "يجب أن يبدأ بـ http:// أو https://",
   "provider.custom.error.required": "مطلوب",
   "provider.custom.error.duplicate": "مكرر",
+  "provider.custom.error.apiKey.envEmpty": "Environment variable name cannot be empty",
+  "provider.custom.error.apiKey.envFormat": "Environment variable name must be uppercase letters, numbers, or underscores",
   "provider.disconnect.toast.disconnected.title": "تم فصل {{provider}}",
   "provider.disconnect.toast.disconnected.description": "لم تعد نماذج {{provider}} متاحة.",
   "model.tag.free": "مجاني",

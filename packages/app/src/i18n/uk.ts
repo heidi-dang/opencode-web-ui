@@ -200,6 +200,8 @@ export const dict = {
   "provider.custom.error.baseURL.format": "Має починатися з http:// або https://",
   "provider.custom.error.required": "Обов'язково",
   "provider.custom.error.duplicate": "Дублікат",
+  "provider.custom.error.apiKey.envEmpty": "Environment variable name cannot be empty",
+  "provider.custom.error.apiKey.envFormat": "Environment variable name must be uppercase letters, numbers, or underscores",
 
   "provider.disconnect.toast.disconnected.title": "{{provider}} відключено",
   "provider.disconnect.toast.disconnected.description": "Моделі {{provider}} більше недоступні.",

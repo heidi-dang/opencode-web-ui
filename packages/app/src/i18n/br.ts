@@ -186,6 +186,8 @@ export const dict = {
   "provider.custom.error.baseURL.format": "Deve começar com http:// ou https://",
   "provider.custom.error.required": "Obrigatório",
   "provider.custom.error.duplicate": "Duplicado",
+  "provider.custom.error.apiKey.envEmpty": "Environment variable name cannot be empty",
+  "provider.custom.error.apiKey.envFormat": "Environment variable name must be uppercase letters, numbers, or underscores",
   "provider.disconnect.toast.disconnected.title": "{{provider}} desconectado",
   "provider.disconnect.toast.disconnected.description": "Os modelos de {{provider}} não estão mais disponíveis.",
   "model.tag.free": "Grátis",

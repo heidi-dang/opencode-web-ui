@@ -181,6 +181,8 @@ export const dict = {
   "provider.custom.error.baseURL.format": "http:// 또는 https://로 시작해야 합니다",
   "provider.custom.error.required": "필수",
   "provider.custom.error.duplicate": "중복",
+  "provider.custom.error.apiKey.envEmpty": "Environment variable name cannot be empty",
+  "provider.custom.error.apiKey.envFormat": "Environment variable name must be uppercase letters, numbers, or underscores",
   "provider.disconnect.toast.disconnected.title": "{{provider}} 연결 해제됨",
   "provider.disconnect.toast.disconnected.description": "{{provider}} 모델을 더 이상 사용할 수 없습니다.",
   "model.tag.free": "무료",
