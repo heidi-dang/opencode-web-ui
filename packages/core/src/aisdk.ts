@@ -29,36 +29,41 @@ function wrapSSE(res: Response, ms: number, ctl: AbortController) {
   if (!res.headers.get("content-type")?.includes("text/event-stream")) return res
 
   const reader = res.body.getReader()
+  let timeoutId: NodeJS.Timeout | undefined
+
+  const resetTimeout = () => {
+    if (timeoutId) {
+      clearTimeout(timeoutId)
+    }
+    timeoutId = setTimeout(() => {
+      const err = new Error("SSE read timed out")
+      ctl.abort(err)
+      void reader.cancel(err) // Ensure the underlying reader is also cancelled
+    }, ms)
+  }
+
+  resetTimeout() // Start initial timeout
+
   const body = new ReadableStream<Uint8Array>({
     async pull(ctrl) {
-      const part = await new Promise<Awaited<ReturnType<typeof reader.read>>>((resolve, reject) => {
-        const id = setTimeout(() => {
-          const err = new Error("SSE read timed out")
-          ctl.abort(err)
-          void reader.cancel(err)
-          reject(err)
-        }, ms)
+      try {
+        const { done, value } = await reader.read()
+        resetTimeout() // Reset timeout on successful read
 
-        reader.read().then(
-          (part) => {
-            clearTimeout(id)
-            resolve(part)
-          },
-          (err) => {
-            clearTimeout(id)
-            reject(err)
-          },
-        )
-      })
+        if (done) {
+          clearTimeout(timeoutId) // Clear timeout when stream ends
+          ctrl.close()
+          return
+        }
 
-      if (part.done) {
-        ctrl.close()
-        return
+        ctrl.enqueue(value)
+      } catch (err) {
+        clearTimeout(timeoutId) // Clear timeout on error
+        ctrl.error(err)
       }
-
-      ctrl.enqueue(part.value)
     },
     async cancel(reason) {
+      clearTimeout(timeoutId) // Clear timeout if stream is cancelled externally
       ctl.abort(reason)
       await reader.cancel(reason)
     },

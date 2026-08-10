@@ -188,7 +188,11 @@ function hasUtf8Bom(content: Uint8Array) {
 
 function sameBytes(left: Uint8Array, right: Uint8Array) {
   if (left.length !== right.length) return false
-  return left.every((byte, index) => byte === right[index])
+  if (typeof Buffer !== "undefined") return Buffer.compare(left, right) === 0
+  for (let i = 0; i < left.length; i++) {
+    if (left[i] !== right[i]) return false
+  }
+  return true
 }
 
 export const locationLayer = layer

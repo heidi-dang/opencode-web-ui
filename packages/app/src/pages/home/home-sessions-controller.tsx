@@ -172,6 +172,10 @@ export function createHomeSessionsController(home: HomeController) {
       records,
       groups,
       loading: () => sessionLoad.isLoading,
+      error: () => sessionLoad.error,
+      retry: () => {
+        void sessionLoad.refetch()
+      },
       searchRecords: allRecords,
     },
     session: {

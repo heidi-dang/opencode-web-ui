@@ -169,9 +169,13 @@ export namespace FSUtil {
         const result: string[] = []
         let current = options.start
         while (true) {
-          for (const target of options.targets) {
+          const checks = options.targets.map((target) => {
             const search = join(current, target)
-            if (yield* fs.exists(search)) result.push(search)
+            return fs.exists(search).pipe(Effect.map((exists) => (exists ? search : null)))
+          })
+          const matches = yield* Effect.all(checks, { concurrency: "unbounded" })
+          for (const match of matches) {
+            if (match !== null) result.push(match)
           }
           if (options.stop === current) break
           const parent = dirname(current)
@@ -221,6 +225,15 @@ export namespace FSUtil {
   export const node = makeGlobalNode({ service: Service, layer: layer, deps: [filesystem] })
 
   // Pure helpers that don't need Effect (path manipulation, sync operations)
+
+  export function joinSafe(base: string, ...paths: string[]): string {
+    const resolved = pathResolve(base, ...paths);
+    if (!resolved.startsWith(base + sep) && resolved !== base) {
+      throw new Error(`Path traversal detected: \"${paths.join(sep)}\" tries to escape base \"${base}\"`)
+    }
+    return resolved;
+  }
+
   export function mimeType(p: string): string {
     return lookup(p) || "application/octet-stream"
   }

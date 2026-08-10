@@ -666,7 +666,16 @@ export function PromptInputV2SubmitButton(props: {
     <TooltipV2
       placement="top"
       inactive={!props.stopping && props.disabled}
-      value={props.stopping ? props.stopLabel : props.sendLabel}
+      value={
+        props.stopping ? (
+          props.stopLabel
+        ) : (
+          <>
+            {props.sendLabel}
+            <KeybindV2 keys={["Enter"]} variant="neutral" />
+          </>
+        )
+      }
       class="shrink-0 flex items-center justify-center"
     >
       <IconButton

@@ -120,9 +120,15 @@ export class Directory extends Schema.Class<Directory>("Config.Directory")({
 export type Entry = Document | Directory
 
 export function latest<K extends keyof Info>(entries: readonly Entry[], key: K): Info[K] | undefined {
-  return entries
-    .filter((entry): entry is Document => entry.type === "document")
-    .findLast((entry) => entry.info[key] !== undefined)?.info[key]
+  let latestValue: Info[K] | undefined = undefined;
+  for (let i = entries.length - 1; i >= 0; i--) {
+    const entry = entries[i];
+    if (entry.type === "document" && entry.info[key] !== undefined) {
+      latestValue = entry.info[key];
+      break; // Found the latest, so we can stop
+    }
+  }
+  return latestValue;
 }
 
 export interface Interface {

@@ -1,6 +1,7 @@
 import type { HomeScrollController } from "./home-scroll-controller"
 import type { HomeSessionSearchController } from "./home-session-search-controller"
 import type { HomeSessionsController } from "./home-sessions-controller"
+import { useCommand } from "@/context/command"
 import { HomeSessionsView } from "./home-sessions-view"
 
 export function HomeSessions(props: {
@@ -8,11 +9,15 @@ export function HomeSessions(props: {
   search: HomeSessionSearchController
   scroll: HomeScrollController
 }) {
+  const command = useCommand()
   return (
     <HomeSessionsView
       language={props.sessions.copy.language}
       groups={props.sessions.data.groups}
       loading={props.sessions.data.loading}
+      error={props.sessions.data.error}
+      onRetry={props.sessions.data.retry}
+      paletteKeybind={command.keybindParts("command.palette")}
       showProjectName={props.sessions.session.showProjectName}
       server={props.sessions.session.server}
       canCreateSession={props.sessions.session.canCreate}

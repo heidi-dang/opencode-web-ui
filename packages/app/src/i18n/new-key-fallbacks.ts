@@ -26,4 +26,7 @@ export const newKeyFallbacks = {
   "session.status.step.2": "Evaluating approach…",
   "session.status.step.3": "Determining next action…",
   "common.skipToContent": "Skip to content",
+  "common.retry": "Retry",
+  "home.sessions.loadFailed": "Couldn't load your recent sessions",
+  "home.sessions.loadFailed.description": "Check the connection to your server and try again.",
 } as const

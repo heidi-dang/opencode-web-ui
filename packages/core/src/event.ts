@@ -134,7 +134,7 @@ export interface Interface {
   readonly durable: (input: { readonly aggregateID: string; readonly after?: number }) => Stream.Stream<Payload>
   /** @deprecated Use `all()` and consume the returned stream. */
   readonly listen: (listener: Subscriber) => Effect.Effect<Unsubscribe>
-  readonly project: <D extends Definition>(definition: D, projector: Subscriber<D>) => Effect.Effect<void>
+  readonly project: <D extends Definition>(definition: D, projector: Subscriber<D>) => Effect.Effect<Unsubscribe>
   readonly replay: (
     event: SerializedEvent,
     options?: { readonly publish?: boolean; readonly ownerID?: string; readonly strictOwner?: boolean },
@@ -612,11 +612,20 @@ export const layerWith = (options?: LayerOptions) =>
           })
         })
 
-      const project = <D extends Definition>(definition: D, projector: Subscriber<D>): Effect.Effect<void> =>
+      const project = <D extends Definition>(definition: D, projector: Subscriber<D>): Effect.Effect<Unsubscribe> =>
         Effect.sync(() => {
           const list = projectors.get(definition.type) ?? []
-          list.push((event) => projector(event as Payload<D>))
+          const wrapped: Subscriber = (event) => projector(event as Payload<D>)
+          list.push(wrapped)
           projectors.set(definition.type, list)
+          return Effect.sync(() => {
+            const list = projectors.get(definition.type)
+            if (list) {
+              const index = list.indexOf(wrapped)
+              if (index >= 0) list.splice(index, 1)
+              if (list.length === 0) projectors.delete(definition.type)
+            }
+          })
         })
 
       return Service.of({

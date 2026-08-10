@@ -1,6 +1,7 @@
 import type { Component, JSX } from "solid-js"
 import { createMemo, createUniqueId, splitProps, Show } from "solid-js"
-import sprite from "./file-icons/sprite.svg"
+// Import sprite URL without embedding its content directly into the JS bundle
+import spriteUrl from "./file-icons/sprite.svg?url"
 import type { IconName } from "./file-icons/types"
 
 export type FileIconProps = JSX.GSVGAttributes<SVGSVGElement> & {
@@ -22,10 +23,10 @@ export const FileIcon: Component<FileIconProps> = (props) => {
         [local.class ?? ""]: !!local.class,
       }}
     >
-      <Show when={local.mono} fallback={<use href={`${sprite}#${name()}`} />}>
+      <Show when={local.mono} fallback={<use href={`${spriteUrl}#${name()}`} />}>
         <defs>
           <mask id={id} mask-type="alpha">
-            <use href={`${sprite}#${name()}`} />
+            <use href={`${spriteUrl}#${name()}`} />
           </mask>
         </defs>
         <rect width="100%" height="100%" fill="currentColor" mask={`url(#${id})`} />

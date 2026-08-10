@@ -5,6 +5,7 @@ import { ScrollView } from "@opencode-ai/ui/scroll-view"
 import { ButtonV2 } from "@opencode-ai/ui/v2/button-v2"
 import { Icon as IconV2 } from "@opencode-ai/ui/v2/icon"
 import { IconButtonV2 } from "@opencode-ai/ui/v2/icon-button-v2"
+import { KeybindV2 } from "@opencode-ai/ui/v2/keybind-v2"
 import { TooltipV2 } from "@opencode-ai/ui/v2/tooltip-v2"
 import { useLanguage } from "@/context/language"
 import { ServerConnection } from "@/context/server"
@@ -40,6 +41,9 @@ export type HomeSessionsViewProps = {
   language: ReturnType<typeof useLanguage>
   groups: Accessor<HomeSessionGroup[]>
   loading: Accessor<boolean>
+  error: Accessor<unknown>
+  onRetry: () => void
+  paletteKeybind: string[]
   showProjectName: Accessor<boolean>
   server: Accessor<ServerConnection.Key>
   canCreateSession: Accessor<boolean>
@@ -113,14 +117,24 @@ export function HomeSessionsView(props: HomeSessionsViewProps) {
           }
         >
           <Show
-            when={props.groups().length > 0}
+            when={!props.error()}
             fallback={
-              <HomeSessionsEmpty
-                onNewSession={props.canCreateSession() ? props.onCreateSession : undefined}
+              <HomeSessionsError
                 language={props.language}
+                onRetry={props.onRetry}
+                onNewSession={props.canCreateSession() ? props.onCreateSession : undefined}
               />
             }
           >
+            <Show
+              when={props.groups().length > 0}
+              fallback={
+                <HomeSessionsEmpty
+                  onNewSession={props.canCreateSession() ? props.onCreateSession : undefined}
+                  language={props.language}
+                />
+              }
+            >
             <div ref={props.onSetContent} class="flex flex-col pt-3 pr-3 pb-16">
               <For each={props.groups()}>
                 {(group, index) => (
@@ -140,6 +154,7 @@ export function HomeSessionsView(props: HomeSessionsViewProps) {
                 )}
               </For>
             </div>
+            </Show>
           </Show>
         </Show>
       </div>
@@ -277,8 +292,9 @@ function HomeSessionSearch(props: HomeSessionsViewProps) {
           <input
             ref={props.onSetSearchInput}
             class={`
-              relative z-20 min-w-0 flex-1 border-0 bg-transparent outline-0
+              relative z-20 min-w-0 flex-1 rounded-[6px] border-0 bg-transparent outline-0
               text-v2-text-text-base font-body placeholder:text-v2-text-text-faint
+              focus-visible:outline-2 focus-visible:outline-v2-border-border-focus
             `}
             value={props.searchValue()}
             placeholder={props.searchPlaceholder()}
@@ -318,6 +334,11 @@ function HomeSessionSearch(props: HomeSessionsViewProps) {
               }
             }}
           />
+          <Show when={!props.searchValue()}>
+            <div class="pointer-events-none relative z-20 shrink-0" aria-hidden="true">
+              <KeybindV2 keys={props.paletteKeybind} variant="neutral" />
+            </div>
+          </Show>
           <Show when={props.searchValue()}>
             <IconButtonV2
               type="button"
@@ -359,7 +380,8 @@ function HomeSessionSearchResultRow(
       class={`
         flex h-10 w-full shrink-0 cursor-default items-center gap-2 border-0 py-3 pl-[18px] pr-6 text-left
         transition-[background-color] duration-[120ms] ease-in-out
-        hover:bg-v2-overlay-simple-overlay-hover focus-visible:bg-v2-overlay-simple-overlay-hover focus-visible:outline-none
+        hover:bg-v2-overlay-simple-overlay-hover focus-visible:bg-v2-overlay-simple-overlay-hover
+        focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-v2-border-border-focus
       `}
       classList={{
         "bg-v2-overlay-simple-overlay-hover": props.selected,
@@ -430,7 +452,8 @@ function HomeSessionRow(props: HomeSessionsViewProps & { record: HomeSessionReco
           flex h-10 min-w-0 w-full flex-1 shrink-0 cursor-default items-center gap-2 rounded-md border-0
           bg-transparent py-3 pl-3 pr-10 text-left text-v2-text-text-muted font-emphasis
           transition-[background-color,color,box-shadow] duration-[120ms] ease-in-out
-          hover:bg-v2-overlay-simple-overlay-hover focus-visible:bg-v2-overlay-simple-overlay-hover focus-visible:outline-none
+          hover:bg-v2-overlay-simple-overlay-hover focus-visible:bg-v2-overlay-simple-overlay-hover
+          focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-v2-border-border-focus
         `}
         onMouseDown={(event) => {
           if (event.button === 1) event.preventDefault()
@@ -532,6 +555,60 @@ function HomeSessionsEmpty(props: { onNewSession?: () => void; language: ReturnT
           </ButtonV2>
         )}
       </Show>
+    </div>
+  )
+}
+
+function HomeSessionsError(props: {
+  language: ReturnType<typeof useLanguage>
+  onRetry: () => void
+  onNewSession?: () => void
+}) {
+  return (
+    <div class="flex min-h-full flex-col items-center gap-4 px-6 pt-[52px] text-center">
+      <div
+        class={`
+          flex size-9 shrink-0 items-center justify-center rounded-lg
+          bg-v2-overlay-simple-overlay-hover text-v2-text-text-muted
+        `}
+        aria-hidden="true"
+      >
+        <IconV2 name="outline-warning-triangle" />
+      </div>
+      <div
+        class={`
+          shrink-0 text-[13px] leading-[13px] tracking-v2
+          text-v2-text-text-base font-emphasis
+        `}
+      >
+        {props.language.t("home.sessions.loadFailed")}
+      </div>
+      <p
+        class={`
+          mb-1 text-center text-[13px] leading-5 tracking-v2
+          text-v2-text-text-muted font-body
+        `}
+      >
+        {props.language.t("home.sessions.loadFailed.description")}
+      </p>
+      <div class="flex items-center gap-2">
+        <ButtonV2 data-action="home-sessions-retry" variant="neutral" size="normal" onClick={props.onRetry}>
+          {props.language.t("common.retry")}
+        </ButtonV2>
+        <Show when={props.onNewSession}>
+          {(onNewSession) => (
+            <ButtonV2
+              data-action="home-new-session"
+              variant="ghost-muted"
+              size="normal"
+              icon="edit"
+              onClick={onNewSession()}
+            >
+              {props.language.t("command.session.new")}
+            </ButtonV2>
+          )}
+        </Show>
+      </div>
     </div>
   )
 }

@@ -1,5 +1,7 @@
 import { splitProps, type JSX } from "solid-js"
 
+const RESIZE_STEP = 10
+
 export interface ResizeHandleProps extends Omit<JSX.HTMLAttributes<HTMLDivElement>, "onResize"> {
   direction: "horizontal" | "vertical"
   edge?: "start" | "end"
@@ -11,6 +13,8 @@ export interface ResizeHandleProps extends Omit<JSX.HTMLAttributes<HTMLDivElemen
   /** Called while dragging when size crosses `collapseThreshold`. */
   onCollapseChange?: (collapsed: boolean) => void
   collapseThreshold?: number
+  /** Accessible label for the separator, e.g. "Resize terminal panel". */
+  label?: string
 }
 
 export function ResizeHandle(props: ResizeHandleProps) {
@@ -24,6 +28,7 @@ export function ResizeHandle(props: ResizeHandleProps) {
     "onCollapse",
     "onCollapseChange",
     "collapseThreshold",
+    "label",
     "class",
     "classList",
   ])
@@ -82,17 +87,73 @@ export function ResizeHandle(props: ResizeHandleProps) {
     document.addEventListener("mouseup", onMouseUp)
   }
 
+  const handleKeyDown = (e: KeyboardEvent) => {
+    const edge = local.edge ?? (local.direction === "vertical" ? "start" : "end")
+    const min = local.min
+    const max = local.max
+    const threshold = local.collapseThreshold ?? 0
+    const current = Math.min(max, Math.max(min, local.size))
+    const apply = (next: number) => {
+      const clamped = Math.min(max, Math.max(min, next))
+      const collapsed = threshold > 0 && clamped < threshold
+      local.onCollapseChange?.(collapsed)
+      local.onResize(clamped)
+      if (collapsed) local.onCollapse?.()
+    }
+    // Arrow direction maps to the natural "grow" direction of the edge:
+    // a right/bottom edge grows toward the pointer direction, a left/top edge
+    // grows opposite to it. ArrowUp/ArrowRight always grow.
+    const grows =
+      local.direction === "vertical" ? edge !== "end" : edge === "start" ? false : true
+    switch (e.key) {
+      case "ArrowUp":
+      case "ArrowRight":
+        e.preventDefault()
+        apply(current + (grows ? RESIZE_STEP : -RESIZE_STEP))
+        break
+      case "ArrowDown":
+      case "ArrowLeft":
+        e.preventDefault()
+        apply(current - (grows ? RESIZE_STEP : -RESIZE_STEP))
+        break
+      case "Home":
+        e.preventDefault()
+        apply(min)
+        break
+      case "End":
+        e.preventDefault()
+        apply(max)
+        break
+      case "Delete":
+      case "Backspace":
+        if (!local.onCollapse || threshold <= 0) break
+        e.preventDefault()
+        local.onCollapse()
+        break
+    }
+  }
+
+  const edge = local.edge ?? (local.direction === "vertical" ? "start" : "end")
+
   return (
     <div
       {...rest}
       data-component="resize-handle"
       data-direction={local.direction}
-      data-edge={local.edge ?? (local.direction === "vertical" ? "start" : "end")}
+      data-edge={edge}
+      role="separator"
+      tabIndex={0}
+      aria-orientation={local.direction === "vertical" ? "horizontal" : "vertical"}
+      aria-label={local.label}
+      aria-valuenow={Math.round(local.size)}
+      aria-valuemin={local.min}
+      aria-valuemax={local.max}
       classList={{
         ...local.classList,
         [local.class ?? ""]: !!local.class,
       }}
       onMouseDown={handleMouseDown}
+      onKeyDown={handleKeyDown}
     />
   )
 }

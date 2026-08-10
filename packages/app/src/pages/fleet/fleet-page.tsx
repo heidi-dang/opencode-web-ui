@@ -1,4 +1,4 @@
-import { createSignal, createMemo, onMount, For, Show } from "solid-js"
+import { createSignal, createMemo, onMount, onCleanup, For, Show } from "solid-js"
 import { useGlobal } from "@/context/global"
 import { useCheckServerHealth } from "@/utils/server-health"
 import { ServerConnection, useServer } from "@/context/server"
@@ -83,8 +83,24 @@ export function FleetPage() {
   // Track initial load
   const [initialLoadDone, setInitialLoadDone] = createSignal(false)
 
+  // Focus the search input with the advertised shortcut (⌘K / Ctrl K).
+  // The fleet route registers no command palette, so the key is free here.
+  let searchInput: HTMLInputElement | undefined
+  const searchHint = () =>
+    typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘K" : "Ctrl K"
+
   onMount(() => {
     ctrl.refreshAll().finally(() => setInitialLoadDone(true))
+    const onSearchShortcut = (event: KeyboardEvent) => {
+      const mod = navigator.platform?.toLowerCase().includes("mac") ? event.metaKey : event.ctrlKey
+      if (!mod || event.key.toLowerCase() !== "k") return
+      if (!searchInput) return
+      event.preventDefault()
+      searchInput.focus()
+      searchInput.select()
+    }
+    window.addEventListener("keydown", onSearchShortcut)
+    onCleanup(() => window.removeEventListener("keydown", onSearchShortcut))
   })
 
   const filterOptions = createMemo(() => FILTER_OPTIONS(t))
@@ -224,13 +240,14 @@ export function FleetPage() {
             <div class="relative w-full sm:w-64">
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" class="absolute left-3 top-1/2 -translate-y-1/2 text-v2-text-text-muted" aria-hidden="true"><circle cx="6" cy="6" r="4.5"/><path d="M9.5 9.5L13 13"/></svg>
               <input type="search"
+                     ref={searchInput}
                      placeholder={t("fleet.search.placeholder")}
                      class="h-9 w-full rounded-md border border-v2-border-border-base/50 bg-v2-background-bg-layer-01/40 pl-9 pr-14 text-sm focus-visible:outline-2 focus-visible:outline-ring transition-colors hover:bg-v2-background-bg-layer-01/60"
                      value={searchQuery()}
                      onInput={(e) => setSearchQuery((e.target as HTMLInputElement).value)}
                      aria-label={t("fleet.search.placeholder")} />
               <div class="absolute right-2 top-1/2 -translate-y-1/2 flex items-center justify-center rounded border border-v2-border-border-base bg-v2-background-bg-base px-1.5 py-0.5 text-[10px] font-medium text-v2-text-text-muted pointer-events-none">
-                Ctrl K
+                {searchHint()}
               </div>
             </div>
 
@@ -259,11 +276,6 @@ export function FleetPage() {
               <For each={connectionTypes()}>
                 {(opt) => <option value={opt.value}>{opt.label}</option>}
               </For>
-            </select>
-
-            {/* Status dropdown (placeholder/duplicate per mockup styling if needed, we'll keep it as "Status" for fidelity) */}
-            <select class="h-9 rounded-md border border-v2-border-border-base/50 bg-v2-background-bg-layer-01/40 px-3 text-sm text-v2-text-text-base focus-visible:outline-2 focus-visible:outline-ring hover:bg-v2-background-bg-layer-01/60 transition-colors hidden sm:block">
-              <option>Status</option>
             </select>
 
             <div class="flex-1" />

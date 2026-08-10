@@ -96,19 +96,34 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
+          // Shiki and its languages
+          if (id.includes("/node_modules/shiki") || id.includes("/node_modules/@shikijs")) {
+            return "vendor-shiki"
+          }
+          if (id.match(/\/node_modules\/@shikijs\/(langs|core|wasm)/)) {
+            return "vendor-shiki-core"
+          }
+          // Markdown parsing
+          if (id.includes("/node_modules/marked") || id.includes("/node_modules/katex")) {
+            return "vendor-markdown"
+          }
+          // Lucide icons (usually large if not tree-shaken well)
+          if (id.includes("/node_modules/lucide-solid")) {
+            return "vendor-icons"
+          }
           // Solid.js framework core
           if (id.includes("/node_modules/solid-js") || id.includes("/node_modules/@solidjs")) {
             return "vendor-solid"
           }
           // Kobalte UI primitives
-          if (id.includes("/node_modules/@kobalte")) {
-            return "vendor-kobalte"
+          if (id.includes("/node_modules/@kobalte") || id.includes("/node_modules/@corvu")) {
+            return "vendor-ui-primitives"
           }
           // Effect functional library
           if (id.includes("/node_modules/effect") || id.includes("/node_modules/@effect")) {
             return "vendor-effect"
           }
-          // TanStack Query
+          // TanStack Query & Virtual
           if (id.includes("/node_modules/@tanstack")) {
             return "vendor-tanstack"
           }
@@ -116,9 +131,20 @@ export default defineConfig({
           if (id.includes("/node_modules/zod")) {
             return "vendor-zod"
           }
-          // Sentry error tracking (can be deferred)
+          // Sentry error tracking
           if (id.includes("/node_modules/@sentry")) {
             return "vendor-sentry"
+          }
+          // Internal UI packages
+          if (id.includes("/packages/session-ui/")) {
+            return "pkg-session-ui"
+          }
+          if (id.includes("/packages/ui/")) {
+            return "pkg-ui"
+          }
+          // Monaco/Editor (if any)
+          if (id.includes("/node_modules/monaco-editor")) {
+            return "vendor-editor"
           }
         },
       },

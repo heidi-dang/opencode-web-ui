@@ -1,6 +1,6 @@
 import type { Component, JSX } from "solid-js"
 import { createMemo, splitProps } from "solid-js"
-import sprite from "./provider-icons/sprite.svg"
+import spriteUrl from "./provider-icons/sprite.svg?url"
 import { iconNames, type IconName } from "./provider-icons/types"
 
 export type ProviderIconProps = JSX.SVGElementTags["svg"] & {
@@ -19,7 +19,7 @@ export const ProviderIcon: Component<ProviderIconProps> = (props) => {
         [local.class ?? ""]: !!local.class,
       }}
     >
-      <use href={`${sprite}#${resolved()}`} />
+      <use href={`${spriteUrl}#${resolved()}`} />
     </svg>
   )
 }

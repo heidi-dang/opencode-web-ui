@@ -1286,5 +1286,8 @@ export const dict = {
   "session.status.text.3": "Composing output…",
   "session.status.step.1": "Planning next step…",
   "session.status.step.2": "Evaluating approach…",
-  "session.status.step.3": "Determining next action…"
+  "session.status.step.3": "Determining next action…",
+  "common.retry": "Retry",
+  "home.sessions.loadFailed": "Couldn't load your recent sessions",
+  "home.sessions.loadFailed.description": "Check the connection to your server and try again.",
 }
