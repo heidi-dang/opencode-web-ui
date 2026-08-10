@@ -1,4 +1,4 @@
-import { type ComponentProps, type JSX, Show, splitProps } from "solid-js"
+import { type ComponentProps, type JSX, Show, splitProps, createSignal } from "solid-js"
 import { Icon } from "./icon"
 import "./inline-input-v2.css"
 
@@ -37,6 +37,7 @@ export function InlineInputV2(props: InlineInputV2Props) {
     "style",
   ])
 
+  const [copied, setCopied] = createSignal(false)
   let input: HTMLInputElement | undefined
 
   return (
@@ -92,11 +93,20 @@ export function InlineInputV2(props: InlineInputV2Props) {
           <button
             type="button"
             data-slot="inline-input-v2-icon-button"
-            aria-label={local.copyLabel ?? "Copy"}
+            data-copied={copied() ? "" : undefined}
+            aria-label={copied() ? "Copied!" : (local.copyLabel ?? "Copy")}
             disabled={local.disabled}
-            onClick={local.onCopyClick}
+            onClick={(event) => {
+              if (input) {
+                navigator.clipboard.writeText(input.value).then(() => {
+                  setCopied(true)
+                  setTimeout(() => setCopied(false), 2000)
+                }).catch(() => {})
+              }
+              local.onCopyClick?.(event)
+            }}
           >
-            <Icon name="copy" />
+            <Icon name={copied() ? "check" : "copy"} />
           </button>
         </Show>
       </div>

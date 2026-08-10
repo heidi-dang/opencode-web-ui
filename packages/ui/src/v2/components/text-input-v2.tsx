@@ -1,4 +1,4 @@
-import { type ComponentProps, type JSX, Show, splitProps } from "solid-js"
+import { type ComponentProps, type JSX, Show, splitProps, createSignal } from "solid-js"
 import { Icon } from "./icon"
 import "./text-input-v2.css"
 
@@ -41,6 +41,9 @@ export function TextInputV2(props: TextInputV2Props) {
     "disabled",
   ])
 
+  const [copied, setCopied] = createSignal(false)
+  let inputRef: HTMLInputElement | undefined
+
   return (
     <div
       data-component="text-input-v2"
@@ -60,6 +63,14 @@ export function TextInputV2(props: TextInputV2Props) {
         </Show>
         <input
           {...inputProps}
+          ref={(el) => {
+            inputRef = el
+            if (typeof inputProps.ref === "function") {
+              inputProps.ref(el)
+            } else if (inputProps.ref) {
+              (inputProps as any).ref = el
+            }
+          }}
           type={inputProps.type ?? "text"}
           disabled={local.disabled}
           aria-invalid={local.invalid ? true : undefined}
@@ -71,7 +82,12 @@ export function TextInputV2(props: TextInputV2Props) {
           type="button"
           data-slot="text-input-v2-icon-button"
           data-variant={local.showClearButton ? "clear" : "copy"}
-          aria-label={local.showClearButton ? (local.clearLabel ?? "Clear") : (local.copyLabel ?? "Copy")}
+          data-copied={!local.showClearButton && copied() ? "" : undefined}
+          aria-label={
+            local.showClearButton
+              ? (local.clearLabel ?? "Clear")
+              : (copied() ? "Copied!" : (local.copyLabel ?? "Copy"))
+          }
           disabled={local.disabled}
           onMouseDown={(event) => {
             if (!local.showClearButton) return
@@ -82,10 +98,16 @@ export function TextInputV2(props: TextInputV2Props) {
               local.onClearClick?.(event)
               return
             }
+            if (inputRef) {
+              navigator.clipboard.writeText(inputRef.value).then(() => {
+                setCopied(true)
+                setTimeout(() => setCopied(false), 2000)
+              }).catch(() => {})
+            }
             local.onCopyClick?.(event)
           }}
         >
-          <Icon name={local.showClearButton ? "xmark-small" : "copy"} />
+          <Icon name={local.showClearButton ? "xmark-small" : (copied() ? "check" : "copy")} />
         </button>
       </Show>
     </div>
