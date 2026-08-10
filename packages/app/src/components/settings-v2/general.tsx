@@ -11,6 +11,8 @@ import { usePermission } from "@/context/permission"
 import { usePlatform } from "@/context/platform"
 import { useServerSync } from "@/context/server-sync"
 import { useServerSDK } from "@/context/server-sdk"
+import { useLayout } from "@/context/layout"
+import { useTabs } from "@/context/tabs"
 import { useUpdaterAction } from "../updater-action"
 import {
   monoDefault,
@@ -92,31 +94,54 @@ export const SettingsGeneralV2: Component<{
   const settings = useSettings()
   const serverSync = useServerSync()
   const serverSdk = useServerSDK()
+  const layout = useLayout()
+  const tabs = useTabs()
   const mobile = createMediaQuery("(max-width: 767px)")
   onCleanup(stopDemoSound)
 
   const updater = useUpdaterAction()
 
+  const routeDirectory = createMemo(() => {
+    const route = layout.route()
+    if (route.type === "dir-new-sesssion") return route.dir
+    if (route.type === "draft") {
+      const draft = tabs.store.find((item) => item.type === "draft" && item.draftID === route.draftID)
+      return draft?.type === "draft" ? draft.directory : undefined
+    }
+    if (route.type === "session") return serverSync().session.get(route.sessionId)?.directory
+    return undefined
+  })
+
   const dir = createMemo(() => {
-    if (!props.sessionID) return undefined
-    return serverSync().session.lineage.peek(props.sessionID)?.session.directory
+    if (props.sessionID) {
+      const directory = serverSync().session.lineage.peek(props.sessionID)?.session.directory
+      if (directory) return directory
+    }
+    return routeDirectory()
   })
   const accepting = createMemo(() => {
     const value = dir()
-    if (!value || !props.sessionID) return false
-    return permission.isAutoAccepting(props.sessionID, value)
+    if (!value) return false
+    if (props.sessionID) return permission.isAutoAccepting(props.sessionID, value)
+    return permission.isAutoAcceptingDirectory(value)
   })
 
   const toggleAccept = (checked: boolean) => {
     const value = dir()
-    if (!value || !props.sessionID) return
+    if (!value) return
 
-    if (checked) {
-      permission.enableAutoAccept(props.sessionID, value)
+    if (props.sessionID) {
+      if (checked) {
+        permission.enableAutoAccept(props.sessionID, value)
+        return
+      }
+
+      permission.disableAutoAccept(props.sessionID, value)
       return
     }
 
-    permission.disableAutoAccept(props.sessionID, value)
+    if (permission.isAutoAcceptingDirectory(value) === checked) return
+    permission.toggleAutoAcceptDirectory(value)
   }
   const desktop = createMemo(() => platform.platform === "desktop")
 
