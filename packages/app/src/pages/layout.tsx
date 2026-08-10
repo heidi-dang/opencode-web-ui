@@ -2267,6 +2267,12 @@ export default function LegacyLayout(props: ParentProps) {
 
   return (
     <div class="relative bg-background-base flex-1 min-h-0 min-w-0 flex flex-col select-none [&_input]:select-text [&_textarea]:select-text [&_[contenteditable]]:select-text">
+      <a
+        href="#main-content"
+        class="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:px-3 focus:py-1.5 focus:bg-surface-raised-base focus:text-text-strong focus:border focus:border-border-strong focus:rounded-md focus:shadow-md focus:outline-none focus:ring-2 focus:ring-text-interactive-base text-13-medium"
+      >
+        {language.t("common.skipToContent") || "Skip to content"}
+      </a>
       {autoselecting() ?? ""}
       <Titlebar
         update={titlebarUpdate}
@@ -2372,6 +2378,7 @@ export default function LegacyLayout(props: ParentProps) {
               }}
             >
               <main
+                id="main-content"
                 classList={{
                   "size-full overflow-x-hidden flex flex-col items-start contain-strict border-t border-border-weak-base bg-background-base xl:border-l xl:rounded-tl-[12px]": true,
                 }}

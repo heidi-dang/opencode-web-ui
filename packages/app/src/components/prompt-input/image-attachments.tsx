@@ -102,8 +102,16 @@ export const PromptImageAttachments: Component<PromptImageAttachmentsProps> = (p
                   <img
                     src={attachment.dataUrl}
                     alt={attachment.filename}
-                    class={props.newLayoutDesigns ? imageClassV2 : imageClass}
+                    role="button"
+                    tabIndex={0}
+                    class={`${props.newLayoutDesigns ? imageClassV2 : imageClass} cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus`}
                     onClick={() => props.onOpen(attachment)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault()
+                        props.onOpen(attachment)
+                      }
+                    }}
                   />
                 </Show>
               )

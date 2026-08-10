@@ -28,6 +28,13 @@
 
   &[data-clickable] {
     cursor: pointer;
+
+    &:focus-visible {
+      outline: none;
+      box-shadow:
+        inset 0 0 0 0.5px var(--v2-border-border-base),
+        0 0 0 2px var(--v2-border-border-focus);
+    }
   }
 
   [data-slot="attachment-card-v2-title"],

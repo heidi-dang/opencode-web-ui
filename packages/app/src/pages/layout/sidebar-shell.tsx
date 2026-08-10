@@ -51,8 +51,9 @@ export const SidebarContent = (props: {
 
   return (
     <div class="flex h-full w-full min-w-0 overflow-hidden">
-      <div
+      <nav
         data-component="sidebar-rail"
+        aria-label="Sidebar navigation"
         class="w-16 shrink-0 bg-background-base flex flex-col items-center overflow-hidden"
         onMouseMove={props.aimMove}
       >
@@ -139,7 +140,7 @@ export const SidebarContent = (props: {
             />
           </Tooltip>
         </div>
-      </div>
+      </nav>
 
       <div
         ref={(el) => {

@@ -44,7 +44,8 @@ export function TabsInfoPopup() {
           </button>
           <button
             type="button"
-            class="relative block h-[232px] w-[184px] cursor-pointer overflow-hidden rounded-[4px] text-left"
+            aria-label="Introducing Tabs: Organize your work and active sessions with tabs"
+            class="relative block h-[232px] w-[184px] cursor-pointer overflow-hidden rounded-[4px] text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus"
             onClick={() => {
               settings.general.dismissTabsToast()
               setDrawerOpen(true)
@@ -121,7 +122,7 @@ export function TabsInfoPopup() {
           </p>
           <div class="flex w-full flex-1 flex-col gap-4 text-[13px] font-body leading-5 tracking-v2 text-v2-text-text-base">
             <p>OpenCode Desktop is now built around tabs.</p>
-            <img src={tabsImage} alt="" class="aspect-video w-full rounded-md object-cover" />
+            <img src={tabsImage} alt="OpenCode Desktop interface showing active tabs at the top" class="aspect-video w-full rounded-md object-cover" />
             <p>
               Start a new session in a tab, or open an existing session from any of your projects. Open a new tab when
               you're starting something new, and close it when you're done.
@@ -133,7 +134,7 @@ export function TabsInfoPopup() {
             <p>
               You'll find all your sessions and projects on the new Home screen. Selecting a session opens it in a tab.
             </p>
-            <img src={homeImage} alt="" class="aspect-video w-full rounded-md object-cover" />
+            <img src={homeImage} alt="Home screen showing recent sessions and projects" class="aspect-video w-full rounded-md object-cover" />
             <p>When you reopen the app, your tabs are still open.</p>
             <p>
               The new design does not support Git Worktrees yet, it's coming soon. So if you'd prefer to continue using

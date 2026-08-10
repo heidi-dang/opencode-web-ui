@@ -55,7 +55,7 @@ export function ProjectAvatar(props: ProjectAvatarProps) {
         data-has-image={split.src ? "" : undefined}
       >
         <Show when={split.src} fallback={first(split.fallback)}>
-          {(value) => <img src={value()} draggable={false} data-slot="project-avatar-image" />}
+          {(value) => <img src={value()} alt={split.fallback} draggable={false} data-slot="project-avatar-image" />}
         </Show>
       </div>
       <Show when={split.unread}>

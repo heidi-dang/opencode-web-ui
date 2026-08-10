@@ -38,16 +38,17 @@ export function DialogEditProjectV2(props: { project: LocalProject; server: Serv
           </Field>
 
           <div class="flex w-full flex-col gap-2">
-            <div class="select-none text-[13px] font-emphasis leading-none tracking-v2 text-v2-text-text-base">
+            <label for="icon-upload-v2" class="select-none text-[13px] font-emphasis leading-none tracking-v2 text-v2-text-text-base cursor-pointer">
               {language.t("dialog.project.edit.icon")}
-            </div>
+            </label>
             <div class="flex items-center gap-3">
               <button
                 type="button"
                 aria-label={language.t("dialog.project.edit.icon.alt")}
+                aria-dropeffect="copy"
                 class="relative size-16 shrink-0 cursor-pointer overflow-hidden rounded-md outline outline-1 outline-transparent transition-[background-color,outline-color] focus-visible:outline-v2-border-border-focus"
                 classList={{
-                  "bg-v2-overlay-simple-overlay-hover outline-v2-border-border-focus": model.store.dragOver,
+                  "bg-v2-overlay-simple-overlay-hover outline-v2-border-border-focus ring-2 ring-v2-border-border-focus": model.store.dragOver,
                 }}
                 onMouseEnter={() => model.setStore("iconHover", true)}
                 onMouseLeave={() => model.setStore("iconHover", false)}
@@ -77,6 +78,7 @@ export function DialogEditProjectV2(props: { project: LocalProject; server: Serv
                 </span>
               </button>
               <input
+                id="icon-upload-v2"
                 ref={(element) => {
                   model.setIconInput(element)
                 }}

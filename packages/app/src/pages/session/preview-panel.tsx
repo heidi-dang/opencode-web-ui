@@ -42,10 +42,12 @@ export function PreviewPanel(props: { stacked?: boolean }) {
           icon="reset" 
           onClick={handleRefresh} 
           title="Refresh"
+          aria-label="Refresh preview"
         />
         <form class="flex-1 flex items-center" onSubmit={handleNavigate}>
           <input
             type="text"
+            aria-label="Preview URL"
             class="w-full px-3 py-1.5 text-12-regular rounded bg-background border border-border focus:outline-none focus:border-border-stronger text-text"
             value={inputValue()}
             onInput={(e) => setInputValue(e.currentTarget.value)}
@@ -56,12 +58,14 @@ export function PreviewPanel(props: { stacked?: boolean }) {
           icon="link"
           onClick={() => window.open(view().previewPanel.url(), "_blank")}
           title="Open in new tab"
+          aria-label="Open preview in new tab"
         />
       </div>
       <div class="flex-1 relative bg-white">
         <iframe
           ref={iframeRef}
           src={view().previewPanel.url()}
+          title="Preview"
           class="absolute inset-0 w-full h-full border-0 bg-white"
           sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-modals"
         />

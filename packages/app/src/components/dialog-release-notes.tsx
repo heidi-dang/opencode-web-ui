@@ -99,11 +99,14 @@ export function DialogReleaseNotes(props: { highlights: Highlight[] }) {
             </div>
 
             {paged() && (
-              <div class="flex items-center gap-1.5 -my-2.5">
-                {props.highlights.map((_, i) => (
+              <div class="flex items-center gap-1.5 -my-2.5" role="tablist">
+                {props.highlights.map((highlight, i) => (
                   <button
                     type="button"
-                    class="h-6 flex items-center cursor-pointer bg-transparent border-none p-0 transition-all duration-200"
+                    role="tab"
+                    aria-selected={i === index()}
+                    aria-label={highlight.title || `Highlight ${i + 1}`}
+                    class="h-6 flex items-center cursor-pointer bg-transparent border-none p-0 transition-all duration-200 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-icon-strong-base rounded-xs"
                     classList={{
                       "w-8": i === index(),
                       "w-3": i !== index(),
@@ -114,7 +117,7 @@ export function DialogReleaseNotes(props: { highlights: Highlight[] }) {
                       class="w-full h-0.5 rounded-[1px] transition-colors duration-200"
                       classList={{
                         "bg-icon-strong-base": i === index(),
-                        "bg-icon-weak-base": i !== index(),
+                        "bg-icon-weak-base hover:bg-icon-strong-base": i !== index(),
                       }}
                     />
                   </button>

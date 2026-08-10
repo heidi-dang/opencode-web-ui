@@ -35,6 +35,12 @@ export default function NewLayout(props: ParentProps) {
         "padding-bottom": "env(safe-area-inset-bottom, 0px)",
       }}
     >
+      <a
+        href="#main-content"
+        class="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:px-3 focus:py-1.5 focus:bg-v2-background-bg-base focus:text-v2-text-text-base focus:border focus:border-v2-border-border-base focus:rounded-md focus:shadow-md focus:outline-none focus:ring-2 focus:ring-v2-text-text-link text-13-medium"
+      >
+        Skip to content
+      </a>
       <Titlebar
         update={update}
         debugTools={
@@ -43,7 +49,7 @@ export default function NewLayout(props: ParentProps) {
             : undefined
         }
       />
-      <main class="flex-1 min-h-0 min-w-0 overflow-x-hidden flex flex-col items-start contain-strict">
+      <main id="main-content" class="flex-1 min-h-0 min-w-0 overflow-x-hidden flex flex-col items-start contain-strict">
         <Suspense
           fallback={
             <div class="flex-1 flex items-center justify-center">

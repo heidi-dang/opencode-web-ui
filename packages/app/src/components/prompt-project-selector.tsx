@@ -451,6 +451,7 @@ export function PromptProjectAddButton(props: { controller: PromptProjectControl
       type="button"
       class="flex h-7 min-w-0 max-w-[160px] items-center gap-1.5 rounded-sm px-2 text-[13px] font-body leading-5 tracking-v2 text-v2-text-text-faint transition-colors hover:bg-v2-overlay-simple-overlay-hover focus-visible:bg-v2-overlay-simple-overlay-hover focus-visible:outline-none"
       onClick={() => props.controller.add()}
+      aria-label={props.controller.labels.add()}
     >
       <Icon name="folder-add-left" size="small" class="shrink-0 text-v2-icon-icon-muted" />
       <span class="min-w-0 truncate leading-5">{props.controller.labels.new()}</span>
@@ -474,6 +475,7 @@ function ProjectTrigger(props: ComponentProps<"button"> & { controller: PromptPr
         "bg-v2-overlay-simple-overlay-pressed": local.controller.open(),
         "text-v2-text-text-muted": local.controller.open(),
       }}
+      aria-label={`${local.controller.labels.search()}: ${project() ? displayName(project()!) : local.controller.labels.new()}`}
       onClick={local.onClick ?? (() => local.controller.setOpen(true))}
       onKeyDown={(event) => {
         if (!local.controller.open() && (event.key === "ArrowDown" || event.key === "ArrowUp")) {

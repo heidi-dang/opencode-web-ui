@@ -4,25 +4,30 @@
   outline: none;
 }
 
-[data-component="focus-ring-v2"]:focus-within {
+[data-component="focus-ring-v2"]:has(:focus-visible),
+[data-component="focus-ring-v2"]:focus-visible {
   outline: none;
   border-color: var(--v2-border-highlight) !important;
 }
 
-[data-component="focus-ring-v2"][data-glow="sm"]:focus-within {
+[data-component="focus-ring-v2"][data-glow="sm"]:has(:focus-visible),
+[data-component="focus-ring-v2"][data-glow="sm"]:focus-visible {
   box-shadow: var(--v2-glow-accent-sm);
 }
 
-[data-component="focus-ring-v2"][data-glow="md"]:focus-within {
+[data-component="focus-ring-v2"][data-glow="md"]:has(:focus-visible),
+[data-component="focus-ring-v2"][data-glow="md"]:focus-visible {
   box-shadow: var(--v2-glow-accent-md);
 }
 
-[data-component="focus-ring-v2"][data-glow="none"]:focus-within {
+[data-component="focus-ring-v2"][data-glow="none"]:has(:focus-visible),
+[data-component="focus-ring-v2"][data-glow="none"]:focus-visible {
   box-shadow: none;
 }
 
 @media (forced-colors: active) {
-  [data-component="focus-ring-v2"]:focus-within {
+  [data-component="focus-ring-v2"]:has(:focus-visible),
+  [data-component="focus-ring-v2"]:focus-visible {
     outline: 2px solid Highlight;
     box-shadow: none;
   }

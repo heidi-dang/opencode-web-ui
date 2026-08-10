@@ -25,4 +25,5 @@ export const newKeyFallbacks = {
   "session.status.step.1": "Planning next step…",
   "session.status.step.2": "Evaluating approach…",
   "session.status.step.3": "Determining next action…",
+  "common.skipToContent": "Skip to content",
 } as const

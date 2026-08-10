@@ -16,6 +16,7 @@ export interface DialogProps extends ParentProps {
 
 export function Dialog(props: DialogProps) {
   const i18n = useI18n()
+  const titleId = "dialog-title-" + Math.random().toString(36).substring(2, 9)
   return (
     <div
       data-component="dialog"
@@ -26,6 +27,8 @@ export function Dialog(props: DialogProps) {
       <div data-slot="dialog-container">
         <Kobalte.Content
           data-slot="dialog-content"
+          aria-modal="true"
+          aria-labelledby={props.title ? titleId : undefined}
           data-no-header={!props.title && !props.action ? "" : undefined}
           classList={{
             ...props.classList,
@@ -43,7 +46,7 @@ export function Dialog(props: DialogProps) {
           <Show when={props.title || props.action}>
             <div data-slot="dialog-header">
               <Show when={props.title}>
-                <Kobalte.Title data-slot="dialog-title">{props.title}</Kobalte.Title>
+                <Kobalte.Title id={titleId} data-slot="dialog-title">{props.title}</Kobalte.Title>
               </Show>
               <Switch>
                 <Match when={props.action}>{props.action}</Match>

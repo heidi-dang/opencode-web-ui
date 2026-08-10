@@ -30,7 +30,7 @@ export function DialogEditProject(props: { project: LocalProject; server: Server
           />
 
           <div class="flex flex-col gap-2">
-            <label class="text-12-medium text-text-weak">{language.t("dialog.project.edit.icon")}</label>
+            <label for="icon-upload" class="text-12-medium text-text-weak">{language.t("dialog.project.edit.icon")}</label>
             <div class="flex gap-3 items-start">
               <div
                 class="relative"
@@ -38,9 +38,13 @@ export function DialogEditProject(props: { project: LocalProject; server: Server
                 onMouseLeave={() => model.setStore("iconHover", false)}
               >
                 <div
-                  class="relative size-16 rounded-md transition-colors cursor-pointer"
+                  role="button"
+                  tabIndex={0}
+                  aria-label={language.t("dialog.project.edit.icon.alt")}
+                  aria-dropeffect="copy"
+                  class="relative size-16 rounded-md transition-all cursor-pointer"
                   classList={{
-                    "border-text-interactive-base bg-surface-info-base/20": model.store.dragOver,
+                    "border-text-interactive-base bg-surface-info-base/20 ring-2 ring-text-interactive-base": model.store.dragOver,
                     "border-border-base hover:border-border-strong": !model.store.dragOver,
                     "overflow-hidden": !!model.store.iconOverride,
                   }}
@@ -48,6 +52,7 @@ export function DialogEditProject(props: { project: LocalProject; server: Server
                   onDragOver={model.dragOver}
                   onDragLeave={model.dragLeave}
                   onClick={model.iconClick}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); model.iconClick() } }}
                 >
                   <Show
                     when={getProjectAvatarSource(props.project.id, {

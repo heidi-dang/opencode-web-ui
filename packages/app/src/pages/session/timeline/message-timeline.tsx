@@ -1340,11 +1340,11 @@ export function MessageTimeline(props: {
             <button
               type="button"
               aria-label={language.t("session.messages.jumpToLatest")}
-              class="pointer-events-auto flex items-center justify-center w-10 h-8 bg-transparent border-none cursor-pointer p-0 group"
+              class="pointer-events-auto flex items-center justify-center w-10 h-8 bg-transparent border-none cursor-pointer p-0 group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus rounded-md"
               onClick={props.onResumeScroll}
             >
               <div
-                class="flex items-center justify-center w-8 h-6 rounded-md border border-border-weaker-base bg-[color-mix(in_srgb,var(--surface-raised-stronger-non-alpha)_80%,transparent)] backdrop-blur-[0.75px] transition-colors group-hover:border-[var(--border-weak-base)] group-hover:[--icon-base:var(--icon-hover)] shadow-[var(--v2-elevation-floating)]"
+                class="flex items-center justify-center w-8 h-6 rounded-md border border-border-weaker-base bg-[color-mix(in_srgb,var(--surface-raised-stronger-non-alpha)_80%,transparent)] backdrop-blur-[0.75px] transition-all duration-150 group-hover:border-[var(--border-weak-base)] group-hover:[--icon-base:var(--icon-hover)] group-hover:scale-105 group-active:scale-95 shadow-[var(--v2-elevation-floating)]"
               >
                 <Icon name="arrow-down-to-line" size="small" />
               </div>
@@ -1354,7 +1354,7 @@ export function MessageTimeline(props: {
           <button
             type="button"
             aria-label={language.t("session.messages.jumpToLatest")}
-            class="pointer-events-auto flex items-center justify-center w-8 h-7 px-2 py-1.5 rounded-lg border-none cursor-pointer text-v2-text-text-base backdrop-blur-[2px]"
+            class="pointer-events-auto flex items-center justify-center w-8 h-7 px-2 py-1.5 rounded-lg border-none cursor-pointer text-v2-text-text-base backdrop-blur-[2px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-v2-border-border-focus hover:text-v2-text-text-strong hover:bg-v2-background-bg-layer-02 hover:scale-105 active:scale-95 transition-all duration-150"
             style={{
               background: "color-mix(in srgb, var(--v2-background-bg-base) 92%, transparent)",
               "box-shadow": "var(--v2-elevation-raised), 0px 2px 8px var(--v2-background-bg-base)",

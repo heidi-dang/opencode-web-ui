@@ -29,6 +29,7 @@ export interface TextFieldProps
   copyable?: boolean
   copyKind?: "clipboard" | "link"
   multiline?: boolean
+  showCount?: boolean
 }
 
 export function TextField(props: TextFieldProps) {
@@ -52,6 +53,7 @@ export function TextField(props: TextFieldProps) {
     "copyable",
     "copyKind",
     "multiline",
+    "showCount",
   ])
   const [copied, setCopied] = createSignal(false)
 
@@ -96,14 +98,30 @@ export function TextField(props: TextFieldProps) {
       <Show when={local.label}>
         <Kobalte.Label data-slot="input-label" classList={{ "sr-only": local.hideLabel }}>
           {local.label}
+          <Show when={local.required}>
+            <span class="sr-only"> (required)</span>
+          </Show>
         </Kobalte.Label>
       </Show>
       <div data-slot="input-wrapper">
         <Show
           when={local.multiline}
-          fallback={<Kobalte.Input {...others} data-slot="input-input" class={local.class} />}
+          fallback={
+            <Kobalte.Input
+              {...others}
+              data-slot="input-input"
+              class={local.class}
+              aria-invalid={local.validationState === "invalid" ? "true" : undefined}
+            />
+          }
         >
-          <Kobalte.TextArea {...others} autoResize data-slot="input-input" class={local.class} />
+          <Kobalte.TextArea
+            {...others}
+            autoResize
+            data-slot="input-input"
+            class={local.class}
+            aria-invalid={local.validationState === "invalid" ? "true" : undefined}
+          />
         </Show>
         <Show when={local.copyable}>
           <Tooltip value={label()} placement="top" gutter={4} forceOpen={copied()} skipDelayDuration={0}>
@@ -119,9 +137,17 @@ export function TextField(props: TextFieldProps) {
           </Tooltip>
         </Show>
       </div>
-      <Show when={local.description}>
-        <Kobalte.Description data-slot="input-description">{local.description}</Kobalte.Description>
-      </Show>
+      <div class="flex justify-between items-start gap-2 mt-1">
+        <Show when={local.description}>
+          <Kobalte.Description data-slot="input-description" class="flex-1">{local.description}</Kobalte.Description>
+        </Show>
+        <Show when={local.showCount || others.maxLength}>
+          <div data-slot="input-counter" class="text-10-regular text-text-weak ml-auto" aria-live="polite">
+            {String(local.value ?? local.defaultValue ?? "").length}
+            <Show when={others.maxLength}> / {others.maxLength}</Show>
+          </div>
+        </Show>
+      </div>
       <Kobalte.ErrorMessage data-slot="input-error">{local.error}</Kobalte.ErrorMessage>
     </Kobalte>
   )
