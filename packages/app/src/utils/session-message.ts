@@ -37,7 +37,22 @@ function normalizeToolMetadata(name: string, metadata: Record<string, unknown>) 
   }
 }
 
-export function normalizeSessionMessages(sessionID: string, source: readonly SessionMessageInfo[]) {
+/**
+ * Normalize v2 session messages into legacy renderable `Message` records and
+ * their parts.
+ *
+ * When `only` is provided, only messages whose id is in the set are
+ * materialized (and only their parts are built). The full source is still
+ * walked so agent/model/parent context, compaction attachment, and the
+ * assistant→user agent/model projection stay identical to a full normalize.
+ * This lets the streaming hot path avoid rebuilding every message and part on
+ * each delta frame.
+ */
+export function normalizeSessionMessages(
+  sessionID: string,
+  source: readonly SessionMessageInfo[],
+  only?: ReadonlySet<string>,
+) {
   const messages: Message[] = []
   const parts = new Map<string, Part[]>()
   let agent = ""
@@ -55,27 +70,34 @@ export function normalizeSessionMessages(sessionID: string, source: readonly Ses
     }
     if (message.type === "user") {
       parentID = message.id
-      messages.push(userMessage(sessionID, message, agent, model))
-      parts.set(message.id, userParts(sessionID, message))
+      if (!only || only.has(message.id)) {
+        messages.push(userMessage(sessionID, message, agent, model))
+        parts.set(message.id, userParts(sessionID, message))
+      }
       return
     }
     if (message.type === "synthetic" && message.description?.trim()) {
       parentID = message.id
-      messages.push({
-        id: message.id,
-        sessionID,
-        role: "user",
-        time: message.time,
-        agent,
-        model: { providerID: model.providerID, modelID: model.id, variant: model.variant },
-      })
-      parts.set(message.id, [textPart(sessionID, message.id, 0, message.description, true)])
+      if (!only || only.has(message.id)) {
+        messages.push({
+          id: message.id,
+          sessionID,
+          role: "user",
+          time: message.time,
+          agent,
+          model: { providerID: model.providerID, modelID: model.id, variant: model.variant },
+        })
+        parts.set(message.id, [textPart(sessionID, message.id, 0, message.description, true)])
+      }
       return
     }
     if (message.type === "shell") {
-      messages.push(...shellMessages(sessionID, message, agent, model))
-      parts.set(message.id, [textPart(sessionID, message.id, 0, message.command)])
-      parts.set(`${message.id}:assistant`, [shellPart(sessionID, message)])
+      if (!only || only.has(message.id) || only.has(`${message.id}:assistant`)) {
+        messages.push(...shellMessages(sessionID, message, agent, model))
+        if (!only || only.has(message.id)) parts.set(message.id, [textPart(sessionID, message.id, 0, message.command)])
+        if (!only || only.has(`${message.id}:assistant`))
+          parts.set(`${message.id}:assistant`, [shellPart(sessionID, message)])
+      }
       parentID = undefined
       return
     }
@@ -83,20 +105,26 @@ export function normalizeSessionMessages(sessionID: string, source: readonly Ses
       agent = message.agent
       model = message.model
       if (!parentID) return
-      const parent = messages.findLast((item) => item.id === parentID)
-      if (parent?.role === "user") {
-        parent.agent = message.agent
-        parent.model = {
-          providerID: message.model.providerID,
-          modelID: message.model.id,
-          variant: message.model.variant,
+      if (!only || only.has(message.id)) {
+        const parent = messages.findLast((item) => item.id === parentID)
+        if (parent?.role === "user") {
+          parent.agent = message.agent
+          parent.model = {
+            providerID: message.model.providerID,
+            modelID: message.model.id,
+            variant: message.model.variant,
+          }
         }
+        messages.push(assistantMessage(sessionID, parentID, message))
+        parts.set(message.id, assistantParts(sessionID, message))
       }
-      messages.push(assistantMessage(sessionID, parentID, message))
-      parts.set(message.id, assistantParts(sessionID, message))
       return
     }
     if (message.type !== "compaction" || !parentID) return
+    // Compaction parts always attach to their parent turn; materialize them
+    // whenever the parent's parts are being built so they are not dropped by
+    // the part-removal pass.
+    if (only && !only.has(parentID)) return
     parts.set(parentID, [
       ...(parts.get(parentID) ?? []),
       {

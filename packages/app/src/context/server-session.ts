@@ -887,6 +887,18 @@ export function createServerSession(
 
   const projectV2 = (reduction: V2SessionReduction) => {
     reduction.touched.forEach((messageID) => messageLoads.get(reduction.sessionID)?.touchedSource.add(messageID))
+
+    // No-op reductions (e.g. tool progress on a tool that is not running,
+    // input admitted before promotion) map the source to a fresh array whose
+    // elements are reference-identical. Skip the store diff, normalization,
+    // and store writes entirely instead of reconciling every message per frame.
+    const current = data.session_message[reduction.sessionID]
+    const unchanged =
+      !!current &&
+      current.length === reduction.messages.length &&
+      reduction.messages.every((message, index) => message === current[index])
+    if (unchanged) return
+
     setData("session_message", reduction.sessionID, reconcile(reduction.messages))
     if (reduction.touched.length === 0) return
 
@@ -903,7 +915,7 @@ export function createServerSession(
       if (message.type === "compaction" && touched.has(message.id) && parentID) touched.add(parentID)
     }
 
-    const normalized = normalizeSessionMessages(reduction.sessionID, reduction.messages)
+    const normalized = normalizeSessionMessages(reduction.sessionID, reduction.messages, touched)
     batch(() => {
       for (const message of normalized.messages) {
         if (!touched.has(message.id)) continue

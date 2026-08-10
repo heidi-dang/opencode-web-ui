@@ -491,10 +491,19 @@ function updateTool(
     item: Extract<Assistant["content"][number], { type: "tool" }>,
   ) => Extract<Assistant["content"][number], { type: "tool" }>,
 ) {
-  return updateAssistant(source, messageID, sessionID, (assistant) => ({
-    ...assistant,
-    content: assistant.content.map((item) => (item.type === "tool" && item.id === callID ? apply(item) : item)),
-  }))
+  return updateAssistant(source, messageID, sessionID, (assistant) => {
+    let changed = false
+    const content = assistant.content.map((item) => {
+      if (item.type !== "tool" || item.id !== callID) return item
+      const next = apply(item)
+      if (next !== item) changed = true
+      return next
+    })
+    // Keep the assistant reference when the tool apply was a no-op (e.g. a
+    // progress event for a tool that is not running) so the projection can
+    // skip the whole reconcile/normalize pass for the event.
+    return changed ? { ...assistant, content } : assistant
+  })
 }
 
 function insertOrdinal<T extends Assistant["content"][number]["type"]>(

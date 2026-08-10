@@ -211,4 +211,195 @@ describe("normalizeSessionMessages", () => {
       }),
     ])
   })
+
+  test("with `only` materializes just the requested messages and parts", () => {
+    const source = [
+      { id: "msg_1", type: "agent-switched", agent: "build", time: { created: 1 } },
+      {
+        id: "msg_2",
+        type: "model-switched",
+        model: { id: "claude", providerID: "anthropic", variant: "high" },
+        time: { created: 2 },
+      },
+      {
+        id: "msg_3",
+        type: "user",
+        text: "hello",
+        time: { created: 3 },
+      },
+      {
+        id: "msg_4",
+        type: "assistant",
+        agent: "build",
+        model: { id: "claude", providerID: "anthropic", variant: "high" },
+        content: [
+          { type: "reasoning", text: "Thinking", time: { created: 4, completed: 5 } },
+          { type: "text", text: "Result" },
+        ],
+        time: { created: 4, completed: 7 },
+      },
+    ] satisfies SessionMessageInfo[]
+
+    const result = normalizeSessionMessages("ses_1", source, new Set(["msg_4"]))
+
+    expect(result.messages.map((message) => message.id)).toEqual(["msg_4"])
+    expect(result.messages[0]).toMatchObject({
+      id: "msg_4",
+      role: "assistant",
+      parentID: "msg_3",
+      modelID: "claude",
+      providerID: "anthropic",
+      agent: "build",
+    })
+    expect([...result.parts.keys()]).toEqual(["msg_4"])
+    expect(result.parts.get("msg_4")?.map((part) => part.id)).toEqual(["msg_4:reasoning:0", "msg_4:text:0"])
+  })
+
+  test("with `only` still projects the touched assistant onto its materialized parent", () => {
+    const source = [
+      { id: "msg_1", type: "user", text: "hello", time: { created: 1 } },
+      {
+        id: "msg_2",
+        type: "assistant",
+        agent: "build",
+        model: { id: "claude", providerID: "anthropic", variant: "high" },
+        content: [{ type: "text", text: "Result" }],
+        time: { created: 2, completed: 3 },
+      },
+    ] satisfies SessionMessageInfo[]
+
+    const result = normalizeSessionMessages("ses_1", source, new Set(["msg_1", "msg_2"]))
+
+    expect(result.messages.map((message) => message.id)).toEqual(["msg_1", "msg_2"])
+    expect(result.messages[0]).toMatchObject({ id: "msg_1", role: "user", agent: "build" })
+    expect(result.messages[0]).toMatchObject({
+      model: { providerID: "anthropic", modelID: "claude", variant: "high" },
+    })
+  })
+
+  test("with `only` keeps the compaction part on a materialized parent", () => {
+    const source = [
+      { id: "msg_1", type: "user", text: "hello", time: { created: 1 } },
+      {
+        id: "msg_2",
+        type: "assistant",
+        agent: "build",
+        model: { id: "claude", providerID: "anthropic" },
+        content: [{ type: "text", text: "Result" }],
+        time: { created: 2, completed: 3 },
+      },
+      {
+        id: "msg_3",
+        type: "compaction",
+        status: "completed",
+        reason: "auto",
+        summary: "summary",
+        recent: "recent",
+        time: { created: 4 },
+      },
+    ] satisfies SessionMessageInfo[]
+
+    const result = normalizeSessionMessages("ses_1", source, new Set(["msg_1"]))
+
+    expect(result.messages.map((message) => message.id)).toEqual(["msg_1"])
+    expect(result.parts.get("msg_1")?.map((part) => part.id)).toEqual(["msg_1:text:0", "msg_3:compaction"])
+  })
+
+  test("with `only` omits the compaction part when the parent is not materialized", () => {
+    const source = [
+      { id: "msg_1", type: "user", text: "hello", time: { created: 1 } },
+      {
+        id: "msg_2",
+        type: "assistant",
+        agent: "build",
+        model: { id: "claude", providerID: "anthropic" },
+        content: [{ type: "text", text: "Result" }],
+        time: { created: 2, completed: 3 },
+      },
+      {
+        id: "msg_3",
+        type: "compaction",
+        status: "completed",
+        reason: "auto",
+        summary: "summary",
+        recent: "recent",
+        time: { created: 4 },
+      },
+    ] satisfies SessionMessageInfo[]
+
+    const result = normalizeSessionMessages("ses_1", source, new Set(["msg_2"]))
+
+    expect(result.messages.map((message) => message.id)).toEqual(["msg_2"])
+    expect([...result.parts.keys()]).toEqual(["msg_2"])
+    expect(result.parts.get("msg_2")?.some((part) => part.type === "compaction")).toBe(false)
+  })
+
+  test("with `only` materializes both sides of a touched shell message", () => {
+    const source = [
+      {
+        id: "msg_shell",
+        type: "shell",
+        shellID: "shell_1",
+        command: "printf hello",
+        status: "exited",
+        exit: 0,
+        output: { output: "hello", cursor: 5, size: 5, truncated: false },
+        time: { created: 1, completed: 2 },
+      },
+    ] satisfies SessionMessageInfo[]
+
+    const result = normalizeSessionMessages("ses_1", source, new Set(["msg_shell", "msg_shell:assistant"]))
+
+    expect(result.messages.map((message) => message.id)).toEqual(["msg_shell", "msg_shell:assistant"])
+    expect(result.parts.get("msg_shell")).toEqual([expect.objectContaining({ type: "text" })])
+    expect(result.parts.get("msg_shell:assistant")).toEqual([expect.objectContaining({ type: "tool", tool: "bash" })])
+  })
+
+  test("without `only` a subset result matches the full normalization for the same ids", () => {
+    const source = [
+      { id: "msg_1", type: "user", text: "hello", files: [], time: { created: 1 } },
+      {
+        id: "msg_2",
+        type: "assistant",
+        agent: "build",
+        model: { id: "claude", providerID: "anthropic", variant: "high" },
+        content: [
+          { type: "reasoning", text: "Thinking", time: { created: 2, completed: 3 } },
+          { type: "text", text: "Result" },
+          {
+            type: "tool",
+            id: "call_1",
+            name: "read",
+            state: {
+              status: "completed",
+              input: { filePath: "note.txt" },
+              metadata: { title: "note.txt" },
+              content: [{ type: "text", text: "hello" }],
+            },
+            time: { created: 3, ran: 4, completed: 5 },
+          },
+        ],
+        time: { created: 2, completed: 5 },
+      },
+      {
+        id: "msg_3",
+        type: "compaction",
+        status: "completed",
+        reason: "auto",
+        summary: "summary",
+        recent: "recent",
+        time: { created: 6 },
+      },
+    ] satisfies SessionMessageInfo[]
+
+    const full = normalizeSessionMessages("ses_1", source)
+    const subset = normalizeSessionMessages("ses_1", source, new Set(["msg_1", "msg_2"]))
+
+    expect(subset.messages).toEqual(full.messages)
+    expect([...subset.parts.entries()]).toEqual(
+      [...full.parts.entries()].filter(([messageID]) => messageID === "msg_1" || messageID === "msg_2"),
+    )
+    expect(subset.parts.get("msg_1")).toEqual(full.parts.get("msg_1"))
+    expect(subset.parts.get("msg_2")).toEqual(full.parts.get("msg_2"))
+  })
 })

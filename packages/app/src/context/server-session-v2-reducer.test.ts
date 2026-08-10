@@ -153,4 +153,120 @@ describe("v2 session reducer", () => {
 
     expect(result).toMatchObject({ sessionID: "ses_1", missing: "msg_user", touched: [] })
   })
+
+  test("keeps the assistant reference when a tool event is a no-op", () => {
+    const reducer = createV2SessionReducer()
+    let messages: SessionMessageInfo[] = []
+    const apply = (input: object) => {
+      const result = reducer.reduce(messages, event(input))
+      if (result) messages = result.messages
+      return result
+    }
+
+    apply({
+      ...base,
+      id: "evt_step",
+      type: "session.step.started",
+      data: {
+        sessionID: "ses_1",
+        assistantMessageID: "msg_assistant",
+        agent: "build",
+        model: { id: "model", providerID: "provider" },
+      },
+    })
+    apply({
+      ...base,
+      id: "evt_tool_start",
+      type: "session.tool.input.started",
+      data: { sessionID: "ses_1", assistantMessageID: "msg_assistant", callID: "call_1", name: "bash" },
+    })
+    apply({
+      ...base,
+      id: "evt_tool_called",
+      type: "session.tool.called",
+      data: { sessionID: "ses_1", assistantMessageID: "msg_assistant", callID: "call_1", input: {}, executed: true },
+    })
+    apply({
+      ...base,
+      id: "evt_tool_success",
+      type: "session.tool.success",
+      data: {
+        sessionID: "ses_1",
+        assistantMessageID: "msg_assistant",
+        callID: "call_1",
+        metadata: {},
+        content: [{ type: "text", text: "done" }],
+        executed: true,
+      },
+    })
+
+    const before = messages[0]
+    const noop = apply({
+      ...base,
+      id: "evt_tool_progress_after_complete",
+      type: "session.tool.progress",
+      data: { sessionID: "ses_1", assistantMessageID: "msg_assistant", callID: "call_1", metadata: {} },
+    })
+
+    expect(noop?.touched).toEqual(["msg_assistant"])
+    expect(messages).toHaveLength(1)
+    // The tool is already completed, so the event must not recreate the
+    // assistant message; projectV2 can skip the reconcile/normalize pass.
+    expect(messages[0]).toBe(before)
+    expect(noop?.messages[0]).toBe(before)
+  })
+
+  test("recreates the assistant reference when a running tool receives progress", () => {
+    const reducer = createV2SessionReducer()
+    let messages: SessionMessageInfo[] = []
+    const apply = (input: object) => {
+      const result = reducer.reduce(messages, event(input))
+      if (result) messages = result.messages
+      return result
+    }
+
+    apply({
+      ...base,
+      id: "evt_step",
+      type: "session.step.started",
+      data: {
+        sessionID: "ses_1",
+        assistantMessageID: "msg_assistant",
+        agent: "build",
+        model: { id: "model", providerID: "provider" },
+      },
+    })
+    apply({
+      ...base,
+      id: "evt_tool_start",
+      type: "session.tool.input.started",
+      data: { sessionID: "ses_1", assistantMessageID: "msg_assistant", callID: "call_1", name: "bash" },
+    })
+    apply({
+      ...base,
+      id: "evt_tool_called",
+      type: "session.tool.called",
+      data: { sessionID: "ses_1", assistantMessageID: "msg_assistant", callID: "call_1", input: {}, executed: true },
+    })
+
+    const before = messages[0]
+    const changed = apply({
+      ...base,
+      id: "evt_tool_progress_running",
+      type: "session.tool.progress",
+      data: { sessionID: "ses_1", assistantMessageID: "msg_assistant", callID: "call_1", metadata: { percent: 50 } },
+    })
+
+    expect(changed?.touched).toEqual(["msg_assistant"])
+    expect(changed?.messages[0]).not.toBe(before)
+    expect(changed?.messages[0]).toMatchObject({
+      content: [
+        {
+          type: "tool",
+          id: "call_1",
+          state: { status: "running", metadata: { percent: 50 } },
+        },
+      ],
+    })
+  })
 })
