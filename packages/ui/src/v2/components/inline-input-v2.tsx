@@ -1,5 +1,6 @@
 import { type ComponentProps, type JSX, Show, splitProps, createSignal } from "solid-js"
 import { Icon } from "./icon"
+import { copyToClipboard } from "../../utils/clipboard"
 import "./inline-input-v2.css"
 
 export interface InlineInputV2Props extends Omit<ComponentProps<"input">, "type" | "prefix"> {
@@ -98,10 +99,12 @@ export function InlineInputV2(props: InlineInputV2Props) {
             disabled={local.disabled}
             onClick={(event) => {
               if (input) {
-                navigator.clipboard.writeText(input.value).then(() => {
-                  setCopied(true)
-                  setTimeout(() => setCopied(false), 2000)
-                }).catch(() => {})
+                copyToClipboard(input.value).then((success) => {
+                  if (success) {
+                    setCopied(true)
+                    setTimeout(() => setCopied(false), 2000)
+                  }
+                })
               }
               local.onCopyClick?.(event)
             }}

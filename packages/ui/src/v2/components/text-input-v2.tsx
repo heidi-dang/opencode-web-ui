@@ -1,5 +1,6 @@
 import { type ComponentProps, type JSX, Show, splitProps, createSignal } from "solid-js"
 import { Icon } from "./icon"
+import { copyToClipboard } from "../../utils/clipboard"
 import "./text-input-v2.css"
 
 export interface TextInputV2Props extends Omit<ComponentProps<"input">, "type"> {
@@ -99,10 +100,12 @@ export function TextInputV2(props: TextInputV2Props) {
               return
             }
             if (inputRef) {
-              navigator.clipboard.writeText(inputRef.value).then(() => {
-                setCopied(true)
-                setTimeout(() => setCopied(false), 2000)
-              }).catch(() => {})
+              copyToClipboard(inputRef.value).then((success) => {
+                if (success) {
+                  setCopied(true)
+                  setTimeout(() => setCopied(false), 2000)
+                }
+              })
             }
             local.onCopyClick?.(event)
           }}

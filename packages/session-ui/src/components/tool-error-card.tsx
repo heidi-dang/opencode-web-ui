@@ -6,6 +6,7 @@ import { Icon } from "@opencode-ai/ui/icon"
 import { IconButton } from "@opencode-ai/ui/icon-button"
 import { Tooltip } from "@opencode-ai/ui/tooltip"
 import { useI18n } from "@opencode-ai/ui/context/i18n"
+import { copyToClipboard } from "@opencode-ai/ui/utils/clipboard"
 
 export interface ToolErrorCardProps extends Omit<ComponentProps<typeof Card>, "children" | "variant"> {
   tool: string
@@ -87,9 +88,11 @@ export function ToolErrorCard(props: ToolErrorCardProps) {
   const copy = async () => {
     const text = cleaned()
     if (!text) return
-    await navigator.clipboard.writeText(text)
-    setState("copied", true)
-    setTimeout(() => setState("copied", false), 2000)
+    const success = await copyToClipboard(text)
+    if (success) {
+      setState("copied", true)
+      setTimeout(() => setState("copied", false), 2000)
+    }
   }
 
   return (

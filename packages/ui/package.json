@@ -53,6 +53,7 @@
     "./audio/*": "./src/assets/audio/*",
     "./v2/*.css": "./src/v2/components/*.css",
     "./v2/*": "./src/v2/components/*.tsx",
+    "./utils/*": "./src/utils/*.ts",
     "./v2/styles/*": "./src/v2/styles/*"
   },
   "scripts": {
