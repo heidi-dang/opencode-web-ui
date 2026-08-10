@@ -66,6 +66,7 @@ import { createSessionLineage } from "@/pages/session/session-lineage"
 import { SessionRouteErrorBoundary } from "@/pages/session/session-error-boundary"
 
 import { isRecoverableDynamicImportError, safeLazy } from "@/utils/dynamic-import-recovery"
+import { NetworkStatusBanner } from "@/components/network-status-banner"
 
 declare const __BUILD_ID__: string
 
@@ -420,6 +421,7 @@ export function AppBaseProviders(props: ParentProps<{ locale?: Locale }>) {
               <QueryProvider>
                 <WslServersProvider>
                   <DialogProvider>
+                    <NetworkStatusBanner />
                     <FileComponentProvider component={File}>{props.children}</FileComponentProvider>
                   </DialogProvider>
                 </WslServersProvider>
@@ -511,8 +513,29 @@ function ConnectionError(props: { onRetry?: () => void; onServerSelected?: (key:
   const serverToken = "\u0000server\u0000"
   const unreachable = createMemo(() => language.t("app.server.unreachable", { server: serverToken }).split(serverToken))
 
-  const timer = setInterval(() => props.onRetry?.(), 1000)
+  const [delay, setDelay] = createSignal(2)
+  const [secondsLeft, setSecondsLeft] = createSignal(2)
+
+  const tick = () => {
+    setSecondsLeft((prev) => {
+      if (prev <= 1) {
+        props.onRetry?.()
+        const nextDelay = Math.min(delay() * 2, 30)
+        setDelay(nextDelay)
+        return nextDelay
+      }
+      return prev - 1
+    })
+  }
+
+  const timer = setInterval(tick, 1000)
   onCleanup(() => clearInterval(timer))
+
+  const handleManualRetry = () => {
+    props.onRetry?.()
+    setDelay(2)
+    setSecondsLeft(2)
+  }
 
   return (
     <div class="h-dvh w-screen flex flex-col items-center justify-center bg-background-base gap-6 p-6">
@@ -523,7 +546,16 @@ function ConnectionError(props: { onRetry?: () => void; onServerSelected?: (key:
           <span class="text-text-strong font-medium">{name()}</span>
           {unreachable()[1]}
         </p>
-        <p class="mt-1 text-12-regular text-text-weak">{language.t("app.server.retrying")}</p>
+        <p class="mt-1 text-12-regular text-text-weak">
+          Retrying in <span class="font-medium text-text-strong">{secondsLeft()}s</span>...
+        </p>
+        <button
+          type="button"
+          onClick={handleManualRetry}
+          class="mt-3 px-3 py-1.5 bg-surface-raised-base hover:bg-surface-raised-base-hover border border-border-base rounded text-12-medium text-text-strong transition-colors cursor-pointer"
+        >
+          Retry Now
+        </button>
       </div>
       <Show when={others().length > 0}>
         <div class="flex flex-col gap-2 w-full max-w-sm">

@@ -22,7 +22,8 @@ export function CommentCardV2(props: {
     if (!element) return
     const sync = () => setTruncated(element.scrollWidth > element.clientWidth)
     const measure = () => requestAnimationFrame(sync)
-    const observer = new ResizeObserver(sync)
+    // Wrap in requestAnimationFrame to prevent "ResizeObserver loop limit exceeded" errors
+    const observer = new ResizeObserver(measure)
     observer.observe(element)
     measure()
     void document.fonts?.ready.then(measure)

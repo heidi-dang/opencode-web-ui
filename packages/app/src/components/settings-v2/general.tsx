@@ -1,4 +1,4 @@
-import { Component, Show, createMemo, createResource, onMount } from "solid-js"
+import { Component, Show, createMemo, createResource, onMount, onCleanup } from "solid-js"
 import { createMediaQuery } from "@solid-primitives/media"
 import { ButtonV2 } from "@opencode-ai/ui/v2/button-v2"
 import { SelectV2 } from "@opencode-ai/ui/v2/select-v2"
@@ -93,6 +93,7 @@ export const SettingsGeneralV2: Component<{
   const serverSync = useServerSync()
   const serverSdk = useServerSDK()
   const mobile = createMediaQuery("(max-width: 767px)")
+  onCleanup(stopDemoSound)
 
   const updater = useUpdaterAction()
 

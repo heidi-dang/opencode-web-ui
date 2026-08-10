@@ -218,3 +218,11 @@
     max-width: 100%;
   }
 }
+
+.command-palette-v2 mark {
+  background-color: var(--v2-background-bg-layer-04, rgba(234, 179, 8, 0.2));
+  color: var(--v2-text-text-strong, inherit);
+  font-weight: 600;
+  border-radius: 2px;
+  padding: 0 1px;
+}

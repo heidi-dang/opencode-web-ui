@@ -41,3 +41,25 @@ Critical learnings and patterns discovered about this codebase's UX and accessib
 - **Pattern:** Displaying user or project images.
 - **Issue:** Fallback to name or initials on failure, but when image is successfully loaded, the `<img>` tag is missing `alt` attributes or has empty alt texts.
 - **Solution:** Dynamically feed the fallback initials/text into the `alt` attribute of the image (e.g., `alt={split.fallback}`).
+
+### 7. ResizeObserver Loop Protection (`comment-card-v2.tsx`)
+- **Pattern:** `new ResizeObserver(callback)` used to detect truncation by measuring `scrollWidth` vs `clientWidth`.
+- **Issue:** When the `ResizeObserver` callback directly calls `setTruncated(...)` (a SolidJS signal setter), it can trigger re-renders that in turn trigger more resize observations, causing "ResizeObserver loop limit exceeded" browser errors.
+- **Solution:** Wrap the `ResizeObserver` callback with `requestAnimationFrame` (via `new ResizeObserver(measure)` instead of `new ResizeObserver(sync)`). This defers the state update to the next animation frame, breaking the synchronous resize-→-render-→-resize loop.
+
+### 8. Empty Search Result Guidance (`dialog-command-palette-v2.tsx`)
+- **Pattern:** Command palette shows "No results found" as a plain text fallback when the search query yields zero matches.
+- **Issue:** Users are left without any guidance on what to do next — there's no CTA to clear the search or a helpful suggestion.
+- **Solution:**
+  1. Added `ref={inputRef}` to `TextInputV2` so we can focus it programmatically.
+  2. Added `showClearButton` and `onClearClick` props to `TextInputV2` in the search bar for quick one-click clearing.
+  3. Enhanced the fallback `command-palette-v2-state` block: shows the "No results found" heading, plus a helpful hint ("Try checking your spelling or using more general terms.") and a "Clear search" button — but only when the query is non-empty and results are not loading.
+
+### 9. Active Search Term Highlighting (`dialog-command-palette-v2.tsx` + `dialog-command-palette-v2.css`)
+- **Pattern:** Command palette matches and ranks entries by the user's query, but renders all titles/descriptions/paths as plain text.
+- **Issue:** Users cannot easily spot _why_ a result is shown — the matching substring is invisible.
+- **Solution:**
+  1. Added a reactive `HighlightText` SolidJS component that splits text on the query string using a case-insensitive regex and wraps each matched part in a `<mark>` element.
+  2. Passed the current `query()` down into `PaletteRow` as a new `query?: string` prop.
+  3. Replaced bare text in command titles, descriptions, file directories, and file names with `<HighlightText>` calls.
+  4. Added `.command-palette-v2 mark` CSS rule using CSS custom properties (`--v2-background-bg-layer-04`, `--v2-text-text-strong`) for a subtle, on-brand highlight look with a slight background tint and bold weight.

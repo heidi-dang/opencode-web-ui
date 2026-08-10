@@ -908,6 +908,10 @@ export default function Page() {
     refreshVcs()
   })
   onCleanup(stopVcs)
+  onCleanup(() => {
+    if (todoFrame !== undefined) cancelAnimationFrame(todoFrame)
+    if (todoTimer !== undefined) window.clearTimeout(todoTimer)
+  })
 
   createEffect(
     on(

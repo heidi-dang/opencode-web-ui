@@ -24,6 +24,30 @@ import {
 } from "./command-palette"
 import "./dialog-command-palette-v2.css"
 
+/** Highlights occurrences of `query` inside `text` using <mark> elements. */
+function HighlightText(props: { text: string; query?: string }) {
+  const parts = createMemo(() => {
+    const query = props.query?.trim()
+    if (!query) return null
+    const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+    const raw = props.text.split(new RegExp(`(${escaped})`, "gi"))
+    const lower = query.toLowerCase()
+    return { raw, lower }
+  })
+
+  return (
+    <Show when={parts()} fallback={<>{props.text}</>}>
+      {(p) => (
+        <>
+          {p().raw.map((part) =>
+            part.toLowerCase() === p().lower ? <mark>{part}</mark> : part,
+          )}
+        </>
+      )}
+    </Show>
+  )
+}
+
 function groups(entries: CommandPaletteEntry[]) {
   const map = new Map<string, CommandPaletteEntry[]>()
   for (const entry of entries) map.set(entry.category, [...(map.get(entry.category) ?? []), entry])
@@ -155,6 +179,7 @@ function CommandPaletteView(props: {
   })
 
   let resultsRef: HTMLDivElement | undefined
+  let inputRef: HTMLInputElement | undefined
 
   const move = (delta: -1 | 1) => {
     const count = visibleEntries().length
@@ -192,6 +217,7 @@ function CommandPaletteView(props: {
       <DialogBody class="command-palette-v2-body">
         <div class="command-palette-v2-search">
           <TextInputV2
+            ref={inputRef}
             value={query()}
             autofocus
             autocomplete="off"
@@ -199,6 +225,9 @@ function CommandPaletteView(props: {
             appearance="large"
             placeholder={props.placeholder}
             leadingIcon={<Icon name="magnifying-glass" />}
+            showClearButton={query().trim().length > 0}
+            clearLabel="Clear search"
+            onClearClick={() => { setQuery(""); inputRef?.focus() }}
             onInput={(event) => setQuery(event.currentTarget.value)}
             onKeyDown={handleKeyDown}
           />
@@ -208,8 +237,22 @@ function CommandPaletteView(props: {
             <Show
               when={visibleEntries().length > 0}
               fallback={
-                <div class="command-palette-v2-state">
-                  {entries.loading ? language.t("common.loading") : language.t("palette.empty")}
+                <div class="command-palette-v2-state flex flex-col items-center justify-center p-6 text-center">
+                  <div class="text-14-medium mb-1">
+                    {entries.loading ? language.t("common.loading") : language.t("palette.empty")}
+                  </div>
+                  <Show when={!entries.loading && query().trim().length > 0}>
+                    <p class="text-text-weak text-12-regular mt-1 mb-4 max-w-[280px]">
+                      Try checking your spelling or using more general terms.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => { setQuery(""); inputRef?.focus() }}
+                      class="px-3 py-1.5 border border-border-base rounded text-12-medium transition-colors cursor-pointer"
+                    >
+                      Clear search
+                    </button>
+                  </Show>
                 </div>
               }
             >
@@ -223,6 +266,7 @@ function CommandPaletteView(props: {
                       {(item) => (
                         <PaletteRow
                           item={item}
+                          query={query()}
                           active={activeEntry()?.id === item.id}
                           language={language}
                           sessionOpen={
@@ -248,6 +292,7 @@ function CommandPaletteView(props: {
 
 function PaletteRow(props: {
   item: CommandPaletteEntry
+  query?: string
   active: boolean
   language: ReturnType<typeof useLanguage>
   sessionOpen: boolean
@@ -279,8 +324,12 @@ function PaletteRow(props: {
           <div class="command-palette-v2-row-main">
             <FileIcon node={{ path: props.item.path ?? "", type: "file" }} class="command-palette-v2-row-icon size-4" />
             <div class="command-palette-v2-file-path">
-              <span class="command-palette-v2-file-dir">{getDirectory(props.item.path ?? "")}</span>
-              <span class="command-palette-v2-file-name">{getFilename(props.item.path ?? "")}</span>
+              <span class="command-palette-v2-file-dir">
+                <HighlightText text={getDirectory(props.item.path ?? "")} query={props.query} />
+              </span>
+              <span class="command-palette-v2-file-name">
+                <HighlightText text={getFilename(props.item.path ?? "")} query={props.query} />
+              </span>
             </div>
           </div>
         }
@@ -288,9 +337,13 @@ function PaletteRow(props: {
         <Match when={props.item.type === "command"}>
           <div class="command-palette-v2-row-main">
             <div class="command-palette-v2-row-text">
-              <span class="command-palette-v2-title">{props.item.title}</span>
+              <span class="command-palette-v2-title">
+                <HighlightText text={props.item.title} query={props.query} />
+              </span>
               <Show when={props.item.description}>
-                <span class="command-palette-v2-description">{props.item.description}</span>
+                <span class="command-palette-v2-description">
+                  <HighlightText text={props.item.description!} query={props.query} />
+                </span>
               </Show>
             </div>
           </div>
@@ -321,11 +374,11 @@ function PaletteRow(props: {
             </div>
             <div class="command-palette-v2-row-text">
               <span class="command-palette-v2-title" classList={{ "opacity-70": !!props.item.archived }}>
-                {props.item.title}
+                <HighlightText text={props.item.title} query={props.query} />
               </span>
               <Show when={props.item.description}>
                 <span class="command-palette-v2-description" classList={{ "opacity-70": !!props.item.archived }}>
-                  {props.item.description}
+                  <HighlightText text={props.item.description!} query={props.query} />
                 </span>
               </Show>
             </div>

@@ -1,6 +1,6 @@
 import { type ComponentProps, createMemo, splitProps } from "solid-js"
 
-export interface ProgressCircleProps extends Pick<ComponentProps<"svg">, "class" | "classList" | "style"> {
+export interface ProgressCircleProps extends Pick<ComponentProps<"svg">, "class" | "classList" | "style" | "aria-label" | "aria-labelledby"> {
   percentage: number
   size?: number
   strokeWidth?: number
@@ -26,6 +26,10 @@ export function ProgressCircle(props: ProgressCircleProps) {
   return (
     <svg
       {...rest}
+      role="progressbar"
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={Math.round(Math.max(0, Math.min(100, split.percentage || 0)))}
       width={size()}
       height={size()}
       viewBox={`0 0 ${viewBoxSize} ${viewBoxSize}`}
