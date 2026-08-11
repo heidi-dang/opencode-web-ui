@@ -1,6 +1,6 @@
 {
   "name": "@opencode-ai/app",
-  "version": "1.18.5",
+  "version": "1.18.16",
   "description": "",
   "type": "module",
   "exports": {
@@ -48,6 +48,7 @@
   },
   "dependencies": {
     "@corvu/drawer": "catalog:",
+    "dompurify": "catalog:",
     "@dnd-kit/abstract": "0.5.0",
     "@dnd-kit/dom": "0.5.0",
     "@dnd-kit/helpers": "0.5.0",

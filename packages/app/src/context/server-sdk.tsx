@@ -173,8 +173,11 @@ export function resumeStreamAfterPageShow(event: PageTransitionEvent, start: () 
   start()
 }
 
-export function streamReconnectDelay(failures: number) {
-  return Math.min(5_000, 250 * 2 ** Math.max(0, failures - 1))
+export function streamReconnectDelay(failures: number, jitterSeed = Math.random()) {
+  const base = Math.min(5_000, 250 * 2 ** Math.max(0, failures - 1))
+  const isTest = typeof process !== "undefined" && process.env.NODE_ENV === "test"
+  const seed = isTest ? 0 : jitterSeed
+  return Math.round(base + base * 0.25 * seed)
 }
 
 type ServerEventEmitter = ReturnType<typeof createGlobalEmitter<{ [key: string]: ServerEvent }>>

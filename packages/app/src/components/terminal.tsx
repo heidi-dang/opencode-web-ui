@@ -631,16 +631,32 @@ export const Terminal = (props: TerminalProps) => {
         socket.binaryType = "arraybuffer"
         ws = socket
 
+        let heartbeatTimer: ReturnType<typeof setInterval> | undefined
+        let lastActivity = Date.now()
+
         const handleOpen = () => {
           if (disposed) return
           tries = 0
           local.onConnect?.()
           scheduleSize(t.cols, t.rows)
           if (t.getMode(2031)) t.write("\x1b[?996n")
+
+          lastActivity = Date.now()
+          if (heartbeatTimer) clearInterval(heartbeatTimer)
+          heartbeatTimer = setInterval(() => {
+            if (disposed || socket.readyState !== WebSocket.OPEN) return
+            // Check if connection has been silent longer than 15s heartbeat budget
+            if (Date.now() - lastActivity > 15_000) {
+              debugTerminal("websocket heartbeat timeout, forcing termination")
+              stop()
+              handleClose(new CloseEvent("close", { code: 4000, reason: "Heartbeat timeout" }))
+            }
+          }, 5_000)
         }
 
         const handleMessage = (event: MessageEvent) => {
           if (disposed) return
+          lastActivity = Date.now()
           if (event.data instanceof ArrayBuffer) {
             const bytes = new Uint8Array(event.data)
             if (bytes[0] !== 0) return
@@ -671,6 +687,10 @@ export const Terminal = (props: TerminalProps) => {
         }
 
         const stop = () => {
+          if (heartbeatTimer) {
+            clearInterval(heartbeatTimer)
+            heartbeatTimer = undefined
+          }
           socket.removeEventListener("open", handleOpen)
           socket.removeEventListener("message", handleMessage)
           socket.removeEventListener("error", handleError)

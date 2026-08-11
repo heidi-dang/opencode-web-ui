@@ -31,6 +31,25 @@ if (typeof window !== "undefined") {
     window.addEventListener("load", () => {
       navigator.serviceWorker
         .register("/sw.js", { updateViaCache: "none" })
+        .then((registration) => {
+          // Fix 360: Service Worker Cache Invalidation Enforcement
+          const lastSwVersion = localStorage.getItem("opencode.sw.version")
+          const currentVersion = pkg.version
+          if (lastSwVersion !== currentVersion) {
+            registration.update().then(() => {
+              if (typeof caches !== "undefined") {
+                caches.keys().then((keys) => {
+                  Promise.all(keys.map((key) => caches.delete(key))).then(() => {
+                    localStorage.setItem("opencode.sw.version", currentVersion)
+                    console.log("[SW] Cache invalidated and updated to", currentVersion)
+                  })
+                })
+              } else {
+                localStorage.setItem("opencode.sw.version", currentVersion)
+              }
+            }).catch(() => {})
+          }
+        })
         .catch(() => {
           // Non-critical — app still works without SW
         })
