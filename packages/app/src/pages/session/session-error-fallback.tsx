@@ -5,6 +5,7 @@ import { useTabs } from "@/context/tabs"
 import { ButtonV2 } from "@opencode-ai/ui/v2/button-v2"
 import { ErrorPage } from "@/pages/error"
 import { isCurrentSessionNotFoundError } from "@/utils/server-errors"
+import { copyToClipboard } from "@opencode-ai/ui/utils/clipboard"
 
 export function SessionErrorFallback(props: {
   error: unknown
@@ -87,9 +88,26 @@ export function SessionErrorFallback(props: {
                   {language.t("notification.session.error.fallbackDescription")}
                 </div>
               </div>
-              <ButtonV2 variant="outline" size="normal" icon="arrow-clockwise" onClick={props.onRetry}>
-                {language.t("wsl.server.retryStart")}
-              </ButtonV2>
+              <div class="flex items-center gap-2">
+                <ButtonV2 variant="outline" size="normal" icon="arrow-clockwise" onClick={props.onRetry}>
+                  {language.t("wsl.server.retryStart")}
+                </ButtonV2>
+                <ButtonV2
+                  variant="outline"
+                  size="normal"
+                  icon="copy"
+                  onClick={() => {
+                    const msg =
+                      props.error instanceof Error
+                        ? props.error.stack || props.error.message
+                        : String(props.error)
+                    const diagnostics = `Error: ${msg}\nSession ID: ${props.sessionID ?? "none"}\nServer Key: ${props.serverKey ?? "none"}`
+                    copyToClipboard(diagnostics)
+                  }}
+                >
+                  Copy Diagnostics
+                </ButtonV2>
+              </div>
             </div>
           </div>
         </div>

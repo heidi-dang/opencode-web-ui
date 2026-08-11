@@ -79,6 +79,7 @@ export function InlineInputV2(props: InlineInputV2Props) {
         <div data-slot="inline-input-v2-value">
           <input
             {...inputProps}
+            value={inputProps.value ?? ""}
             ref={(el) => {
               input = el
               const ref = inputProps.ref

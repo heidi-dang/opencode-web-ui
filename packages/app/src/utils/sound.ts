@@ -98,5 +98,7 @@ export function playSound(src: string | undefined) {
 }
 
 export function playSoundById(id: string | undefined) {
-  return soundSrc(id).then((src) => playSound(src))
+  return soundSrc(id)
+    .then((src) => playSound(src))
+    .catch(() => undefined)
 }

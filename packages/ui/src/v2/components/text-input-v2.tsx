@@ -64,6 +64,7 @@ export function TextInputV2(props: TextInputV2Props) {
         </Show>
         <input
           {...inputProps}
+          value={inputProps.value ?? ""}
           ref={(el) => {
             inputRef = el
             if (typeof inputProps.ref === "function") {

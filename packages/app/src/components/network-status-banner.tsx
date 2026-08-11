@@ -1,4 +1,4 @@
-import { createSignal, createEffect, onCleanup, Show } from "solid-js"
+import { createSignal, createEffect, onCleanup, Show, onMount } from "solid-js"
 
 export function NetworkStatusBanner() {
   const [isOffline, setIsOffline] = createSignal(typeof navigator !== "undefined" ? !navigator.onLine : false)
@@ -20,10 +20,12 @@ export function NetworkStatusBanner() {
     if (onlineTimer) clearTimeout(onlineTimer)
   }
 
-  if (typeof window !== "undefined") {
-    window.addEventListener("online", handleOnline)
-    window.addEventListener("offline", handleOffline)
-  }
+  onMount(() => {
+    if (typeof window !== "undefined") {
+      window.addEventListener("online", handleOnline)
+      window.addEventListener("offline", handleOffline)
+    }
+  })
 
   onCleanup(() => {
     if (typeof window !== "undefined") {
