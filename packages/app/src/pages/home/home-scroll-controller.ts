@@ -71,17 +71,20 @@ export function createHomeScrollController(groups: Accessor<HomeSessionGroup[]>)
 
   function update(scrollTop: number) {
     const items = groups()
-    items.forEach((group, index) => {
-      const nextOffset = items
-        .slice(index + 1)
-        .map((item) => headerOffsets.get(item.id))
-        .find((offset) => offset !== undefined)
+    let nextOffset: number | undefined = undefined
+    for (let i = items.length - 1; i >= 0; i--) {
+      const group = items[i]
       const fadeEnd = stickyTop + HOME_SESSION_HEADER_TEXT_HEIGHT
       const nextTop = nextOffset === undefined ? undefined : nextOffset - scrollTop
       const opacity =
         nextTop === undefined ? 1 : Math.max(0, Math.min(1, (nextTop - fadeEnd) / HOME_SESSION_HEADER_FADE_DISTANCE))
       setState("titleOpacity", group.id, Math.round(opacity * 1000) / 1000)
-    })
+
+      const currentOffset = headerOffsets.get(group.id)
+      if (currentOffset !== undefined) {
+        nextOffset = currentOffset
+      }
+    }
   }
 
   function bindResizeObserver() {
