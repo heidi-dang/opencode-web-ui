@@ -149,9 +149,9 @@ export function createChildStoreManager(input: {
     }
   }
 
-  function ensureChild(directory: string) {
+  function ensureChild(directory: string): [Store<State>, SetStoreFunction<State>] {
     const key = directoryKey(directory)
-    if (!key) console.error("No directory provided")
+    if (!key) throw new Error("No directory provided")
     if (!children[key]) {
       const vcs = runWithOwner(input.owner, () =>
         input.persist(
@@ -316,7 +316,7 @@ export function createChildStoreManager(input: {
     return childStore
   }
 
-  function child(directory: string, options: ChildOptions = {}) {
+  function child(directory: string, options: ChildOptions = {}): [Store<State>, SetStoreFunction<State>] {
     const key = directoryKey(directory)
     const childStore = ensureChild(directory)
     pinForOwner(key)
@@ -329,7 +329,7 @@ export function createChildStoreManager(input: {
     return childStore
   }
 
-  function peek(directory: string, options: ChildOptions = {}) {
+  function peek(directory: string, options: ChildOptions = {}): [Store<State>, SetStoreFunction<State>] {
     const key = directoryKey(directory)
     const childStore = ensureChild(directory)
     if (options.mcp) enableMcp(directory, key, childStore)

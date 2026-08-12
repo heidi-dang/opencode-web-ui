@@ -92,7 +92,7 @@ export default defineConfig({
     sourcemap: !!sentry,
     manifest: true,
     cssCodeSplit: true,
-    chunkSizeWarningLimit: 1000,
+    chunkSizeWarningLimit: 10000, // vendor-shiki (9.6 MB) and ghostty-web (1.38 MB) are inherent to third-party libs
     rollupOptions: {
       output: {
         manualChunks(id) {
