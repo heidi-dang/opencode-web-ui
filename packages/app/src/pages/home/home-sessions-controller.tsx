@@ -258,17 +258,24 @@ function buildHomeSessionRecords(input: {
 }) {
   const directories = new Set(input.projectDirectories().map(pathKey))
   const sessions = input.sessions().filter((session) => directories.has(pathKey(session.directory)))
+
+  const projects = input.projects()
+  const projectByDirectory = new Map<string, LocalProject>()
+  for (const project of projects) {
+    projectByDirectory.set(pathKey(project.worktree), project)
+    if (project.sandboxes) {
+      for (const sandbox of project.sandboxes) {
+        projectByDirectory.set(pathKey(sandbox), project)
+      }
+    }
+  }
+
   return [...new Map(sessions.map((session) => [session.id, session] as const)).values()]
     .sort((a, b) => (b.time.updated ?? b.time.created) - (a.time.updated ?? a.time.created))
     .flatMap((session) => {
       const directory = pathKey(session.directory)
       const project =
-        input
-          .projects()
-          .find(
-            (item) =>
-              pathKey(item.worktree) === directory || item.sandboxes?.some((sandbox) => pathKey(sandbox) === directory),
-          ) ?? projectForSession(session, input.projects(), input.projectByID())
+        projectByDirectory.get(directory) ?? projectForSession(session, projects, input.projectByID())
       if (!project) return []
       return { session, project, projectName: displayName(project) }
     })
