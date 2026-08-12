@@ -1,4 +1,4 @@
-import { createEffect, createMemo, createSignal, onCleanup, Show, type Ref } from "solid-js"
+import { createEffect, createMemo, createSignal, onCleanup, Show } from "solid-js"
 import { makeEventListener } from "@solid-primitives/event-listener"
 import { createResizeObserver } from "@solid-primitives/resize-observer"
 import { IconButtonV2 } from "@opencode-ai/ui/v2/icon-button-v2"
@@ -18,7 +18,7 @@ import "./titlebar-tab-nav.css"
 const MIDDLE_MOUSE_BUTTON = 1
 
 export function TabNavItem(props: {
-  ref?: Ref<HTMLDivElement>
+  ref?: (el: HTMLDivElement) => void
   href: string
   server: ServerConnection.Key
   session: () => Session | undefined
@@ -336,7 +336,7 @@ export function TabNavItem(props: {
 }
 
 export function DraftTabItem(props: {
-  ref?: Ref<HTMLDivElement>
+  ref?: (el: HTMLDivElement) => void
   href: string
   title: string
   active?: boolean
