@@ -53,7 +53,7 @@ async function fetchProviderIcons() {
     providers.map((provider) =>
       fetch(`${url}/logos/${provider}.svg`)
         .then((res) => res.text())
-        .then((svg) => fs.writeFileSync(`./src/assets/icons/provider/${provider}.svg`, svg)),
+        .then((svg) => fs.promises.writeFile(`./src/assets/icons/provider/${provider}.svg`, svg)),
     ),
   )
 }
