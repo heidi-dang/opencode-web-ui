@@ -1,4 +1,4 @@
-import { createSignal, createEffect, onCleanup, Show, onMount } from "solid-js"
+import { createSignal, onCleanup, Show, onMount } from "solid-js"
 
 export function NetworkStatusBanner() {
   const [isOffline, setIsOffline] = createSignal(typeof navigator !== "undefined" ? !navigator.onLine : false)
