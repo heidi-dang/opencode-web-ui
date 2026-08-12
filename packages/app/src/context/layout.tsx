@@ -635,35 +635,38 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
           setStore("handoff", "tabs", undefined)
         },
       },
-      projects: {
-        list,
-        recentlyClosed: createMemo(() => {
-          const known = new Set(serverSync().data.project.map((project) => pathKey(project.worktree)))
-          return server.projects
-            .recentlyClosed()
-            .filter((worktree) => known.has(pathKey(worktree)))
-            .slice(0, RECENTLY_CLOSED_DISPLAY_LIMIT)
-            .map((worktree) => enrich({ worktree, expanded: false }))
-        }),
-        open(directory: string) {
-          const root = rootFor(directory)
-          if (server.projects.list().find((x) => x.worktree === root)) return
-          void serverSync().project.loadSessions(root)
-          server.projects.open(root)
-        },
-        close(directory: string) {
-          server.projects.close(directory)
-        },
-        expand(directory: string) {
-          server.projects.expand(directory)
-        },
-        collapse(directory: string) {
-          server.projects.collapse(directory)
-        },
-        move(directory: string, toIndex: number) {
-          server.projects.move(directory, toIndex)
-        },
-      },
+      projects: (() => {
+        const knownWorktrees = createMemo(() => new Set(server.projects.list().map((x) => x.worktree)))
+        return {
+          list,
+          recentlyClosed: createMemo(() => {
+            const known = new Set(serverSync().data.project.map((project) => pathKey(project.worktree)))
+            return server.projects
+              .recentlyClosed()
+              .filter((worktree) => known.has(pathKey(worktree)))
+              .slice(0, RECENTLY_CLOSED_DISPLAY_LIMIT)
+              .map((worktree) => enrich({ worktree, expanded: false }))
+          }),
+          open(directory: string) {
+            const root = rootFor(directory)
+            if (knownWorktrees().has(root)) return
+            void serverSync().project.loadSessions(root)
+            server.projects.open(root)
+          },
+          close(directory: string) {
+            server.projects.close(directory)
+          },
+          expand(directory: string) {
+            server.projects.expand(directory)
+          },
+          collapse(directory: string) {
+            server.projects.collapse(directory)
+          },
+          move(directory: string, toIndex: number) {
+            server.projects.move(directory, toIndex)
+          },
+        }
+      })(),
       sidebar: {
         opened: createMemo(() => store.sidebar.opened),
         open() {
