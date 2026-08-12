@@ -402,7 +402,10 @@ export type ServerSDK = ServerSDKBase & {
 export function createServerSdkContext(server: ServerConnection.Any, scope: ServerScope): ServerSDK {
   const sdk = createServerSdkContextBase(server, scope)
   return Object.assign(sdk, {
-    ensureDirSdkContext: createRefCountMap((dir) => createDirSdkContext(dir, sdk)),
+    ensureDirSdkContext: createRefCountMap(
+      (dir) => createDirSdkContext(dir, sdk),
+      (_key, item) => item.dispose(),
+    ),
   })
 }
 
@@ -443,9 +446,9 @@ function createDirSdkContext(directory: string, serverSDK: ServerSDKBase) {
   const unsub = serverSDK.event.on(directory, (event) => {
     emitter.emit(event.type, event)
   })
-  onCleanup(unsub)
 
   return {
+    dispose: unsub,
     scope: serverSDK.scope,
     protocol: serverSDK.protocol,
     directory,

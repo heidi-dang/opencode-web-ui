@@ -28,7 +28,7 @@ export const createDirSyncContext = (
 ) => {
   const client = serverSDK.createClient({ directory, throwOnError: true })
   const current = createMemo(() => serverSync.child(directory, { mcp: true }))
-  const absolute = (path: string) => (current()[0].path.directory + "/" + path).replace("//", "/")
+  const absolute = (path: string) => (current()[0].path.directory + "/" + path).replace(/\/+/g, "/")
   const data = new Proxy({} as State, {
     get(_, property: keyof State) {
       if (property === "session_working") return serverSync.session.data.session_working.bind(serverSync.session.data)
@@ -136,13 +136,16 @@ export const createDirSyncContext = (
       archive: async (sessionID: string) => {
         if ((await serverSDK.protocol) !== "v1") return
         await serverSDK.client.session.update({ sessionID, directory, time: { archived: Date.now() } })
+        const match = Binary.search(current()[0].session, sessionID, (session) => session.id)
+        if (!match.found) return
+        const isRoot = !current()[0].session[match.index]?.parentID
         current()[1](
           "session",
           produce((draft) => {
-            const match = Binary.search(draft, sessionID, (session) => session.id)
-            if (match.found) draft.splice(match.index, 1)
+            draft.splice(match.index, 1)
           }),
         )
+        if (isRoot) current()[1]("sessionTotal", (value) => Math.max(0, value - 1))
       },
     },
     mcp: {

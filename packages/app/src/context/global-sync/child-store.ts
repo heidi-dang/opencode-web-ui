@@ -153,36 +153,30 @@ export function createChildStoreManager(input: {
     const key = directoryKey(directory)
     if (!key) throw new Error("No directory provided")
     if (!children[key]) {
-      const vcs = runWithOwner(input.owner, () =>
-        input.persist(
-          Persist.serverWorkspace(input.scope, directory, "vcs", ["vcs.v1"]),
-          createStore({ value: undefined as VcsInfo | undefined }),
-        ),
-      )
-      if (!vcs) throw new Error(input.translate("error.childStore.persistedCacheCreateFailed"))
-      const vcsStore = vcs[0]
-      vcsCache.set(key, { store: vcsStore, setStore: vcs[1], ready: vcs[3] })
-
-      const meta = runWithOwner(input.owner, () =>
-        input.persist(
-          Persist.serverWorkspace(input.scope, directory, "project", ["project.v1"]),
-          createStore({ value: undefined as ProjectMeta | undefined }),
-        ),
-      )
-      if (!meta) throw new Error(input.translate("error.childStore.persistedProjectMetadataCreateFailed"))
-      metaCache.set(key, { store: meta[0], setStore: meta[1], ready: meta[3] })
-
-      const icon = runWithOwner(input.owner, () =>
-        input.persist(
-          Persist.serverWorkspace(input.scope, directory, "icon", ["icon.v1"]),
-          createStore({ value: undefined as string | undefined }),
-        ),
-      )
-      if (!icon) throw new Error(input.translate("error.childStore.persistedProjectIconCreateFailed"))
-      iconCache.set(key, { store: icon[0], setStore: icon[1], ready: icon[3] })
-
       const init = () =>
         createRoot((dispose) => {
+          const vcs = input.persist(
+            Persist.serverWorkspace(input.scope, directory, "vcs", ["vcs.v1"]),
+            createStore({ value: undefined as VcsInfo | undefined }),
+          )
+          if (!vcs) throw new Error(input.translate("error.childStore.persistedCacheCreateFailed"))
+          const vcsStore = vcs[0]
+          vcsCache.set(key, { store: vcsStore, setStore: vcs[1], ready: vcs[3] })
+
+          const meta = input.persist(
+            Persist.serverWorkspace(input.scope, directory, "project", ["project.v1"]),
+            createStore({ value: undefined as ProjectMeta | undefined }),
+          )
+          if (!meta) throw new Error(input.translate("error.childStore.persistedProjectMetadataCreateFailed"))
+          metaCache.set(key, { store: meta[0], setStore: meta[1], ready: meta[3] })
+
+          const icon = input.persist(
+            Persist.serverWorkspace(input.scope, directory, "icon", ["icon.v1"]),
+            createStore({ value: undefined as string | undefined }),
+          )
+          if (!icon) throw new Error(input.translate("error.childStore.persistedProjectIconCreateFailed"))
+          iconCache.set(key, { store: icon[0], setStore: icon[1], ready: icon[3] })
+
           const initialMeta = meta[0].value
           const initialIcon = icon[0].value
           const [mcpEnabled, setMcpEnabled] = createSignal(false)

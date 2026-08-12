@@ -46,4 +46,29 @@ describe("createRefCountMap", () => {
     second()
     expect(removed).toEqual(["C:/repo"])
   })
+
+  test("passes created item to remove callback when last owner is disposed", () => {
+    const disposedItems: Array<{ key: string; disposed: boolean }> = []
+    const map = createRefCountMap(
+      (key) => ({ key, disposed: false }),
+      (_id, item) => {
+        item.disposed = true
+        disposedItems.push(item)
+      },
+    )
+
+    const first = createRoot((dispose) => {
+      map("/project")
+      return dispose
+    })
+    const second = createRoot((dispose) => {
+      map("/project")
+      return dispose
+    })
+
+    first()
+    expect(disposedItems).toEqual([])
+    second()
+    expect(disposedItems).toEqual([{ key: "/project", disposed: true }])
+  })
 })

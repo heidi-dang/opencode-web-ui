@@ -242,6 +242,7 @@ export function applyDirectoryEvent(input: {
         "session",
         produce((draft) => void draft.splice(result.index, 1)),
       )
+      cleanupSessionCaches(input.setStore, properties.sessionID, input.setSessionTodo)
       if (!info?.parentID) input.setStore("sessionTotal", (value) => Math.max(0, value - 1))
       break
     }
