@@ -189,10 +189,16 @@ export namespace Timeline {
     })
 
     if (isActive && status === "busy" && !error && (showReasoning ? assistantPartRefs.length === 0 : true)) {
-      const heading = assistantMessages
-        .flatMap((message) => getMessageParts(message.id))
-        .map((part) => (part.type === "reasoning" && part.text ? reasoningHeading(part.text) : undefined))
-        .find((value): value is string => !!value)
+      let heading: string | undefined
+      for (const message of assistantMessages) {
+        for (const part of getMessageParts(message.id)) {
+          if (part.type === "reasoning" && part.text) {
+            heading = reasoningHeading(part.text)
+            if (heading) break
+          }
+        }
+        if (heading) break
+      }
 
       rows.push(
         new TimelineRow.Thinking({
