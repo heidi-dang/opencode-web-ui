@@ -36,9 +36,15 @@ export function messageAgentColor(
   agents: readonly { name: string; color?: string }[],
 ) {
   if (!list) return undefined
+
+  const agentMap = new Map<string, string | undefined>()
+  for (let i = 0; i < agents.length; i++) {
+    agentMap.set(agents[i].name, agents[i].color)
+  }
+
   for (let i = list.length - 1; i >= 0; i--) {
     const item = list[i]
     if (item.role !== "user" || !item.agent) continue
-    return agentColor(item.agent, agents.find((agent) => agent.name === item.agent)?.color)
+    return agentColor(item.agent, agentMap.get(item.agent))
   }
 }
