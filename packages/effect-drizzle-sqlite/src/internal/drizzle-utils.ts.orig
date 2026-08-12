@@ -27,7 +27,12 @@ export function getViewSelectedFieldsRuntime(view: SQLiteViewBase) {
 }
 
 export function jitCompatCheck(isEnabled: boolean | undefined) {
-  return !!isEnabled
+  if (!isEnabled) return false
+  try {
+    return new Function("input", '"use strict"; return input;')(true) === true
+  } catch {
+    return false
+  }
 }
 
 export function orderSelectedFields<TColumn extends Column>(
