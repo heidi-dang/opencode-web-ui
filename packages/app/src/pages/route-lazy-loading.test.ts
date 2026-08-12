@@ -36,8 +36,8 @@ function resolveModulePath(importPath: string): string | null {
   return null
 }
 
-function lazyPathsFromSource(): string[] {
-  const appSource = require("fs").readFileSync(import.meta.dirname + "/../app.tsx", "utf-8")
+async function lazyPathsFromSource(): Promise<string[]> {
+  const appSource = await require("fs").promises.readFile(import.meta.dirname + "/../app.tsx", "utf-8")
   return [...appSource.matchAll(/(?:safeLazy|lazy)\(\(\) => import\("([^"]+)"\)/g)].map((m) => m[1])
 }
 
@@ -61,8 +61,8 @@ const ROUTE_MODULES: Record<
 }
 
 describe("route lazy loading", () => {
-  test("all lazy import paths resolve to actual files on disk", () => {
-    const lazyPaths = lazyPathsFromSource()
+  test("all lazy import paths resolve to actual files on disk", async () => {
+    const lazyPaths = await lazyPathsFromSource()
     expect(lazyPaths.length).toBeGreaterThanOrEqual(5)
 
     for (const path of lazyPaths) {
@@ -71,15 +71,15 @@ describe("route lazy loading", () => {
     }
   })
 
-  test("every expected route module is referenced in the lazy declarations", () => {
-    const lazyPaths = lazyPathsFromSource()
+  test("every expected route module is referenced in the lazy declarations", async () => {
+    const lazyPaths = await lazyPathsFromSource()
     for (const expectedPath of Object.keys(ROUTE_MODULES)) {
       expect(lazyPaths).toContain(expectedPath)
     }
   })
 
-  test("core route boundaries are defined as lazy imports", () => {
-    const lazyPaths = lazyPathsFromSource()
+  test("core route boundaries are defined as lazy imports", async () => {
+    const lazyPaths = await lazyPathsFromSource()
 
     const corePaths = [
       "@/pages/directory-layout",
@@ -95,7 +95,7 @@ describe("route lazy loading", () => {
   })
 
   test("each lazy route file exports its expected component symbol", async () => {
-    const lazyPaths = lazyPathsFromSource()
+    const lazyPaths = await lazyPathsFromSource()
 
     // For each route module defined in our known list, verify the file exports
     // the expected component symbol. We read the source file directly to check
@@ -105,7 +105,7 @@ describe("route lazy loading", () => {
       const filePath = resolveModulePath(importPath)
       expect(filePath).not.toBeNull()
 
-      const source = require("fs").readFileSync(filePath!, "utf-8")
+      const source = await require("fs").promises.readFile(filePath!, "utf-8")
 
       if (exports.defaultExport) {
         // Check for default export or export default function/const
@@ -132,8 +132,8 @@ describe("route lazy loading", () => {
 })
 
 describe("internal lazy loading (session.tsx)", () => {
-  test("session.tsx lazy-imports heavy sub-components with file resolution", () => {
-    const sessionSource = require("fs").readFileSync(
+  test("session.tsx lazy-imports heavy sub-components with file resolution", async () => {
+    const sessionSource = await require("fs").promises.readFile(
       import.meta.dirname + "/session.tsx",
       "utf-8",
     )
