@@ -84,10 +84,24 @@ export function normalizeProviderList(
     })
   }
 
+  const defaultModels = new Map<string, string>()
+
   for (const model of models ?? []) {
     const provider = all.get(model.providerID)
     if (!provider || model.status === "deprecated") continue
-    const cost = model.cost.find((item) => item.tier === undefined) ?? model.cost[0]
+
+    if (!defaultModels.has(model.providerID)) {
+      defaultModels.set(model.providerID, model.id)
+    }
+
+    let cost = model.cost[0]
+    for (let i = 0; i < model.cost.length; i++) {
+      if (model.cost[i].tier === undefined) {
+        cost = model.cost[i]
+        break
+      }
+    }
+
     provider.models[model.id] = {
       id: model.id,
       providerID: model.providerID,
@@ -141,11 +155,11 @@ export function normalizeProviderList(
     connected: providers.map((provider) => provider.id),
     default: Object.fromEntries(
       providers.flatMap((provider) => {
-        const model =
+        const modelId =
           defaultModel?.providerID === provider.id
-            ? defaultModel
-            : models?.find((item) => item.providerID === provider.id && item.status !== "deprecated")
-        return model ? [[provider.id, model.id]] : []
+            ? defaultModel.id
+            : defaultModels.get(provider.id)
+        return modelId ? [[provider.id, modelId]] : []
       }),
     ),
   }
