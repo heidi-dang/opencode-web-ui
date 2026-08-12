@@ -281,7 +281,7 @@ function buildHomeSessionRecords(input: {
     .flatMap((session) => {
       const directory = pathKey(session.directory)
       const project =
-        projectByDir.get(directory) ?? projectForSession(session, projectsList, input.projectByID())
+      projectByDir.get(directory) ?? projectForSession(session, projectsList, input.projectByID())
       if (!project) return []
       return { session, project, projectName: displayName(project) }
     })
