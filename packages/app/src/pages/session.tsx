@@ -1717,11 +1717,12 @@ export default function Page() {
         return part.content
       })
       .join("")
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .find((line) => !!line)
 
-    if (text) return text
+    for (const line of text.split(/\r?\n/)) {
+      const trimmed = line.trim()
+      if (trimmed) return trimmed
+    }
+
     return `[${language.t("common.attachment")}]`
   }
 
