@@ -973,10 +973,6 @@ export function createServerSession(
       })
     if (event.type === "session.usage.updated" && info)
       remember({ ...info, cost: event.data.cost, tokens: event.data.tokens })
-    // if (event.type === "session.archived") {
-    //   if (info) remember({ ...info, time: { ...info.time, archived: event.created, updated: event.created } })
-    //   evict([sessionID])
-    // }
     if (event.type === "session.execution.started") setData("session_status", sessionID, { type: "busy" })
     if (
       event.type === "session.execution.succeeded" ||
