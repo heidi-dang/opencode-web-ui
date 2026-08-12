@@ -308,15 +308,6 @@ function createV1Api(input: CompatibleInput): CompatibleApi {
         if (!result.data) throw new Error("Project not found")
         return { id: result.data.id, directory: result.data.worktree } satisfies ProjectCurrent
       },
-      // async update(value: Parameters<ServerApi["project"]["update"]>[0]) {
-      //   const project = (await legacy().project.list()).data?.find((item) => item.id === value.projectID)
-      //   const result = await legacy({ directory: project?.worktree }).project.update({
-      //     ...value,
-      //     directory: project?.worktree,
-      //   })
-      //   if (!result.data) throw new Error(`Project not found: ${value.projectID}`)
-      //   return result.data as Project
-      // },
       async directories(value: Parameters<ServerApi["project"]["directories"]>[0]) {
         const result = await legacy(value.location).worktree.list()
         return (result.data ?? []).map((item) => ({ directory: item }))
