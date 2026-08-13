@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test"
 import { createStore } from "solid-js/store"
 import { QueryClient } from "@tanstack/solid-query"
 import type { Config, OpencodeClient, Project } from "@opencode-ai/sdk/v2/client"
-import type { AgentApi, CatalogApi, CommandApi, ReferenceApi } from "@opencode-ai/client/promise"
+import type { AgentApi, CatalogApi, CommandApi, CommandListOutput, ReferenceApi } from "@opencode-ai/client/promise"
 import type { NormalizedProviderListResponse } from "@opencode-ai/session-ui/context"
 import {
   bootstrapDirectory,
@@ -76,6 +76,31 @@ function directoryState() {
 }
 
 describe("bootstrapDirectory", () => {
+  test("reads project arrays from the SDK response envelope", async () => {
+    const query = loadProjectsQuery(ServerScope.local, {
+      list: async () => ({ data: [{ id: "global", worktree: "/" }] }),
+      current: async () => ({ id: "global", directory: "/" }),
+    } as never)
+    const result = await new QueryClient().fetchQuery(query)
+    expect(result).toEqual([expect.objectContaining({ id: "global", worktree: "/" })])
+  })
+
+  test("normalizes legacy command maps before building the command catalog", async () => {
+    const result = await loadCommands(
+      "/project",
+      {
+        list: async () => ({
+          location: { directory: "/project", project: { id: "project", directory: "/project" } },
+          data: { init: { name: "init", template: "hello" } },
+        }) as unknown as CommandListOutput,
+      },
+      undefined,
+      Promise.resolve("v2"),
+    )
+
+    expect(result).toEqual([{ name: "init", template: "hello" }])
+  })
+
   test("uses legacy MCP endpoints while refreshing a v1 directory", async () => {
     const mcpReads: string[] = []
     const [store, setStore] = directoryState()
@@ -129,10 +154,6 @@ describe("bootstrapDirectory", () => {
       queryClient: new QueryClient(),
       protocol: Promise.resolve("v1"),
     })
-
-    expect(store.status).toBe("partial")
-
-    await new Promise((resolve) => setTimeout(resolve, 80))
 
     expect(store.status).toBe("complete")
     expect(mcpReads.sort()).toEqual(["command", "resource", "status"])

@@ -52,6 +52,20 @@ describe("getEffectiveServerUrl", () => {
       })
     }
   })
+
+  test("migrates a persisted same-origin HTTPS server to the backend proxy path", () => {
+    const originalLocation = globalThis.location
+    try {
+      Object.defineProperty(globalThis, "location", {
+        value: { protocol: "https:", origin: "https://ai.tnaprovider.com.au", href: "https://ai.tnaprovider.com.au/" },
+        configurable: true,
+      })
+      const { getEffectiveServerUrl: getEffective } = require("./server")
+      expect(getEffective("https://ai.tnaprovider.com.au")).toBe("https://ai.tnaprovider.com.au/opencode-server")
+    } finally {
+      Object.defineProperty(globalThis, "location", { value: originalLocation, configurable: true })
+    }
+  })
 })
 
 test("proxy path rewrites materialize Request bodies for WebKit uploads", async () => {

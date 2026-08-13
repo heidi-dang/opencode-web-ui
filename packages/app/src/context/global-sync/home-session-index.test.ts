@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { SessionV2Info } from "@opencode-ai/sdk/v2/client"
+import type { SessionInfo } from "@opencode-ai/client/promise"
 import {
   applyHomeSessionEvent,
   appendHomeSessionEvent,
@@ -69,6 +70,28 @@ describe("Home V2 session index", () => {
         input: { limit: HOME_V2_SESSION_PAGE_LIMIT, order: "desc", cursor: "next-page" },
         signal: controller.signal,
       },
+    ])
+  })
+
+  test("normalizes the legacy session list returned by current servers", async () => {
+    const result = await loadHomeSessionIndex(async () => ({
+      data: [
+        {
+          id: "legacy-root",
+          projectID: "project",
+          directory: "/project",
+          title: "Legacy root",
+          time: { created: 1, updated: 2 },
+        },
+      ] as unknown as SessionInfo[],
+    }))
+
+    expect(result.sessions).toEqual([
+      expect.objectContaining({
+        id: "legacy-root",
+        directory: "/project",
+        title: "Legacy root",
+      }),
     ])
   })
 

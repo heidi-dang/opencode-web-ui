@@ -424,7 +424,9 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
             .then((protocol) =>
               protocol === "v1"
                 ? loadRootSessionsV1({ client: sdkFor(directory), directory, limit })
-                : loadRootSessions({ api: serverSDK.api.session, directory, limit }),
+                : loadRootSessions({ api: serverSDK.api.session, directory, limit }).catch(() =>
+                    loadRootSessionsV1({ client: sdkFor(directory), directory, limit }),
+                  ),
             )
             .then((x) => {
               const nonArchived = x.data

@@ -31,7 +31,7 @@ export type ProjectMeta = {
 }
 
 export type State = {
-  status: "loading" | "partial" | "complete"
+  status: "loading" | "partial" | "complete" | "degraded" | "failed"
   agent: Agent[]
   command: CommandInfo[]
   reference: ReferenceInfo[]

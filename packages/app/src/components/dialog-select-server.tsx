@@ -401,12 +401,17 @@ export function useServerManagementController(options: { onSelect?: () => void; 
       if (store.addServer.name.trim()) conn.displayName = store.addServer.name.trim()
       if (store.addServer.username) conn.http.username = store.addServer.username
       if (store.addServer.password) conn.http.password = store.addServer.password
+      let connection = conn
       let result = await checkServerHealth(conn.http)
       if (!result.healthy && typeof location === "object" && location.origin) {
         const proxyHttp = { ...conn.http, url: `${location.origin}/opencode-server` }
         const proxyResult = await checkServerHealth(proxyHttp)
         if (proxyResult.healthy) {
           result = proxyResult
+          // Keep using the endpoint that passed health. Saving the original
+          // direct URL makes subsequent projects/providers requests fail on
+          // HTTPS deployments because of mixed-content/CORS restrictions.
+          connection = { ...conn, http: { ...conn.http, url: proxyHttp.url } }
         }
       }
       if (!result.healthy) {
@@ -422,11 +427,12 @@ export function useServerManagementController(options: { onSelect?: () => void; 
 
       resetAdd()
       if (options.navigateOnAdd === false) {
-        server.add(conn)
+        const added = server.add(connection)
+        if (added) global.settings.server.set(ServerConnection.key(added))
         options.onSelect?.()
         return
       }
-      await select(conn, true)
+      await select(connection, true)
     },
   }))
 

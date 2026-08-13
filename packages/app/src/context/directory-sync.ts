@@ -67,7 +67,7 @@ export const createDirSyncContext = (
       return current()[0].status
     },
     get ready() {
-      return current()[0].status !== "loading"
+      return current()[0].status === "complete" || current()[0].status === "degraded"
     },
     get project() {
       const store = current()[0]

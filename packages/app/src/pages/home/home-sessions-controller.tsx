@@ -12,25 +12,25 @@ import {
   retainHomeSessions,
   type HomeSessionEvents,
 } from "@/context/global-sync/home-session-index"
-import type { LocalProject } from "@/context/layout"
 import { useLanguage } from "@/context/language"
 import { ServerConnection } from "@/context/server"
 import { sessionHasOpenTab, useTabs } from "@/context/tabs"
-import { displayName, errorMessage, projectForSession } from "@/pages/layout/helpers"
+import { errorMessage, projectForSession } from "@/pages/layout/helpers"
 import { useSessionTabAvatarState } from "@/pages/layout/project-avatar-state"
 import { pathKey } from "@/utils/path-key"
 import { showToast } from "@/utils/toast"
 import { Binary } from "@opencode-ai/core/util/binary"
 import { archiveHomeSession } from "../home-session-archive"
 import type { HomeController } from "./home-controller"
+import { buildHomeSessionRecords, type HomeSessionRecord } from "./home-session-records"
+
+export type { HomeSessionRecord } from "./home-session-records"
 
 const HOME_SESSION_LIMIT = 64
-export type HomeSessionRecord = {
-  session: Session
-  project: LocalProject
-  projectName: string
-}
 
+function directories(project: { worktree: string; sandboxes?: string[] }) {
+  return [project.worktree, ...(project.sandboxes ?? [])]
+}
 export type HomeSessionGroup = {
   id: "today" | "yesterday" | "older"
   title: string
@@ -87,14 +87,15 @@ export function createHomeSessionsController(home: HomeController) {
       Date.now(),
     ),
   )
-  const allRecords = createMemo(() =>
-    buildHomeSessionRecords({
+  const allRecords = createMemo(() => {
+    const result = buildHomeSessionRecords({
       sessions: indexedSessions,
       projectDirectories,
       projects: home.project.list,
       projectByID,
-    }),
-  )
+    })
+    return result
+  })
   const records = createMemo(() => allRecords().slice(0, HOME_SESSION_LIMIT))
   const groups = createMemo(() => groupSessions(records(), language))
   const prefetched = new Set<string>()
@@ -244,47 +245,6 @@ export function createHomeSessionsController(home: HomeController) {
         sessionHasOpenTab(tabs.store, home.selection.value().server, record.session),
     },
   }
-}
-
-function directories(project: LocalProject) {
-  return [project.worktree, ...(project.sandboxes ?? [])]
-}
-
-function buildHomeSessionRecords(input: {
-  sessions: () => Session[]
-  projectDirectories: () => string[]
-  projects: () => LocalProject[]
-  projectByID: () => Map<string, LocalProject>
-}) {
-  const directories = new Set(input.projectDirectories().map(pathKey))
-  const sessions = input.sessions().filter((session) => directories.has(pathKey(session.directory)))
-
-  const projectsList = input.projects()
-  const projectByDir = new Map<string, LocalProject>()
-  for (const project of projectsList) {
-    const worktreeKey = pathKey(project.worktree)
-    if (!projectByDir.has(worktreeKey)) {
-      projectByDir.set(worktreeKey, project)
-    }
-    if (project.sandboxes) {
-      for (const sandbox of project.sandboxes) {
-        const sandboxKey = pathKey(sandbox)
-        if (!projectByDir.has(sandboxKey)) {
-          projectByDir.set(sandboxKey, project)
-        }
-      }
-    }
-  }
-
-  return [...new Map(sessions.map((session) => [session.id, session] as const)).values()]
-    .sort((a, b) => (b.time.updated ?? b.time.created) - (a.time.updated ?? a.time.created))
-    .flatMap((session) => {
-      const directory = pathKey(session.directory)
-      const project =
-      projectByDir.get(directory) ?? projectForSession(session, projectsList, input.projectByID())
-      if (!project) return []
-      return { session, project, projectName: displayName(project) }
-    })
 }
 
 export function homeSessionSearchKey(record: HomeSessionRecord) {

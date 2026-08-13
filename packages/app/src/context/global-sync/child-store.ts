@@ -317,7 +317,7 @@ export function createChildStoreManager(input: {
     if (options.mcp) enableMcp(directory, key, childStore)
     const shouldBootstrap = options.bootstrap ?? true
     if (shouldBootstrap) activate(key)
-    if (shouldBootstrap && childStore[0].status === "loading") {
+    if (shouldBootstrap && childStore[0].status !== "complete") {
       input.onBootstrap(directory)
     }
     return childStore
@@ -329,7 +329,7 @@ export function createChildStoreManager(input: {
     if (options.mcp) enableMcp(directory, key, childStore)
     const shouldBootstrap = options.bootstrap ?? true
     if (shouldBootstrap) activate(key)
-    if (shouldBootstrap && childStore[0].status === "loading") {
+    if (shouldBootstrap && childStore[0].status !== "complete") {
       input.onBootstrap(directory)
     }
     return childStore
@@ -339,7 +339,7 @@ export function createChildStoreManager(input: {
     if (mcpDirectories.has(key)) return
     mcpDirectories.add(key)
     mcpToggles.get(key)?.(true)
-    if (childStore[0].status !== "loading") input.onMcp(directory, childStore[1])
+    if (childStore[0].status === "complete" || childStore[0].status === "degraded") input.onMcp(directory, childStore[1])
   }
 
   // Passive Home/project metadata reads must not initialize the directory.

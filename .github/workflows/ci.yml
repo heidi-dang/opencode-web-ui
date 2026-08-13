@@ -11,6 +11,18 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  workflow-validation:
+    name: Workflow Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - run: bun install --frozen-lockfile
+      - run: bun scripts/audit/validate-ci-workflow.ts .github/workflows/ci.yml
+
   quality:
     name: Quality
     runs-on: ubuntu-latest
@@ -121,20 +133,16 @@ jobs:
           fetch-depth: 1
       - name: Install official opencode dependencies
         working-directory: .opencode-reference
-        run: bun install --frozen-lockfile 2>&1 | tail -5
+        run: bun install --frozen-lockfile
       - name: Start opencode backend
         run: |
           PORT=4097
           echo "OPCODE_PID=$PORT" >> $GITHUB_ENV
           bun run --cwd .opencode-reference/packages/opencode --conditions=browser src/index.ts serve --port $PORT &
           echo "BACKEND_PID=$!" >> $GITHUB_ENV
-          for i in $(seq 1 30); do
-            if curl -s http://127.0.0.1:$PORT/global/health > /dev/null 2>&1; then
-              echo "Backend ready on port $PORT"
-              break
-            fi
-            sleep 2
-          done
+          curl --fail --silent --show-error --retry 30 --retry-delay 2 --retry-connrefused \
+            "http://127.0.0.1:$PORT/global/health" >/dev/null
+          echo "Backend ready on port $PORT"
       - name: Run Playwright smoke tests
         working-directory: packages/app
         run: |
@@ -142,7 +150,7 @@ jobs:
           export PLAYWRIGHT_PORT=3002
           export PLAYWRIGHT_SERVER_HOST=127.0.0.1
           export PLAYWRIGHT_SERVER_PORT=4097
-          bunx playwright test e2e/smoke/opencode-smoke.spec.ts --reporter=line 2>&1 | tail -30
+          bunx playwright test e2e/smoke/opencode-smoke.spec.ts --reporter=line
         env:
           SMOKE_BACKEND_URL: http://127.0.0.1:4097
       - name: Stop backend
@@ -203,7 +211,7 @@ jobs:
           echo "PASS: ${{ matrix.package }} exists in workspace"
       - name: Run ${{ matrix.package }} tests
         working-directory: packages/${{ matrix.package }}
-        run: bun test --timeout 30000 2>&1 | tail -30
+        run: bun test --timeout 30000
 
   stability:
     name: Visual Stability
@@ -217,14 +225,13 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun --cwd packages/app build
       - name: Install Playwright browsers
-        run: node $GITHUB_WORKSPACE/packages/app/node_modules/@playwright/test/cli.js install chromium chromium-headless-shell 2>&1
         run: bunx playwright install --with-deps chromium
       - name: Run timeline stability tests
         working-directory: packages/app
-        run: bun test ./e2e/performance/unit/visual-stability.test.ts 2>&1 | tail -20
+        run: bun test ./e2e/performance/unit/visual-stability.test.ts
       - name: Run Playwright stability tests
         working-directory: packages/app
-        run: bunx playwright test --config e2e/performance/timeline-stability/playwright.config.ts 2>&1 | tail -30
+        run: bunx playwright test --config e2e/performance/timeline-stability/playwright.config.ts
       - name: Upload stability report
         if: failure()
         uses: actions/upload-artifact@v4
@@ -348,11 +355,10 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun --cwd packages/app build
       - name: Install Playwright browsers
-        run: node $GITHUB_WORKSPACE/packages/app/node_modules/@playwright/test/cli.js install chromium chromium-headless-shell 2>&1
         run: bunx playwright install --with-deps chromium
       - name: Run performance benchmarks
         working-directory: packages/app
-        run: bunx playwright test --config e2e/performance/playwright.config.ts 2>&1 | tail -30
+        run: bunx playwright test --config e2e/performance/playwright.config.ts
         env:
           OPENCODE_PERFORMANCE_RUN_ID: ${{ github.sha }}
       - name: Upload benchmark results

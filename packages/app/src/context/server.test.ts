@@ -8,6 +8,7 @@ import {
   nextServerAfterRemoval,
   resolveServerList,
   ServerConnection,
+  normalizeServerUrl,
 } from "./server"
 import { ServerScope } from "@/utils/server-scope"
 
@@ -15,6 +16,28 @@ describe("getEffectiveServerUrl", () => {
   test("returns original URL when origin is HTTP or location is undefined", () => {
     expect(getEffectiveServerUrl("http://100.124.192.60:4096")).toBe("http://100.124.192.60:4096")
     expect(getEffectiveServerUrl("https://heidi-dev.ts.net:4096")).toBe("https://heidi-dev.ts.net:4096")
+  })
+})
+
+describe("normalizeServerUrl", () => {
+  test("preserves an existing same-origin backend proxy path", () => {
+    const originalLocation = globalThis.location
+    try {
+      Object.defineProperty(globalThis, "location", {
+        value: {
+          hostname: "ai.tnaprovider.com.au",
+          origin: "https://ai.tnaprovider.com.au",
+          protocol: "https:",
+        },
+        configurable: true,
+      })
+
+      expect(normalizeServerUrl("https://ai.tnaprovider.com.au/opencode-server")).toBe(
+        "https://ai.tnaprovider.com.au/opencode-server",
+      )
+    } finally {
+      Object.defineProperty(globalThis, "location", { value: originalLocation, configurable: true })
+    }
   })
 })
 

@@ -123,7 +123,7 @@ function createV2ProjectApi(sdk: OpencodeClient): ProjectApi {
   return {
     list: () =>
       sdk.project.list().then((res) => {
-        const data = (res as any)[200] ?? (res as unknown as Array<Project>)
+        const data = (res as any)[200] ?? (res as any).data ?? (res as unknown as Array<Project>)
         return Array.isArray(data) ? data : []
       }) as Promise<ProjectListOutput>,
     current: () =>
@@ -142,9 +142,10 @@ type VcsApi = ServerApi["vcs"]
 export const loadProjectsQuery = (scope: ServerScope, api: ProjectApi) =>
   queryOptions({
     queryKey: [scope, "project"],
-    queryFn: () =>
+      queryFn: () =>
       retry(() =>
-        api.list().then((projects) => {
+        api.list().then((result) => {
+          const projects = (Array.isArray(result) ? result : ((result as { data?: Project[] }).data ?? [])) as Project[]
           return projects
             .filter((p) => !!p?.id)
             .filter((p) => !!p.worktree && !p.worktree.includes("opencode-test"))
@@ -245,12 +246,8 @@ export const loadProvidersQuery = (
     queryFn: () =>
       retry(async () => {
         if ((await protocol) === "v1" && legacy) {
-          try {
-            const result = await legacy.provider.list()
-            return normalizeProviderList(result.data!)
-          } catch (err) {
-            console.warn("Legacy provider.list failed, falling back to v2 API", err)
-          }
+          const result = await legacy.provider.list()
+          return normalizeProviderList(result.data!)
         }
         const location = directory ? { location: { directory } } : undefined
         const [providers, models, defaultModel] = await Promise.all([
@@ -274,6 +271,25 @@ type ReferenceListApi = {
   readonly list: (input?: ReferenceListInput) => Promise<ReferenceListOutput>
 }
 
+function normalizeCommands(raw: unknown): CommandInfo[] {
+  const commands = Array.isArray(raw) ? raw : raw && typeof raw === "object" ? Object.values(raw) : []
+  return commands
+    .filter((command): command is { name: string; template?: string; description?: string; agent?: string; model?: string; subtask?: boolean } =>
+      !!command && typeof command === "object" && typeof (command as { name?: unknown }).name === "string",
+    )
+    .map((command) => {
+      const [providerID, id] = command.model?.split("/") ?? []
+      return {
+        name: command.name,
+        template: command.template ?? "",
+        description: command.description,
+        agent: command.agent,
+        model: providerID && id ? { providerID, id } : undefined,
+        subtask: command.subtask,
+      }
+    })
+}
+
 export const loadAgentsQuery = (
   scope: ServerScope,
   directory: string,
@@ -285,13 +301,7 @@ export const loadAgentsQuery = (
     queryKey: [scope, directory, "agents"],
     queryFn: () =>
       retry(async () => {
-        if ((await protocol) === "v1" && legacy) {
-          try {
-            return normalizeAgentList((await legacy.app.agents()).data ?? [])
-          } catch (err) {
-            console.warn("Legacy app.agents failed, falling back to v2 API", err)
-          }
-        }
+        if ((await protocol) === "v1" && legacy) return normalizeAgentList((await legacy.app.agents()).data ?? [])
         return sdk.list({ location: { directory } }).then((result) => normalizeAgentList(result.data))
       }),
   })
@@ -304,24 +314,10 @@ export const loadCommands = (
 ): Promise<CommandInfo[]> =>
   retry(async () => {
     if ((await protocol) === "v1" && legacy) {
-      try {
-        return ((await legacy.command.list()).data ?? []).map((command) => {
-          const [providerID, id] = command.model?.split("/") ?? []
-          return {
-            name: command.name,
-            template: command.template,
-            description: command.description,
-            agent: command.agent,
-            model: providerID && id ? { providerID, id } : undefined,
-            subtask: command.subtask,
-            // source: command.source === "skill" ? undefined : command.source,
-          }
-        })
-      } catch (err) {
-        console.warn("Legacy command.list failed, falling back to v2 API", err)
-      }
+      const response = await legacy.command.list()
+      return normalizeCommands(response.data)
     }
-    return api.list({ location: { directory } }).then((result) => result.data)
+    return api.list({ location: { directory } }).then((result) => normalizeCommands(result.data))
   })
 
 export const loadPathQuery = (
@@ -332,10 +328,10 @@ export const loadPathQuery = (
 ) =>
   queryOptions<Path>({
     queryKey: [scope, directory, "path"],
-    queryFn: async () => {
-      // Both v1 and v2 use the same path endpoint
-      return retry(() => sdk.path.get({ directory: directory ?? undefined }).then((result) => result.data!))
-    },
+    // `/path` is part of the current API contract as well as the legacy
+    // adapter. Returning an empty placeholder for v2 makes a real directory
+    // indistinguishable from a failed path lookup and poisons project scope.
+    queryFn: () => retry(() => sdk.path.get({ directory: directory ?? undefined }).then((result) => result.data!)),
   })
 
 export const loadReferencesQuery = (
@@ -399,7 +395,7 @@ export async function bootstrapDirectory(input: {
   const revKey = ScopedKey.from(input.scope, input.directory)
   const rev = (providerRev.get(revKey) ?? 0) + 1
   providerRev.set(revKey, rev)
-  ;(async () => {
+  return (async () => {
     const slow = [
       () => Promise.resolve(input.loadSessions(input.directory)),
       () =>
@@ -574,6 +570,7 @@ export async function bootstrapDirectory(input: {
       })
     }
 
-    if (loading && slowErrs.length === 0) input.setStore("status", "complete")
+    if (slowErrs.length > 0) input.setStore("status", loading ? "failed" : "degraded")
+    else if (loading) input.setStore("status", "complete")
   })()
 }

@@ -1,5 +1,5 @@
 import { createSimpleContext } from "@opencode-ai/ui/context"
-import { type Accessor, batch, createMemo } from "solid-js"
+import { type Accessor, batch, createEffect, createMemo } from "solid-js"
 import { createStore, type SetStoreFunction, type Store } from "solid-js/store"
 import { Persist, persisted } from "@/utils/persist"
 import { pathKey } from "@/utils/path-key"
@@ -349,6 +349,17 @@ export const { use: useServer, provider: ServerProvider } = createSimpleContext(
       active: props.defaultServer,
     })
 
+    // Keep the logical selection and the resolved connection atomic. A missing
+    // persisted/default key must be repaired explicitly; silently using the
+    // first server here creates split-brain state across SDK, storage and UI.
+    createEffect(() => {
+      const servers = allServers()
+      if (!servers.length) return
+      if (!servers.some((server) => ServerConnection.key(server) === state.active)) {
+        setState("active", ServerConnection.key(servers[0]!))
+      }
+    })
+
     function setActive(input: ServerConnection.Key) {
       if (state.active !== input) setState("active", input)
     }
@@ -403,7 +414,7 @@ export const { use: useServer, provider: ServerProvider } = createSimpleContext(
       return next
     }
     const current: Accessor<ServerConnection.Any | undefined> = createMemo(
-      () => allServers().find((s) => ServerConnection.key(s) === state.active) ?? allServers()[0],
+      () => allServers().find((s) => ServerConnection.key(s) === state.active),
     )
     const isLocal = createMemo(() => ServerConnection.local(current()))
 

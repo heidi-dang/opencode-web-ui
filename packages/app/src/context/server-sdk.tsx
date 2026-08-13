@@ -221,7 +221,12 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
     fetch: eventFetch,
     server: server.http,
   })
-  const protocol = detectServerProtocol(server.http, platform.fetch ?? globalThis.fetch)
+  // An inconclusive probe is not evidence of V1. Keep consumers on the
+  // current API contract while exposing only a resolved v1/v2 protocol to
+  // compatibility APIs; a later context creation re-runs detection.
+  const protocol = detectServerProtocol(server.http, platform.fetch ?? globalThis.fetch).then((kind) =>
+    kind === "v1" ? "v1" : "v2",
+  )
   const [protocolKind] = createResource(
     () => protocol,
     (value) => value,

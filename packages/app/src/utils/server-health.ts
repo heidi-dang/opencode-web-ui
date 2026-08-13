@@ -5,7 +5,16 @@ import { ClientError, OpenCode } from "@opencode-ai/client"
 import { Accessor, createEffect, onCleanup } from "solid-js"
 import { createStore, reconcile } from "solid-js/store"
 
-export type ServerHealth = { healthy: boolean; version?: string; provider?: string; model?: string; requiresAuth?: boolean; authFailed?: boolean }
+export type ServerHealth = {
+  healthy: boolean
+  version?: string
+  provider?: string
+  model?: string
+  requiresAuth?: boolean
+  authFailed?: boolean
+  invalidEndpoint?: boolean
+  unreachable?: boolean
+}
 
 interface CheckServerHealthOptions {
   timeoutMs?: number
@@ -86,8 +95,8 @@ export function checkServerHealth(
   const signal = opts?.signal ? AbortSignal.any([opts.signal, timeoutSig]) : timeoutSig
   const retryCount = opts?.retryCount ?? defaultRetryCount
   const retryDelayMs = opts?.retryDelayMs ?? defaultRetryDelayMs
-  const next = (count: number, error: unknown) => {
-    if (count >= retryCount || !retryable(error, signal)) return Promise.resolve({ healthy: false } as const)
+  const next = (count: number, error: unknown): Promise<ServerHealth> => {
+    if (count >= retryCount || !retryable(error, signal)) return Promise.resolve({ healthy: false })
     return wait(retryDelayMs * (count + 1), signal)
       .then(() => attempt(count + 1))
       .catch(() => ({ healthy: false }))
@@ -98,11 +107,33 @@ export function checkServerHealth(
       ? { Authorization: `Basic ${authTokenFromCredentials({ username: server.username, password: server.password })}` }
       : undefined
 
+    let sawHttpResponse = false
+    let sawInvalidOpenCodeResponse = false
     const processRes = async (res: Response | null): Promise<ServerHealth | null> => {
       if (!res) return null
+      sawHttpResponse = true
       if (res.ok) {
-        const json = await res.json().catch(() => ({}))
-        return { healthy: json.healthy !== false, version: json.version, provider: json.provider, model: json.model }
+        const contentType = res.headers.get("content-type")?.toLowerCase() ?? ""
+        if (!contentType.includes("application/json")) {
+          sawInvalidOpenCodeResponse = true
+          return null
+        }
+        const json: unknown = await res.json().catch(() => undefined)
+        if (!json || typeof json !== "object") {
+          sawInvalidOpenCodeResponse = true
+          return null
+        }
+        const value = json as { healthy?: unknown; pid?: unknown; version?: unknown; provider?: unknown; model?: unknown }
+        if (value.healthy !== true && typeof value.pid !== "number") {
+          sawInvalidOpenCodeResponse = true
+          return null
+        }
+        return {
+          healthy: true,
+          version: typeof value.version === "string" ? value.version : undefined,
+          provider: typeof value.provider === "string" ? value.provider : undefined,
+          model: typeof value.model === "string" ? value.model : undefined,
+        }
       }
       if (res.status === 401 || res.status === 403) {
         return {
@@ -111,6 +142,7 @@ export function checkServerHealth(
           authFailed: Boolean(server.username || server.password),
         }
       }
+      if (res.status === 404) sawInvalidOpenCodeResponse = true
       return null
     }
 
@@ -138,17 +170,27 @@ export function checkServerHealth(
           : { error: new Error("Invalid health response") },
       )
       .catch((error) => ({ error }))
-    if ("data" in current && current.data) return current.data
-    if (signal?.aborted) return { healthy: false }
+    if ("data" in current && current.data) {
+      if (current.data.healthy === true) return current.data
+      sawInvalidOpenCodeResponse = true
+    }
+    if (signal?.aborted) return { healthy: false, unreachable: true }
 
     const sdk = createSdkForServer({ server, fetch, signal })
     return sdk
       .global.health()
       .then((x) => {
         if (x.error) return next(count, x.error)
-        return { healthy: x.data?.healthy === true, version: x.data?.version }
+        if (x.data?.healthy !== true) return { healthy: false, invalidEndpoint: true }
+        return { healthy: true, version: x.data.version }
       })
       .catch((error) => next(count, error))
+      .then((result) => {
+        if (result.healthy) return result
+        if (result.requiresAuth || result.authFailed) return result
+        if (sawInvalidOpenCodeResponse || sawHttpResponse) return { ...result, invalidEndpoint: true }
+        return { ...result, unreachable: true }
+      })
   }
   return attempt(0).finally(() => clear?.())
 }

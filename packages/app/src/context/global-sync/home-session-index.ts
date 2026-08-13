@@ -1,5 +1,7 @@
 import type { Event, Session, SessionV2Info, V2SessionListResponse } from "@opencode-ai/sdk/v2/client"
+import type { SessionInfo } from "@opencode-ai/client/promise"
 import type { QueryClient } from "@tanstack/solid-query"
+import { normalizeSessionInfo } from "@/utils/session"
 import { trimSessions } from "./session-trim"
 import { pathKey } from "@/utils/path-key"
 
@@ -21,7 +23,7 @@ export type HomeSessionIndex = {
 export const homeSessionIndexKey = (server: string) => ["home", "session-index", server] as const
 export const homeSessionEventsKey = (server: string) => ["home", "session-events", server] as const
 
-type HomeSessionPage = { data?: V2SessionListResponse }
+type HomeSessionPage = { data?: V2SessionListResponse | SessionInfo[] }
 
 export async function loadHomeSessionIndex(
   list: (
@@ -43,7 +45,21 @@ export async function loadHomeSessionIndex(
       },
       { signal },
     )
-    const page = response.data!
+    const page = response.data
+    if (!page) return { sessions: parseHomeSessionIndex(data), eventSequence }
+
+    // Current servers expose the legacy /api/session response even when the
+    // V2 project endpoint is available. Normalize that shape before falling
+    // through to the paginated V2 adapter.
+    if (Array.isArray(page)) {
+      return {
+        sessions: page
+          .map(normalizeSessionInfo)
+          .filter((item) => !item.parentID && typeof item.time.archived !== "number"),
+        eventSequence,
+      }
+    }
+
     data.push(...page.data)
     if (page.data.length < HOME_V2_SESSION_PAGE_LIMIT || !page.cursor.next)
       return { sessions: parseHomeSessionIndex(data), eventSequence }

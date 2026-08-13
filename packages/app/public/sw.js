@@ -1,6 +1,6 @@
 // OpenCode Web UI — Service Worker (runtime-cache strategy)
 // Version bump this string to force all clients to purge old caches.
-const CACHE_VERSION = "oc-shell-v6"
+const CACHE_VERSION = "oc-shell-v7"
 
 // Only the root HTML document is pre-fetched on install.
 const PRECACHE_URLS = ["/"]
@@ -81,9 +81,14 @@ async function networkFirstWithFallback(request) {
       // ONLY cache / and /assets/ — NEVER cache dynamic routes like /session/*
       if (url.pathname === "/" || url.pathname.startsWith("/assets/")) {
         const contentType = networkResponse.headers.get("content-type") || ""
-        // Never cache HTML fallback pages for static asset requests
+        // Never cache or return HTML fallback pages for static asset requests.
+        // A SPA fallback here causes the browser to report:
+        // "text/html is not a valid JavaScript MIME type" for JS chunks.
         if (url.pathname.startsWith("/assets/") && contentType.includes("text/html")) {
-          return networkResponse
+          return new Response("Asset not found", {
+            status: 404,
+            headers: { "Content-Type": "text/plain; charset=utf-8" },
+          })
         }
         cache.put(request, networkResponse.clone()).catch(() => {})
       }

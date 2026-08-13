@@ -13,6 +13,29 @@ function abortFromInput(input: RequestInfo | URL, init?: RequestInit) {
 }
 
 describe("checkServerHealth", () => {
+  test("rejects an SPA HTML fallback", async () => {
+    const fetch = (async () => new Response("<html>SPA</html>", { status: 200, headers: { "content-type": "text/html" } })) as unknown as typeof globalThis.fetch
+    const result = await checkServerHealth(server, fetch, { retryCount: 0 })
+    expect(result.healthy).toBe(false)
+  })
+
+  test("rejects arbitrary JSON and empty successful responses", async () => {
+    for (const response of [
+      new Response(JSON.stringify({ ok: true }), { status: 200, headers: { "content-type": "application/json" } }),
+      new Response(null, { status: 200, headers: { "content-type": "application/json" } }),
+    ]) {
+      const fetch = (async () => response.clone()) as unknown as typeof globalThis.fetch
+      expect((await checkServerHealth(server, fetch, { retryCount: 0 })).healthy).toBe(false)
+    }
+  })
+
+  test("distinguishes an authenticated endpoint", async () => {
+    const fetch = (async () => new Response("unauthorized", { status: 401 })) as unknown as typeof globalThis.fetch
+    await expect(checkServerHealth(server, fetch, { retryCount: 0 })).resolves.toMatchObject({
+      healthy: false,
+      requiresAuth: true,
+    })
+  })
   test("returns healthy response with version", async () => {
     let request: URL | undefined
     const fetch = (async (input: URL | RequestInfo, _init?: any) => {
@@ -89,7 +112,7 @@ describe("checkServerHealth", () => {
 
     const result = await checkServerHealth(server, fetch)
 
-    expect(result).toEqual({ healthy: false })
+    expect(result).toEqual({ healthy: false, unreachable: true })
   })
 
   test("uses timeout fallback when AbortSignal.timeout is unavailable", async () => {
@@ -126,7 +149,7 @@ describe("checkServerHealth", () => {
     })
 
     expect(aborted).toBe(true)
-    expect(result).toEqual({ healthy: false })
+    expect(result).toEqual({ healthy: false, unreachable: true })
   })
 
   test("uses provided abort signal", async () => {
@@ -183,6 +206,6 @@ describe("checkServerHealth", () => {
     })
 
     expect(count).toBe(15)
-    expect(result).toEqual({ healthy: false })
+    expect(result).toEqual({ healthy: false, unreachable: true })
   })
 })

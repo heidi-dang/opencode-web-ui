@@ -32,6 +32,16 @@ export function authFromToken(token: string | null) {
 export function getEffectiveServerUrl(url: string): string {
   if (!url) return url
   const trimmed = url.trim()
+  if (typeof location === "object" && location.protocol === "https:") {
+    try {
+      const parsed = new URL(trimmed, location.href)
+      const current = new URL(location.href)
+      const path = parsed.pathname.replace(/\/+$/, "")
+      if (parsed.origin === current.origin && (path === "" || path === "/opencode-server")) {
+        return `${current.origin}/opencode-server`
+      }
+    } catch {}
+  }
   if (typeof location === "object" && location.protocol === "https:" && trimmed.startsWith("http://")) {
     try {
       const parsed = new URL(trimmed)

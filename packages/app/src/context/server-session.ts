@@ -1,6 +1,6 @@
 import { Binary } from "@opencode-ai/core/util/binary"
 import { retry } from "@opencode-ai/core/util/retry"
-import type { OpenCodeEvent, SessionApi, SessionMessageInfo } from "@opencode-ai/client/promise"
+import type { OpenCodeEvent, SessionApi, SessionInfo, SessionMessageInfo } from "@opencode-ai/client/promise"
 import type {
   Message,
   OpencodeClient,
@@ -311,7 +311,15 @@ export function createServerSession(
     if (pending) return pending
     const active = generation(sessionID)
     const request = sessionApi
-      ? sessionApi.get({ sessionID }).then(normalizeSessionInfo)
+      ? sessionApi.get({ sessionID }).then((result) => {
+          // The current HTTP client returns an envelope, while older client
+          // versions returned the session record directly. Passing the
+          // envelope to normalizeSessionInfo produces a record with no id,
+          // which makes opening a session fail before its timeline loads.
+          const value = "data" in result ? result.data : result
+          if (!value) throw sessionNotFoundError(sessionID)
+          return normalizeSessionInfo(value as Session | SessionInfo)
+        })
       : client.session.get({ sessionID }).then((result) => {
           if (!result.data) throw sessionNotFoundError(sessionID)
           return result.data
