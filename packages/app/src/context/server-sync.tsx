@@ -461,7 +461,9 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
               })
               throw err
             })
-            .then(() => undefined),
+            // The query is used as a synchronization side effect, but TanStack
+            // Query still requires a defined successful result.
+            .then(() => null),
       })
       .then(() => {})
 
