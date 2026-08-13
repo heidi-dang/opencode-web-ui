@@ -424,9 +424,7 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
             .then((protocol) =>
               protocol === "v1"
                 ? loadRootSessionsV1({ client: sdkFor(directory), directory, limit })
-                : loadRootSessions({ api: serverSDK.api.session, directory, limit }).catch(() =>
-                    loadRootSessionsV1({ client: sdkFor(directory), directory, limit }),
-                  ),
+                : loadRootSessions({ api: serverSDK.api.session, directory, limit }),
             )
             .then((x) => {
               const nonArchived = x.data
@@ -461,8 +459,9 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
                 title: language.t("toast.session.listFailed.title", { project }),
                 description: formatServerError(err, language.t),
               })
+              throw err
             })
-            .then(() => null),
+            .then(() => undefined),
       })
       .then(() => {})
 
