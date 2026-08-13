@@ -235,6 +235,54 @@ describe("query keys", () => {
     expect(result).toEqual([{ name: "review", template: "Review files" /* source: "command" */ }])
   })
 
+  test("falls back to the v2 endpoint when the v1 legacy command list rejects", async () => {
+    const calls: unknown[] = []
+    const api = {
+      list: async (input: unknown) => {
+        calls.push(input)
+        return {
+          location: {},
+          data: [{ name: "review", template: "Review files" }],
+        }
+      },
+    } as unknown as CommandApi
+    const legacy = {
+      command: {
+        list: async () => {
+          throw new Error("v1 /command unavailable")
+        },
+      },
+    } as unknown as OpencodeClient
+
+    const result = await loadCommands("/repo", api, legacy, Promise.resolve("v1"))
+
+    expect(calls).toEqual([{ location: { directory: "/repo" } }])
+    expect(result).toEqual([{ name: "review", template: "Review files" }])
+  })
+
+  test("falls back to the v2 endpoint when the v1 legacy command list returns non-array data", async () => {
+    const calls: unknown[] = []
+    const api = {
+      list: async (input: unknown) => {
+        calls.push(input)
+        return {
+          location: {},
+          data: [{ name: "review", template: "Review files" }],
+        }
+      },
+    } as unknown as CommandApi
+    const legacy = {
+      command: {
+        list: async () => ({ data: { error: "unsupported" } }),
+      },
+    } as unknown as OpencodeClient
+
+    const result = await loadCommands("/repo", api, legacy, Promise.resolve("v1"))
+
+    expect(calls).toEqual([{ location: { directory: "/repo" } }])
+    expect(result).toEqual([{ name: "review", template: "Review files" }])
+  })
+
   test("loads projects from the current endpoint", async () => {
     const api = {
       list: async () => [

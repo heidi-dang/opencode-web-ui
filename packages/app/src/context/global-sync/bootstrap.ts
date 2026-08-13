@@ -246,8 +246,12 @@ export const loadProvidersQuery = (
     queryFn: () =>
       retry(async () => {
         if ((await protocol) === "v1" && legacy) {
-          const result = await legacy.provider.list()
-          return normalizeProviderList(result.data!)
+          try {
+            const result = await legacy.provider.list()
+            return normalizeProviderList(result.data!)
+          } catch {
+            // v1 /global/provider not available — fall through to v2
+          }
         }
         const location = directory ? { location: { directory } } : undefined
         const [providers, models, defaultModel] = await Promise.all([
@@ -303,7 +307,13 @@ export const loadAgentsQuery = (
     queryKey: [scope, directory, "agents"],
     queryFn: () =>
       retry(async () => {
-        if ((await protocol) === "v1" && legacy) return normalizeAgentList((await legacy.app.agents()).data ?? [])
+        if ((await protocol) === "v1" && legacy) {
+          try {
+            return normalizeAgentList((await legacy.app.agents()).data ?? [])
+          } catch {
+            // v1 app.agents not available — fall through to v2
+          }
+        }
         return sdk.list({ location: { directory } }).then((result) => normalizeAgentList(result.data))
       }),
   })
@@ -316,8 +326,14 @@ export const loadCommands = (
 ): Promise<CommandInfo[]> =>
   retry(async () => {
     if ((await protocol) === "v1" && legacy) {
-      const response = await legacy.command.list()
-      return normalizeCommands(response.data)
+      try {
+        const response = await legacy.command.list()
+        if (Array.isArray(response.data)) {
+          return normalizeCommands(response.data)
+        }
+      } catch {
+        // v1 /global/command not available — fall through to v2
+      }
     }
     return api.list({ location: { directory } }).then((result) => normalizeCommands(result.data))
   })
