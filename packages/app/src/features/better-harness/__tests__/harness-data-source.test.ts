@@ -81,8 +81,64 @@ describe("HttpHarnessDataSource", () => {
       status: 200,
       headers: { "Content-Type": "application/json" }
     }));
-    // getRunProgress returns { valid: false, error: ... } inside its schema validation loop which maps to an error?
-    // Wait, getRunProgress wraps with ValidatedRequest which throws on valid: false!
     await expect(dataSource.getRunProgress("123")).rejects.toThrow(/Harness API schema error/);
+  });
+
+  it("automatically retries transient 5xx errors with exponential backoff", async () => {
+    mockFetch
+      .mockResolvedValueOnce(new Response(JSON.stringify({ error: "Service Unavailable" }), { status: 503 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ available: true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }));
+
+    const res = await dataSource.availability({ maxRetries: 2, initialDelayMs: 10 });
+    expect(res).toEqual({ available: true });
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("exposes public SSE contract methods cleanly without private bracket-access", async () => {
+    const onAuthFailure = mock().mockResolvedValueOnce("refreshed-token");
+    const authDs = new HttpHarnessDataSource({
+      baseUrl: "http://localhost:8080/",
+      serverKey: "srv1",
+      projectKey: "proj1",
+      authToken: "token123",
+      onAuthFailure,
+    });
+
+    expect(authDs.getSseUrl("run-abc")).toBe(
+      "http://localhost:8080/api/v1/servers/srv1/projects/proj1/better-harness/runs/run-abc/events"
+    );
+    expect(authDs.getAuthHeaders()).toEqual({
+      "Content-Type": "application/json",
+      Authorization: "Bearer token123",
+    });
+
+    const newTok = await authDs.refreshAuthToken();
+    expect(newTok).toBe("refreshed-token");
+    expect(authDs.getAuthHeaders().Authorization).toBe("Bearer refreshed-token");
+  });
+
+  it("strictly validates verify and ignore response schemas via Zod", async () => {
+    mockFetch.mockResolvedValueOnce(
+      new Response(JSON.stringify({ accepted: true, results: [{ findingId: "f1", accepted: true }] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+
+    const verifyRes = await dataSource.verify("f1");
+    expect(verifyRes).toEqual({ accepted: true });
+
+    mockFetch.mockResolvedValueOnce(
+      new Response(JSON.stringify({ accepted: true, results: [{ findingId: "f1", accepted: true }] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      })
+    );
+
+    const ignoreRes = await dataSource.ignore("f1", "False positive");
+    expect(ignoreRes).toEqual({ accepted: true });
   });
 });

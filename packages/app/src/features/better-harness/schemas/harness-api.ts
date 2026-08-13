@@ -147,6 +147,16 @@ export const ReportCompletedPayloadSchema = z.object({
   runId: z.string().min(1),
 });
 
+export const VerifyResponseSchema = z.object({
+  accepted: z.boolean(),
+  results: z.array(VerifyResponseItemSchema).optional(),
+}).strict();
+
+export const IgnoreResponseSchema = z.object({
+  accepted: z.boolean(),
+  results: z.array(IgnoreResponseItemSchema).optional(),
+}).strict();
+
 // ── Validator Helpers ──────────────────────────────────────────────────
 
 function validateWith<T>(schema: z.ZodType<T>, _name: string, data: unknown): { valid: true; value: T } | { valid: false; error: string } {
@@ -169,6 +179,14 @@ export function validateCancelResponse(data: unknown) {
 
 export function validatePlanFixResponse(data: unknown) {
   return validateWith(PlanFixResponseSchema, "PlanFixResponse", data);
+}
+
+export function validateVerifyResponse(data: unknown) {
+  return validateWith(VerifyResponseSchema, "VerifyResponse", data);
+}
+
+export function validateIgnoreResponse(data: unknown) {
+  return validateWith(IgnoreResponseSchema, "IgnoreResponse", data);
 }
 
 export function getPayloadValidator(type: string): z.ZodType<unknown> {

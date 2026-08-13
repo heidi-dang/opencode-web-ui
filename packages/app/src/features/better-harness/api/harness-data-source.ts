@@ -8,6 +8,8 @@ import {
   validateStartRunResponse,
   validateCancelResponse,
   validatePlanFixResponse,
+  validateVerifyResponse,
+  validateIgnoreResponse,
 } from "../schemas/harness-api";
 import type { HarnessReport, HarnessRunProgress } from "../types";
 import { 
@@ -15,20 +17,30 @@ import {
   HarnessReportSchema, 
   HarnessHistorySchema 
 } from "../schemas/harness-api";
+
+export interface RetryOptions {
+  maxRetries?: number;
+  initialDelayMs?: number;
+}
+
 export type ValidatedHttpResult<T> =
   | { kind: "value"; value: T }
   | { kind: "empty"; status: 204 | 404 };
 
 export interface HarnessDataSource {
-  availability(): Promise<{ available: boolean; reason?: string }>;
-  getReport(): Promise<HarnessReport | undefined>;
-  getHistory(): Promise<HarnessReport[]>;
-  getRunProgress(runId?: string): Promise<HarnessRunProgress | undefined>;
-  regenerate(): Promise<{ accepted: boolean; runId?: string }>;
-  cancel(): Promise<void>;
-  planFix(findingId: string): Promise<{ accepted: boolean; opencodeSessionId?: string }>;
-  verify(findingId: string): Promise<{ accepted: boolean }>;
-  ignore(findingId: string, reason: string): Promise<{ accepted: boolean }>;
+  availability(retryOpts?: RetryOptions): Promise<{ available: boolean; reason?: string }>;
+  getReport(retryOpts?: RetryOptions): Promise<HarnessReport | undefined>;
+  getHistory(retryOpts?: RetryOptions): Promise<HarnessReport[]>;
+  getRunProgress(runId?: string, retryOpts?: RetryOptions): Promise<HarnessRunProgress | undefined>;
+  regenerate(retryOpts?: RetryOptions): Promise<{ accepted: boolean; runId?: string }>;
+  cancel(retryOpts?: RetryOptions): Promise<void>;
+  planFix(findingId: string, retryOpts?: RetryOptions): Promise<{ accepted: boolean; opencodeSessionId?: string }>;
+  verify(findingId: string, retryOpts?: RetryOptions): Promise<{ accepted: boolean }>;
+  ignore(findingId: string, reason: string, retryOpts?: RetryOptions): Promise<{ accepted: boolean }>;
+
+  getSseUrl(runId: string): string;
+  getAuthHeaders(): Record<string, string>;
+  refreshAuthToken(): Promise<string | undefined>;
 }
 
 export class HttpHarnessDataSource implements HarnessDataSource {
@@ -55,6 +67,22 @@ export class HttpHarnessDataSource implements HarnessDataSource {
     this.onAuthFailure = config.onAuthFailure;
   }
 
+  getSseUrl(runId: string): string {
+    return `${this.apiBase}/runs/${encodeURIComponent(runId)}/events`;
+  }
+
+  getAuthHeaders(): Record<string, string> {
+    return this.getHeaders();
+  }
+
+  async refreshAuthToken(): Promise<string | undefined> {
+    const newToken = await this.refreshAuth();
+    if (newToken) {
+      this.authToken = newToken;
+    }
+    return newToken;
+  }
+
   private get apiBase(): string {
     return `${this.baseUrl}/api/v1/servers/${encodeURIComponent(this.serverKey)}/projects/${encodeURIComponent(this.projectKey)}/better-harness`;
   }
@@ -72,37 +100,68 @@ export class HttpHarnessDataSource implements HarnessDataSource {
     body?: unknown,
     signal?: AbortSignal,
     isRetry?: boolean,
+    retryOpts: RetryOptions = {},
   ): Promise<ValidatedHttpResult<T>> {
+    const { maxRetries = 2, initialDelayMs = 200 } = retryOpts;
     const url = `${this.apiBase}${path}`;
-    const res = await fetch(url, {
-      method,
-      headers: this.getHeaders(),
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-      signal,
-    });
 
-    if (res.status === 204) return { kind: "empty", status: 204 };
-    if (res.status === 404) return { kind: "empty", status: 404 };
+    let lastError: Error | null = null;
 
-    if ((res.status === 401 || res.status === 403) && this.onAuthFailure && !isRetry) {
-      const newToken = await this.refreshAuth();
-      if (newToken) {
-        this.authToken = newToken;
-        return this.validatedRequest(method, path, validate, body, signal, true);
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      if (attempt > 0 && lastError) {
+        const delay = initialDelayMs * Math.pow(2, attempt - 1);
+        await new Promise((res) => setTimeout(res, delay));
+      }
+
+      try {
+        const res = await fetch(url, {
+          method,
+          headers: this.getHeaders(),
+          body: body !== undefined ? JSON.stringify(body) : undefined,
+          signal,
+        });
+
+        if (res.status === 204) return { kind: "empty", status: 204 };
+        if (res.status === 404) return { kind: "empty", status: 404 };
+
+        if ((res.status === 401 || res.status === 403) && this.onAuthFailure && !isRetry) {
+          const newToken = await this.refreshAuthToken();
+          if (newToken) {
+            return this.validatedRequest(method, path, validate, body, signal, true, retryOpts);
+          }
+        }
+
+        // Retry 5xx server errors
+        if (res.status >= 500 && attempt < maxRetries) {
+          const text = await res.text().catch(() => "");
+          lastError = new Error(`Harness API error (${res.status}): ${text || res.statusText}`);
+          continue;
+        }
+
+        if (!res.ok) {
+          const text = await res.text().catch(() => "");
+          throw new Error(`Harness API error (${res.status}): ${text || res.statusText}`);
+        }
+
+        const json: unknown = await res.json();
+        const validation = validate(json);
+        if (!validation.valid) {
+          throw new Error(`Harness API schema error: ${validation.error}`);
+        }
+        return { kind: "value", value: validation.value };
+      } catch (err) {
+        if ((err as Error).name === "AbortError") throw err;
+        lastError = err as Error;
+        if (attempt < maxRetries && lastError.message.startsWith("Harness API error (5")) {
+          continue;
+        }
+        if (attempt === maxRetries || !isTransientNetworkError(lastError)) {
+          throw lastError;
+        }
       }
     }
 
-    if (!res.ok) {
-      const text = await res.text().catch(() => "");
-      throw new Error(`Harness API error (${res.status}): ${text || res.statusText}`);
-    }
-
-    const json: unknown = await res.json();
-    const validation = validate(json);
-    if (!validation.valid) {
-      throw new Error(`Harness API schema error: ${validation.error}`);
-    }
-    return { kind: "value", value: validation.value };
+    throw lastError || new Error("Request failed after retries");
   }
 
   private async refreshAuth(): Promise<string | undefined> {
@@ -115,9 +174,9 @@ export class HttpHarnessDataSource implements HarnessDataSource {
     return this.authRefreshInFlight;
   }
 
-  async availability(): Promise<{ available: boolean; reason?: string }> {
+  async availability(retryOpts?: RetryOptions): Promise<{ available: boolean; reason?: string }> {
     try {
-      const result = await this.validatedRequest("GET", "/availability", validateAvailabilityResponse);
+      const result = await this.validatedRequest("GET", "/availability", validateAvailabilityResponse, undefined, undefined, false, retryOpts);
       if (result.kind === "empty") return { available: false, reason: "No availability response" };
       return result.value;
     } catch (err) {
@@ -125,42 +184,44 @@ export class HttpHarnessDataSource implements HarnessDataSource {
     }
   }
 
-  async getReport(): Promise<HarnessReport | undefined> {
+  async getReport(retryOpts?: RetryOptions): Promise<HarnessReport | undefined> {
     const result = await this.validatedRequest("GET", "/report", (data) => {
       const r = HarnessReportSchema.safeParse(data);
       return r.success ? { valid: true, value: r.data as unknown as HarnessReport } : { valid: false, error: r.error.message };
-    });
+    }, undefined, undefined, false, retryOpts);
     if (result.kind === "empty") return undefined;
     return result.value;
   }
 
-  async getHistory(): Promise<HarnessReport[]> {
+  async getHistory(retryOpts?: RetryOptions): Promise<HarnessReport[]> {
     const result = await this.validatedRequest("GET", "/history", (data) => {
       const r = HarnessHistorySchema.safeParse(data);
       return r.success ? { valid: true, value: r.data as unknown as HarnessReport[] } : { valid: false, error: r.error.message };
-    });
+    }, undefined, undefined, false, retryOpts);
     if (result.kind === "empty") return [];
     return result.value;
   }
 
-  async getRunProgress(runId?: string): Promise<HarnessRunProgress | undefined> {
+  async getRunProgress(runId?: string, retryOpts?: RetryOptions): Promise<HarnessRunProgress | undefined> {
     const path = runId ? `/runs/${encodeURIComponent(runId)}` : "/runs/current";
     const result = await this.validatedRequest("GET", path, (data) => {
       const r = HarnessRunProgressSchema.safeParse(data);
       if (r.success) return { valid: true, value: r.data as unknown as HarnessRunProgress };
       return { valid: false, error: r.error.message };
-    });
+    }, undefined, undefined, false, retryOpts);
     if (result.kind === "empty") return undefined;
     return result.value;
   }
 
-  async regenerate(): Promise<{ accepted: boolean; runId?: string }> {
+  async regenerate(retryOpts?: RetryOptions): Promise<{ accepted: boolean; runId?: string }> {
     this.runAbortController = new AbortController();
     try {
       const result = await this.validatedRequest(
         "POST", "/runs", validateStartRunResponse,
         { mode: "full", sourceRevision: "current", collectors: ["customization", "sessions", "foundations"] },
         this.runAbortController.signal,
+        false,
+        retryOpts,
       );
       if (result.kind === "empty") throw new Error("Regeneration returned empty");
       if (result.value.accepted && result.value.runId) {
@@ -173,20 +234,21 @@ export class HttpHarnessDataSource implements HarnessDataSource {
     }
   }
 
-  async planFix(findingId: string): Promise<{ accepted: boolean; opencodeSessionId?: string }> {
+  async planFix(findingId: string, retryOpts?: RetryOptions): Promise<{ accepted: boolean; opencodeSessionId?: string }> {
     const result = await this.validatedRequest("POST", "/findings/plan-fix", validatePlanFixResponse, {
       findingIds: [findingId],
-    });
+    }, undefined, false, retryOpts);
     if (result.kind === "empty") throw new Error("Plan-fix response empty");
     const r = result.value.results?.[0];
     if (r?.accepted) return { accepted: true, opencodeSessionId: r.opencodeSessionId };
     return { accepted: false };
   }
 
-  async cancel(): Promise<void> {
+  async cancel(retryOpts?: RetryOptions): Promise<void> {
     if (!this.currentRunId) return;
     const result = await this.validatedRequest(
       "POST", `/runs/${encodeURIComponent(this.currentRunId)}/cancel`, validateCancelResponse,
+      undefined, undefined, false, retryOpts,
     );
     if (result.kind === "empty") throw new Error("Cancel response empty — cancellation not confirmed");
     if (this.runAbortController) {
@@ -196,23 +258,32 @@ export class HttpHarnessDataSource implements HarnessDataSource {
     this.currentRunId = undefined;
   }
 
-  async verify(findingId: string): Promise<{ accepted: boolean }> {
-    const result = await this.validatedRequest("POST", "/findings/verify", (d) => {
-      const r = (d as Record<string, unknown>).results as Array<Record<string, unknown>> | undefined;
-      const accepted = r?.[0]?.accepted === true;
-      return { valid: true, value: { accepted } };
-    }, { findingIds: [findingId] });
+  async verify(findingId: string, retryOpts?: RetryOptions): Promise<{ accepted: boolean }> {
+    const result = await this.validatedRequest("POST", "/findings/verify", validateVerifyResponse, {
+      findingIds: [findingId],
+    }, undefined, false, retryOpts);
     if (result.kind === "empty") throw new Error("Verify response empty");
-    return result.value;
+    const item = result.value.results?.[0];
+    return { accepted: item?.accepted === true };
   }
 
-  async ignore(findingId: string, reason: string): Promise<{ accepted: boolean }> {
-    const result = await this.validatedRequest("POST", "/findings/ignore", (d) => {
-      const r = (d as Record<string, unknown>).results as Array<Record<string, unknown>> | undefined;
-      const accepted = r?.[0]?.accepted === true;
-      return { valid: true, value: { accepted } };
-    }, { findingIds: [findingId], reason });
+  async ignore(findingId: string, reason: string, retryOpts?: RetryOptions): Promise<{ accepted: boolean }> {
+    const result = await this.validatedRequest("POST", "/findings/ignore", validateIgnoreResponse, {
+      findingIds: [findingId],
+      reason,
+    }, undefined, false, retryOpts);
     if (result.kind === "empty") throw new Error("Ignore response empty");
-    return result.value;
+    const item = result.value.results?.[0];
+    return { accepted: item?.accepted === true };
   }
+}
+
+function isTransientNetworkError(error: Error): boolean {
+  const msg = error.message.toLowerCase();
+  return (
+    msg.includes("network") ||
+    msg.includes("failed to fetch") ||
+    msg.includes("timeout") ||
+    msg.includes("econnreset")
+  );
 }

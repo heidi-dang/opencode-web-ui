@@ -23,10 +23,10 @@ export interface BetterHarnessRuntimeInfo {
 /**
  * Discover Better Harness runtime info from the current OpenCode server context.
  *
- * Strategy (in order):
- *   A. Use OpenCode's /api/capabilities endpoint if it exposes BH metadata.
- *   B. Check for a standard BH health endpoint relative to the transport URL.
- *   C. Fall through to unavailable if neither works.
+ * Strategy:
+ *   1. Probe the server's location-scoped `/better-harness/availability` endpoint with timeout.
+ *   2. Return availability status, API base URL, and auth requirement flags.
+ *   3. Fall through to `available: false` if unreachable, unauthenticated, or returned 404.
  */
 export async function discoverBetterHarness(
   transportUrl: string,

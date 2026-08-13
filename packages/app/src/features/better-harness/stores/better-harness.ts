@@ -122,30 +122,31 @@ export function createBetterHarnessStore(config: {
     }
   }
 
-  async function connectSSE(runId: string) {
+  async function connectSSE(runId: string, reconnectAttempts = 0) {
     if (unmounted) return;
     cleanupSSE();
 
+    const MAX_SSE_RECONNECTS = 2;
     const abortController = new AbortController();
     sseAbort = abortController;
     const signal = abortController.signal;
     parser.reset();
 
-    const url = `${dataSource["apiBase"]}/runs/${encodeURIComponent(runId)}/events`;
+    const url = dataSource.getSseUrl(runId);
 
     try {
-      const headers: Record<string, string> = { Accept: "text/event-stream" };
-      const authToken = dataSource["authToken"];
-      if (authToken) headers["Authorization"] = `Bearer ${authToken}`;
+      const headers: Record<string, string> = {
+        Accept: "text/event-stream",
+        ...dataSource.getAuthHeaders(),
+      };
       if (lastValidEventId) headers["Last-Event-ID"] = lastValidEventId;
 
       const response = await fetch(url, { headers, signal });
       if (!response.ok) {
-        if ((response.status === 401 || response.status === 403) && dataSource["onAuthFailure"]) {
-          const newToken = await dataSource["onAuthFailure"]();
-          if (newToken) {
-            dataSource["authToken"] = newToken;
-            return connectSSE(runId);
+        if (response.status === 401 || response.status === 403) {
+          const newToken = await dataSource.refreshAuthToken();
+          if (newToken && reconnectAttempts < MAX_SSE_RECONNECTS) {
+            return connectSSE(runId, reconnectAttempts + 1);
           }
         }
         throw new Error(`SSE connection failed: ${response.status}`);
@@ -156,7 +157,7 @@ export function createBetterHarnessStore(config: {
       if (!reader) throw new Error("SSE body not readable");
 
       const decoder = new TextDecoder();
-      let attempt = 1;
+      let authAttempt = 1;
 
       const readLoop = async () => {
         try {
@@ -170,26 +171,30 @@ export function createBetterHarnessStore(config: {
             });
           }
           decoder.decode(); // flush
-          return attempt === 1;
+          return authAttempt === 1;
         } catch (err) {
           if (signal.aborted) return false;
 
           // Auth retry (one attempt)
-          if (attempt === 1) {
+          if (authAttempt === 1) {
             const msg = (err as Error).message || "";
             if (msg.includes("401") || msg.includes("403")) {
-              if (dataSource["onAuthFailure"]) {
-                try {
-                  const newToken = await dataSource["onAuthFailure"]();
-                  if (newToken) {
-                    dataSource["authToken"] = newToken;
-                    attempt = 2;
-                    if (!signal.aborted) {
-                      return connectSSE(runId);
-                    }
-                  }
-                } catch { /* fall through */ }
-              }
+              try {
+                const newToken = await dataSource.refreshAuthToken();
+                if (newToken && !signal.aborted && reconnectAttempts < MAX_SSE_RECONNECTS) {
+                  authAttempt = 2;
+                  return connectSSE(runId, reconnectAttempts + 1);
+                }
+              } catch { /* fall through */ }
+            }
+          }
+
+          // Bounded reconnect attempt before polling fallback
+          if (reconnectAttempts < MAX_SSE_RECONNECTS && !signal.aborted) {
+            const backoffDelay = Math.pow(2, reconnectAttempts) * 500;
+            await new Promise((res) => setTimeout(res, backoffDelay));
+            if (!signal.aborted && !unmounted) {
+              return connectSSE(runId, reconnectAttempts + 1);
             }
           }
 
@@ -197,12 +202,23 @@ export function createBetterHarnessStore(config: {
           setState("sseFailed", true);
           startPolling(runId);
           return false;
+        } finally {
+          try {
+            reader.releaseLock();
+          } catch { /* ignore */ }
         }
       };
 
       readLoop();
     } catch {
       if (!signal.aborted) {
+        if (reconnectAttempts < MAX_SSE_RECONNECTS && !unmounted) {
+          const backoffDelay = Math.pow(2, reconnectAttempts) * 500;
+          await new Promise((res) => setTimeout(res, backoffDelay));
+          if (!signal.aborted && !unmounted) {
+            return connectSSE(runId, reconnectAttempts + 1);
+          }
+        }
         setState("sseFailed", true);
         startPolling(runId);
       }
