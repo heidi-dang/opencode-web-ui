@@ -490,6 +490,7 @@ export function createPromptSubmit(input: PromptSubmitInput) {
 
     if (mode === "shell") {
       clearInput()
+      serverSync().session.set("session_status", session.id, { type: "busy" })
       const eventID = Event.ID.create()
       sdk().api.session.shell({
           sessionID: session.id,
@@ -503,6 +504,7 @@ export function createPromptSubmit(input: PromptSubmitInput) {
             title: language.t("prompt.toast.shellSendFailed.title"),
             description: errorMessage(err),
           })
+          serverSync().session.set("session_status", session.id, { type: "idle" })
           restoreInput()
         })
       return
