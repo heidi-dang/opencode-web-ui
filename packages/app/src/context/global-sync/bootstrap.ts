@@ -245,8 +245,12 @@ export const loadProvidersQuery = (
     queryFn: () =>
       retry(async () => {
         if ((await protocol) === "v1" && legacy) {
-          const result = await legacy.provider.list()
-          return normalizeProviderList(result.data!)
+          try {
+            const result = await legacy.provider.list()
+            return normalizeProviderList(result.data!)
+          } catch (err) {
+            console.warn("Legacy provider.list failed, falling back to v2 API", err)
+          }
         }
         const location = directory ? { location: { directory } } : undefined
         const [providers, models, defaultModel] = await Promise.all([
@@ -281,7 +285,13 @@ export const loadAgentsQuery = (
     queryKey: [scope, directory, "agents"],
     queryFn: () =>
       retry(async () => {
-        if ((await protocol) === "v1" && legacy) return normalizeAgentList((await legacy.app.agents()).data ?? [])
+        if ((await protocol) === "v1" && legacy) {
+          try {
+            return normalizeAgentList((await legacy.app.agents()).data ?? [])
+          } catch (err) {
+            console.warn("Legacy app.agents failed, falling back to v2 API", err)
+          }
+        }
         return sdk.list({ location: { directory } }).then((result) => normalizeAgentList(result.data))
       }),
   })
@@ -294,18 +304,22 @@ export const loadCommands = (
 ): Promise<CommandInfo[]> =>
   retry(async () => {
     if ((await protocol) === "v1" && legacy) {
-      return ((await legacy.command.list()).data ?? []).map((command) => {
-        const [providerID, id] = command.model?.split("/") ?? []
-        return {
-          name: command.name,
-          template: command.template,
-          description: command.description,
-          agent: command.agent,
-          model: providerID && id ? { providerID, id } : undefined,
-          subtask: command.subtask,
-          // source: command.source === "skill" ? undefined : command.source,
-        }
-      })
+      try {
+        return ((await legacy.command.list()).data ?? []).map((command) => {
+          const [providerID, id] = command.model?.split("/") ?? []
+          return {
+            name: command.name,
+            template: command.template,
+            description: command.description,
+            agent: command.agent,
+            model: providerID && id ? { providerID, id } : undefined,
+            subtask: command.subtask,
+            // source: command.source === "skill" ? undefined : command.source,
+          }
+        })
+      } catch (err) {
+        console.warn("Legacy command.list failed, falling back to v2 API", err)
+      }
     }
     return api.list({ location: { directory } }).then((result) => result.data)
   })
