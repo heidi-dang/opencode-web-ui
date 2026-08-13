@@ -141,6 +141,7 @@ export const loadMcpResourcesQuery = (
         .then((result) =>
           Object.fromEntries(result.data.resources.map((resource) => [`${resource.server}:${resource.uri}`, resource])),
         )
+        .catch(() => ({}))
     },
     placeholderData: {},
   })

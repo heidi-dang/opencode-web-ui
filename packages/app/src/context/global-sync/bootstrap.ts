@@ -253,7 +253,9 @@ export const loadProvidersQuery = (
         const [providers, models, defaultModel] = await Promise.all([
           sdk.provider.list(location),
           sdk.model.list(location),
-          sdk.model.default(location),
+          // Older/current hybrid servers may not expose model/default. The
+          // provider and model catalogs remain authoritative without it.
+          sdk.model.default(location).catch(() => ({ data: undefined })),
         ])
         return normalizeProviderList(providers.data, models.data, defaultModel.data)
       }),
