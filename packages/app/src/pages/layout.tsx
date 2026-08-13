@@ -1456,7 +1456,18 @@ export default function LegacyLayout(props: ParentProps) {
     })
     const dismiss = () => toaster.dismiss(progress)
 
-    const sessions = await listAllSessions(serverSDK().api.session, { directory, order: "desc" }).catch(() => [])
+    let sessions: Session[]
+    try {
+      sessions = await listAllSessions(serverSDK().api.session, { directory, order: "desc" })
+    } catch (err) {
+      setBusy(directory, false)
+      dismiss()
+      showToast({
+        title: language.t("workspace.reset.failed.title"),
+        description: errorMessage(err, language.t("common.requestFailed")),
+      })
+      return
+    }
 
     clearWorkspaceTerminals(
       directory,
@@ -1593,7 +1604,15 @@ export default function LegacyLayout(props: ParentProps) {
       const sessions = await listAllSessions(serverSDK().api.session, {
         directory: props.directory,
         order: "desc",
-      }).catch(() => [])
+      }).catch((err) => {
+        setState({ status: "error", dirty: false })
+        showToast({
+          title: language.t("workspace.reset.failed.title"),
+          description: errorMessage(err, language.t("common.requestFailed")),
+        })
+        return undefined
+      })
+      if (!sessions) return
       const active = sessions.filter((session) => session.time.archived === undefined)
       setState({ sessions: active })
     }
