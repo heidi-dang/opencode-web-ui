@@ -85,9 +85,39 @@ function sessionInfo(session: Session): SessionInfo {
 
 export function createCompatibleApi(input: CompatibleInput): CompatibleApi {
   const v1 = createV1Api(input)
+  const current = {
+    ...input.current,
+    session: {
+      ...input.current.session,
+      // The app-level prompt shape contains legacy routing/model fields. The
+      // current HTTP contract accepts only the nested PromptInput body.
+      prompt: async (value: SessionPromptInput & LegacyPrompt) =>
+        (input.current.session.prompt as unknown as (value: Record<string, unknown>) => Promise<SessionPromptOutput>)({
+          sessionID: value.sessionID,
+          id: value.id,
+          prompt: {
+            text: value.text ?? "",
+            files: value.files?.map((file) => ({
+              uri: file.uri,
+              name: file.name,
+              source: file.mention
+                ? { start: file.mention.start, end: file.mention.end, text: file.mention.text }
+                : undefined,
+            })),
+            agents: value.agents?.map((agent) => ({
+              name: agent.name,
+              source: agent.mention
+                ? { start: agent.mention.start, end: agent.mention.end, text: agent.mention.text }
+                : undefined,
+            })),
+          },
+          delivery: value.delivery,
+        }),
+    },
+  } as CompatibleApi
   return lazyApi(
-    input.protocol.then((protocol) => (protocol === "v1" ? v1 : input.current)),
-    input.current,
+    input.protocol.then((protocol) => (protocol === "v1" ? v1 : current)),
+    current,
   )
 }
 

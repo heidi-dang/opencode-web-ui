@@ -140,7 +140,7 @@ export function createApiForServer(input: {
 
   const customFetch = createBasePathFetch(input.fetch ?? globalThis.fetch, parsed)
 
-  return OpenCode.make({
+  const client = OpenCode.make({
     baseUrl: parsed.origin,
     fetch: customFetch,
     headers: input.server.password
@@ -152,6 +152,28 @@ export function createApiForServer(input: {
         }
       : undefined,
   })
+
+  // The promise client shipped with older generated contracts serializes the
+  // prompt field incorrectly for current servers. Keep the compatibility API
+  // stable, but send the authoritative v2 request body explicitly.
+  return {
+    ...client,
+    session: {
+      ...client.session,
+      prompt: async (value: any) => {
+        const response = await customFetch(
+          new URL(`/api/session/${encodeURIComponent(value.sessionID)}/prompt`, parsed.origin),
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id: value.id, prompt: value.prompt, delivery: value.delivery, resume: value.resume }),
+          },
+        )
+        if (!response.ok) throw new Error(`Prompt request failed (${response.status})`)
+        return response.json()
+      },
+    },
+  } as OpenCodeClient
 }
 
 export type ServerApi = OpenCodeClient

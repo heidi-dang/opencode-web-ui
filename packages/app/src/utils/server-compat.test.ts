@@ -53,6 +53,27 @@ function setup(
 }
 
 describe("createCompatibleApi", () => {
+  test("converts app prompt fields to the current nested prompt contract", async () => {
+    const { api, requests } = setup("v2")
+    await api.session.prompt({
+      sessionID: "ses_1",
+      id: "msg_1",
+      text: "hello",
+      files: [{ uri: "file:///repo/a.ts", name: "a.ts", mention: { text: "@a.ts", start: 0, end: 5 } }],
+      agents: [{ name: "review", mention: { text: "@review", start: 6, end: 13 } }],
+    })
+
+    const body = await requests[0]!.json()
+    expect(body).toEqual({
+      id: "msg_1",
+      prompt: {
+        text: "hello",
+        files: [{ uri: "file:///repo/a.ts", name: "a.ts", source: { start: 0, end: 5, text: "@a.ts" } }],
+        agents: [{ name: "review", source: { start: 6, end: 13, text: "@review" } }],
+      },
+    })
+  })
+
   /*
   test("routes V1 archive through the legacy session update", async () => {
     const { api, requests } = setup("v1")
