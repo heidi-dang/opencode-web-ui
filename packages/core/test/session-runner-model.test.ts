@@ -48,8 +48,8 @@ describe("SessionRunnerModel", () => {
         model({ type: "aisdk", package: "@ai-sdk/openai", url: "https://openai.example/v1" }),
       )
 
-      expect(resolved).toMatchObject({ id: "api-test-model", provider: "test-provider" })
-      expect(resolved.route).toMatchObject({
+      expect(resolved.llm).toMatchObject({ id: "api-test-model", provider: "test-provider" })
+      expect(resolved.llm.route).toMatchObject({
         id: "openai-responses",
         endpoint: { baseURL: "https://openai.example/v1" },
         defaults: {
@@ -66,7 +66,7 @@ describe("SessionRunnerModel", () => {
       const resolved = yield* SessionRunnerModel.fromCatalogModel(
         model({ type: "aisdk", package: "@ai-sdk/openai", url: "https://openai.example/v1" }),
       )
-      const prepared = yield* LLMClient.prepare(LLM.request({ model: resolved, prompt: "Hello" }))
+      const prepared = yield* LLMClient.prepare(LLM.request({ model: resolved.llm, prompt: "Hello" }))
 
       expect(JSON.stringify(prepared.body)).not.toContain("apiKey")
       expect(JSON.stringify(prepared.body)).not.toContain("secret")
@@ -86,8 +86,8 @@ describe("SessionRunnerModel", () => {
           request: { headers: {}, body: {} },
         }),
       )
-      const request = LLM.request({ model: resolved, prompt: "Hello" })
-      const headers = yield* resolved.route.auth.apply({
+      const request = LLM.request({ model: resolved.llm, prompt: "Hello" })
+      const headers = yield* resolved.llm.route.auth.apply({
         request,
         method: "POST",
         url: "https://compatible.example/v1/chat/completions",
@@ -96,7 +96,7 @@ describe("SessionRunnerModel", () => {
       })
 
       expect(headers.authorization).toBe("Bearer settings-secret")
-      expect(resolved.route.defaults.http?.body).toEqual({})
+      expect(resolved.llm.route.defaults.http?.body).toEqual({})
     }),
   )
 
@@ -131,8 +131,8 @@ describe("SessionRunnerModel", () => {
 
       const resolved = yield* SessionRunnerModel.resolve(session, catalog)
 
-      expect(resolved.route.defaults.headers).toMatchObject({ "x-test": "header", "x-variant": "high" })
-      expect(resolved.route.defaults.http?.body).toEqual({
+      expect(resolved.llm.route.defaults.headers).toMatchObject({ "x-test": "header", "x-variant": "high" })
+      expect(resolved.llm.route.defaults.http?.body).toEqual({
         custom_extension: { enabled: true },
         store: false,
         service_tier: "priority",
@@ -167,7 +167,7 @@ describe("SessionRunnerModel", () => {
 
       const resolved = yield* SessionRunnerModel.resolve(session, catalog)
 
-      expect(resolved.route.defaults.http?.body).toEqual({
+      expect(resolved.llm.route.defaults.http?.body).toEqual({
         custom_extension: { enabled: true },
         store: false,
         reasoning_effort: "high",
@@ -227,7 +227,7 @@ describe("SessionRunnerModel", () => {
 
       const resolved = yield* SessionRunnerModel.resolve(session, catalog)
 
-      expect(resolved.route.defaults.http?.body).toEqual({
+      expect(resolved.llm.route.defaults.http?.body).toEqual({
         custom_extension: { enabled: true },
         thinking: { type: "enabled", budget_tokens: 12000 },
       })
@@ -240,7 +240,7 @@ describe("SessionRunnerModel", () => {
         model({ type: "aisdk", package: "@ai-sdk/anthropic", url: "https://anthropic.example/v1" }),
       )
 
-      expect(resolved.route).toMatchObject({
+      expect(resolved.llm.route).toMatchObject({
         id: "anthropic-messages",
         endpoint: { baseURL: "https://anthropic.example/v1" },
       })
@@ -256,8 +256,8 @@ describe("SessionRunnerModel", () => {
         }),
         Credential.Key.make({ type: "key", key: "secret" }),
       )
-      const request = LLM.request({ model: resolved, prompt: "Hello" })
-      const headers = yield* resolved.route.auth.apply({
+      const request = LLM.request({ model: resolved.llm, prompt: "Hello" })
+      const headers = yield* resolved.llm.route.auth.apply({
         request,
         method: "POST",
         url: "https://openai.example/v1/responses",
@@ -279,8 +279,8 @@ describe("SessionRunnerModel", () => {
         }),
         credential,
       )
-      const headers = yield* resolved.route.auth.apply({
-        request: LLM.request({ model: resolved, prompt: "Hello" }),
+      const headers = yield* resolved.llm.route.auth.apply({
+        request: LLM.request({ model: resolved.llm, prompt: "Hello" }),
         method: "POST",
         url: "https://openai.example/v1/responses",
         body: "{}",
@@ -288,7 +288,7 @@ describe("SessionRunnerModel", () => {
       })
 
       expect(headers.authorization).toBe("Bearer stored-secret")
-      expect(resolved.route.defaults.http?.body).toEqual({ tenant: "work" })
+      expect(resolved.llm.route.defaults.http?.body).toEqual({ tenant: "work" })
     }),
   )
 
@@ -309,7 +309,7 @@ describe("SessionRunnerModel", () => {
         }),
       )
 
-      expect(resolved.route.defaults.http?.body).toEqual({})
+      expect(resolved.llm.route.defaults.http?.body).toEqual({})
     }),
   )
 
