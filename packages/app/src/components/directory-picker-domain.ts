@@ -338,13 +338,18 @@ export function createDirectorySearch(args: { sdk: ServerSDK; base: () => string
     return { directory: trimPickerPath(base), path: raw }
   }
 
+  const listFiles = async (directory: string) => {
+    if ((await args.sdk.protocol) === "v1") {
+      return args.sdk.client.file.list({ path: directory }).then((result) => result.data ?? [])
+    }
+    return args.sdk.api.file.list({ location: { directory } }).then((result) => result.data)
+  }
+
   const directories = async (directory: string) => {
     const key = trimPickerPath(directory)
     const existing = cache.get(key)
     if (existing) return existing
-    const request = args.sdk.api.file
-      .list({ location: { directory: key } })
-      .then((result) => result.data)
+    const request = listFiles(key)
       .catch(() => [])
       .then((nodes) =>
         nodes

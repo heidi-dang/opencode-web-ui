@@ -3,6 +3,19 @@ import { OpenCode, type OpenCodeClient } from "@opencode-ai/client/promise"
 import type { ServerConnection } from "@/context/server"
 import { decode64 } from "@/utils/base64"
 
+const browserProxyTarget = "http://139.180.175.60:4096"
+
+export function serverTransportUrl(url: string) {
+  if (typeof window === "undefined") return url
+  try {
+    const parsed = new URL(url)
+    if (parsed.origin !== browserProxyTarget) return url
+    return `${window.location.origin}/__opencode_remote__${parsed.pathname === "/" ? "" : parsed.pathname}`
+  } catch {
+    return url
+  }
+}
+
 export function authTokenFromCredentials(input: { username?: string; password: string }) {
   return btoa(`${input.username ?? "opencode"}:${input.password}`)
 }
@@ -37,7 +50,7 @@ export function createSdkForServer({
       ...(config.headers instanceof Headers ? Object.fromEntries(config.headers.entries()) : config.headers),
       ...auth,
     },
-    baseUrl: server.url,
+    baseUrl: serverTransportUrl(server.url),
   })
 }
 
