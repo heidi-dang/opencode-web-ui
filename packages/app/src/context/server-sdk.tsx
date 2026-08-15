@@ -4,7 +4,7 @@ import { createSimpleContext } from "@opencode-ai/ui/context"
 import { createGlobalEmitter } from "@solid-primitives/event-bus"
 import { makeEventListener } from "@solid-primitives/event-listener"
 import { type Accessor, batch, createMemo, createResource, onCleanup, onMount } from "solid-js"
-import { createApiForServer, createSdkForServer, serverTransportUrl, type ServerApi } from "@/utils/server"
+import { createApiForServer, createSdkForServer, type ServerApi } from "@/utils/server"
 import { useLanguage } from "./language"
 import { usePlatform } from "./platform"
 import { ServerConnection, useServer } from "./server"
@@ -189,7 +189,7 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
   const abort = new AbortController()
   const transportServer = {
     ...server,
-    http: { ...server.http, url: serverTransportUrl(server.http.url) },
+    http: { ...server.http, url: server.http.url },
   }
 
   const eventFetch = (() => {

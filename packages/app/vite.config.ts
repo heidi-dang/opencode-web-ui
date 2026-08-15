@@ -25,14 +25,6 @@ export default defineConfig({
     host: "0.0.0.0",
     allowedHosts: true,
     port: 3000,
-    proxy: {
-      "/__opencode_remote__": {
-        target: process.env.VITE_OPENCODE_REMOTE_TARGET,
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/__opencode_remote__/, "") || "/",
-        ws: true,
-      },
-    },
   },
   build: {
     target: "esnext",
