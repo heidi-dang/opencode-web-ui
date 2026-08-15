@@ -18,6 +18,19 @@ export function authFromToken(token: string | null) {
   }
 }
 
+export function getProxyEndpoint(serverUrl: string, path = "", queryParams?: Record<string, string>) {
+  const cleanPath = path.startsWith("/") ? path : `/${path}`
+  const targetOrigin = new URL(serverUrl).origin
+  const browserOrigin = typeof window !== "undefined" ? window.location.origin : ""
+  if (!/^https?:$/.test(new URL(browserOrigin || "http://localhost").protocol)) {
+    return new URL(cleanPath, `${targetOrigin}/`).toString()
+  }
+  const url = new URL(`/api/opencode${cleanPath}`, browserOrigin)
+  url.searchParams.set("target", targetOrigin)
+  for (const [key, value] of Object.entries(queryParams ?? {})) url.searchParams.set(key, value)
+  return url.pathname + url.search
+}
+
 export function fetchForServer(server: ServerConnection.HttpBase, fetcher: typeof globalThis.fetch = globalThis.fetch) {
   return ((input: RequestInfo | URL, init?: RequestInit) => {
     if (typeof window === "undefined") return fetcher(input, init)
@@ -25,9 +38,7 @@ export function fetchForServer(server: ServerConnection.HttpBase, fetcher: typeo
     const serverUrl = new URL(server.url)
     if (requestUrl.origin !== serverUrl.origin) return fetcher(input, init)
 
-    const proxyUrl = new URL(`${window.location.origin}/__opencode_remote__${requestUrl.pathname}`)
-    proxyUrl.search = requestUrl.search
-    proxyUrl.searchParams.set("target", serverUrl.origin)
+    const proxyUrl = getProxyEndpoint(server.url, requestUrl.pathname, Object.fromEntries(requestUrl.searchParams))
     const request = input instanceof Request && !init ? new Request(proxyUrl, input) : undefined
     return fetcher(request ?? proxyUrl, init)
   }) as typeof globalThis.fetch

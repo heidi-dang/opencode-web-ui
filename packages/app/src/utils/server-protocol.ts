@@ -1,5 +1,5 @@
 import type { ServerConnection } from "@/context/server"
-import { authTokenFromCredentials } from "./server"
+import { authTokenFromCredentials, getProxyEndpoint } from "./server"
 
 export type ServerProtocol = "v1" | "v2"
 
@@ -11,7 +11,7 @@ function headers(server: ServerConnection.HttpBase) {
 }
 
 async function probe(server: ServerConnection.HttpBase, fetch: typeof globalThis.fetch, path: string) {
-  const response = await fetch(new URL(path, server.url), {
+  const response = await fetch(getProxyEndpoint(server.url, path), {
     headers: headers(server),
     signal: AbortSignal.timeout(5_000),
   })
