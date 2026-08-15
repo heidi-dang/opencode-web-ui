@@ -178,6 +178,15 @@ describe("createCompatibleApi", () => {
   })
   */
 
+  test("normalizes array-valued directories before V1 requests", async () => {
+    const { api, requests } = setup("v1")
+    await api.session.list({ directory: ["/?limit=55", "/"] as unknown as string, limit: 55 })
+
+    const url = new URL(requests[0]!.url)
+    expect(url.searchParams.get("directory")).toBe("/")
+    expect(url.searchParams.getAll("directory")).toEqual(["/"])
+  })
+
   test("uses the global V1 session search endpoint", async () => {
     const { api, requests } = setup("v1")
     await api.session.list({ parentID: null, search: "session", limit: 50 })

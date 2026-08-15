@@ -153,7 +153,12 @@ function lazyApi<T extends object>(implementation: Promise<T>, shape: T): T {
 }
 
 function createV1Api(input: CompatibleInput): CompatibleApi {
-  const directory = (location?: { directory?: string }) => location?.directory ?? input.directory
+  const scalar = (value: unknown): string | undefined => {
+    if (typeof value === "string") return value
+    if (Array.isArray(value)) return scalar(value.find((item) => typeof item === "string" && !item.includes("?")) ?? value[0])
+    return undefined
+  }
+  const directory = (location?: { directory?: string }) => scalar(location?.directory) ?? scalar(input.directory)
   const legacy = (location?: { directory?: string }) => input.legacy(directory(location))
   const located = <T>(data: T, value?: { directory?: string }) => ({
     location: {
@@ -182,8 +187,9 @@ function createV1Api(input: CompatibleInput): CompatibleApi {
           )
           return { data: (result.data ?? []).map(sessionInfo), cursor: {} }
         }
-        const result = await legacy({ directory: value?.directory }).session.list({
-          directory: value?.directory,
+        const safeDirectory = scalar(value?.directory)
+        const result = await legacy({ directory: safeDirectory }).session.list({
+          directory: safeDirectory,
           roots: value?.parentID === null ? true : undefined,
           search: value?.search,
           limit: value?.limit,
