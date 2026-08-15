@@ -9,7 +9,6 @@ import { useLanguage } from "./language"
 import { usePlatform } from "./platform"
 import { ServerConnection, useServer } from "./server"
 import { createRefCountMap } from "@/utils/refcount"
-import { useGlobal } from "./global"
 import { ServerScope } from "@/utils/server-scope"
 import { detectServerProtocol, type ServerProtocol } from "@/utils/server-protocol"
 import { createCompatibleApi, type CompatibleApi } from "@/utils/server-compat"
@@ -412,14 +411,23 @@ export const { use: useServerSDK, provider: ServerSDKProvider } = createSimpleCo
   // Returns an accessor so the resolved server can change reactively (e.g. a
   // /new-session draft retargeting its server) without re-instantiating the subtree.
   init: (props: { server?: Accessor<ServerConnection.Any | undefined> }) => {
-    const global = useGlobal()
     const language = useLanguage()
     const server = useServer()
+    const contexts = new Map<ServerConnection.Key, ServerSDK>()
+
+    onCleanup(() => {
+      contexts.clear()
+    })
 
     return createMemo<ServerSDK>(() => {
       const conn = props.server?.() ?? server.current
       if (!conn) throw new Error(language.t("error.serverSDK.noServerAvailable"))
-      return global.ensureServerCtx(conn).sdk
+      const key = ServerConnection.key(conn)
+      const existing = contexts.get(key)
+      if (existing) return existing
+      const sdk = createServerSdkContext(conn, server.scope(key))
+      contexts.set(key, sdk)
+      return sdk
     })
   },
 })
