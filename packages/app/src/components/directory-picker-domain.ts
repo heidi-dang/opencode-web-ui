@@ -339,10 +339,12 @@ export function createDirectorySearch(args: { sdk: ServerSDK; base: () => string
   }
 
   const listFiles = async (directory: string) => {
-    if ((await args.sdk.protocol) === "v1") {
-      return args.sdk.client.file.list({ path: directory }).then((result) => result.data ?? [])
-    }
-    return args.sdk.api.file.list({ location: { directory } }).then((result) => result.data)
+    const result =
+      (await args.sdk.protocol) === "v1"
+        ? await args.sdk.client.file.list({ path: directory })
+        : await args.sdk.api.file.list({ location: { directory } })
+    const data = result?.data
+    return Array.isArray(data) ? data : []
   }
 
   const directories = async (directory: string) => {
@@ -381,7 +383,7 @@ export function createDirectorySearch(args: { sdk: ServerSDK; base: () => string
     if (!pathInput) {
       const results = await args.sdk.api.file
         .find({ location: { directory: input.directory }, query, type: "directory", limit: 50 })
-        .then((result) => result.data.map((entry) => entry.path))
+        .then((result) => (Array.isArray(result?.data) ? result.data : []).map((entry) => entry.path))
         .catch(() => [])
       if (!active()) return []
       if (results.length) {

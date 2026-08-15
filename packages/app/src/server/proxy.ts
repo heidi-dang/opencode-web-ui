@@ -95,7 +95,10 @@ export async function handleOpenCodeProxy(
     return true
   } catch (error) {
     console.error("[OpenCode Proxy Error]", error instanceof Error ? error.message : "upstream request failed")
-    if (!res.headersSent) writeJson(res, 502, { error: "Proxy upstream connection failed" })
+    if (!res.headersSent)
+      writeJson(res, 502, {
+        error: "Proxy upstream connection failed",
+      })
     else res.end()
     return true
   }
