@@ -43,7 +43,7 @@ const validatedUrl = serverUrl ? validateProxyUrl(serverUrl) : null
 const proxyTarget = validatedUrl
   ? validatedUrl
   : `http://127.0.0.1:${process.env.VITE_OPENCODE_SERVER_PORT || "4096"}`
-const hasRemoteServer = Boolean(validatedUrl)
+const hasRemoteServer = true
 
 const hopByHopHeaders = [
   "keep-alive", "transfer-encoding", "te", "connection",
@@ -59,7 +59,8 @@ directProxy.on("proxyReq", (proxyReq, req) => {
   proxyReq.path = path
   for (const header of hopByHopHeaders) proxyReq.removeHeader(header)
 })
-directProxy.on("proxyReqWs", (proxyReq) => {
+directProxy.on("proxyReqWs", (proxyReq, req) => {
+  proxyReq.path = req.url?.replace(/^\/direct\/[^/]+\/\d+/, "") || "/"
   for (const header of hopByHopHeaders) proxyReq.removeHeader(header)
 })
 directProxy.on("error", (_err, _req, res) => {
@@ -78,6 +79,13 @@ const directProxyPlugin = {
       const port = Number(match[2])
       if (!Number.isInteger(port) || port < 1 || port > 65535) return next()
       directProxy.web(req, res, { target: `http://${match[1]}:${port}` })
+    })
+    server.httpServer?.on("upgrade", (req, socket, head) => {
+      const match = req.url?.match(/^\/direct\/([^/]+)\/(\d+)(\/.*)?/)
+      if (!match) return
+      const port = Number(match[2])
+      if (!Number.isInteger(port) || port < 1 || port > 65535) return
+      directProxy.ws(req, socket, head, { target: `ws://${match[1]}:${port}` })
     })
   },
 }

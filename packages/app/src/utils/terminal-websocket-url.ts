@@ -1,4 +1,4 @@
-import { authTokenFromCredentials } from "@/utils/server"
+import { authTokenFromCredentials, getEffectiveServerUrl } from "@/utils/server"
 
 export function terminalWebSocketURL(input: {
   protocol?: "v1" | "v2"
@@ -13,7 +13,8 @@ export function terminalWebSocketURL(input: {
   authToken?: boolean
 }) {
   const isV1 = input.protocol === "v1"
-  const next = new URL(`${input.url}${isV1 ? `/pty/${input.id}/connect` : `/api/pty/${input.id}/connect`}`)
+  const base = getEffectiveServerUrl(input.url).replace(/\/$/, "")
+  const next = new URL(`${base}${isV1 ? `/pty/${input.id}/connect` : `/api/pty/${input.id}/connect`}`)
   if (isV1) {
     next.searchParams.set("directory", input.directory)
   } else {

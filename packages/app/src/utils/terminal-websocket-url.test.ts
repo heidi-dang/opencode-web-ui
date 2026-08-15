@@ -21,6 +21,30 @@ describe("terminalWebSocketURL", () => {
     expect(url.searchParams.has("auth_token")).toBe(false)
   })
 
+  test("routes remote HTTPS-preview websocket traffic through the direct proxy", () => {
+    const originalLocation = globalThis.location
+    try {
+      Object.defineProperty(globalThis, "location", {
+        value: { protocol: "https:", origin: "https://preview.example.test", href: "https://preview.example.test/" },
+        configurable: true,
+      })
+      const url = terminalWebSocketURL({
+        protocol: "v2",
+        url: "http://139.180.175.60:4096",
+        id: "pty_test",
+        directory: "/tmp/project",
+        cursor: 0,
+        password: "secret",
+      })
+      expect(url.protocol).toBe("wss:")
+      expect(url.host).toBe("preview.example.test")
+      expect(url.pathname).toBe("/direct/139.180.175.60/4096/api/pty/pty_test/connect")
+      expect(url.searchParams.get("auth_token")).toBe(btoa("opencode:secret"))
+    } finally {
+      Object.defineProperty(globalThis, "location", { value: originalLocation, configurable: true })
+    }
+  })
+
   test("uses query auth without embedding credentials in websocket URL for v1", () => {
     const url = terminalWebSocketURL({
       protocol: "v1",
