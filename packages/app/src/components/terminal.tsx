@@ -65,11 +65,6 @@ const DEFAULT_TERMINAL_COLORS: Record<"light" | "dark", TerminalColors> = {
   },
 }
 
-const debugTerminal = (...values: unknown[]) => {
-  if (!import.meta.env.DEV) return
-  console.debug("[terminal]", ...values)
-}
-
 const resolveV2Token = (tokens: ResolvedV2Theme, key: string) => {
   let current = tokens[key]
   for (let i = 0; i < 8 && current; i++) {
@@ -154,7 +149,7 @@ const persistTerminal = (input: {
     try {
       return input.addon.serialize()
     } catch {
-      debugTerminal("failed to serialize terminal buffer")
+      void ("failed to serialize terminal buffer")
       return ""
     }
   })()
@@ -235,7 +230,7 @@ export const Terminal = (props: TerminalProps) => {
       try {
         fn()
       } catch (err) {
-        debugTerminal("cleanup failed", err)
+        void err
       }
     }
   }
@@ -248,7 +243,7 @@ export const Terminal = (props: TerminalProps) => {
           size: { cols, rows },
         })
         .catch((err) => {
-          debugTerminal("failed to sync terminal size", err)
+          void err
         })
     }
     return sdk()
@@ -258,7 +253,7 @@ export const Terminal = (props: TerminalProps) => {
         size: { cols, rows },
       })
       .catch((err) => {
-        debugTerminal("failed to sync terminal size", err)
+        void err
       })
   }
 
@@ -538,7 +533,7 @@ export const Terminal = (props: TerminalProps) => {
             .client.pty.get({ ptyID: id }, { throwOnError: false })
             .then((result) => result.response.status === 404)
             .catch((err) => {
-              debugTerminal("failed to inspect terminal session", err)
+              void err
               return false
             })
         }
@@ -547,7 +542,7 @@ export const Terminal = (props: TerminalProps) => {
           .then((result) => result.data.status === "exited")
           .catch((err) => {
             if (err && typeof err === "object" && "_tag" in err && err._tag === "PtyNotFoundError") return true
-            debugTerminal("failed to inspect terminal session", err)
+            void err
             return false
           })
       }
@@ -647,7 +642,7 @@ export const Terminal = (props: TerminalProps) => {
             if (disposed || socket.readyState !== WebSocket.OPEN) return
             // Check if connection has been silent longer than 15s heartbeat budget
             if (Date.now() - lastActivity > 15_000) {
-              debugTerminal("websocket heartbeat timeout, forcing termination")
+              void 0
               stop()
               handleClose(new CloseEvent("close", { code: 4000, reason: "Heartbeat timeout" }))
             }
@@ -669,7 +664,7 @@ export const Terminal = (props: TerminalProps) => {
                 seek = next
               }
             } catch (err) {
-              debugTerminal("invalid websocket control frame", err)
+              void err
             }
             return
           }
@@ -683,7 +678,7 @@ export const Terminal = (props: TerminalProps) => {
 
         const handleError = (error: Event) => {
           if (disposed) return
-          debugTerminal("websocket error", error)
+          void error
         }
 
         const stop = () => {

@@ -637,10 +637,7 @@ export default function Page() {
             sdk()
               .api.vcs.diff({ location: { directory: sdk().directory }, mode: mode === "git" ? "working" : mode })
               .then((result) => result.data)
-              .catch((error) => {
-                console.debug("[session-review] failed to load vcs diff", { mode, error })
-                return []
-              })
+              .catch(() => [])
         : skipToken,
     }
   })
@@ -696,15 +693,15 @@ export default function Page() {
       try {
         const scoped = valid(await request(directory))
         if (scoped) return scoped
-      } catch (error) {
-        console.debug("[session-review] failed to load scoped vcs diff", { mode, file, directory, error })
+      } catch {
+        // The bounded root request below is the compatibility fallback.
       }
     }
     try {
       const bounded = valid(await request(root, 3))
       if (bounded) return bounded
-    } catch (error) {
-      console.debug("[session-review] failed to load bounded vcs diff", { mode, file, root, error })
+    } catch {
+      return undefined
     }
   }
 
