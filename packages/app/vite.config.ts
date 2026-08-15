@@ -43,6 +43,17 @@ const proxyTarget = validatedUrl
   ? validatedUrl
   : `http://127.0.0.1:${process.env.VITE_OPENCODE_SERVER_PORT || "4096"}`
 
+const directProxy = {
+  target: "http://127.0.0.1",
+  changeOrigin: true,
+  router: (req) => {
+    const match = req.url?.match(/^\/direct\/([^/]+)\/(\\d+)(\/.*)?$/)
+    if (!match) return "http://127.0.0.1"
+    return `http://${match[1]}:${match[2]}`
+  },
+  rewrite: (path) => path.replace(/^\/direct\/[^/]+\/\\d+/, "") || "/",
+}
+
 const hopByHopHeaders = [
   "keep-alive", "transfer-encoding", "te", "connection",
   "trailer", "upgrade", "proxy-authorization", "proxy-authenticate",
@@ -62,6 +73,7 @@ export default defineConfig({
     allowedHosts: [],
     port: 3000,
     proxy: {
+      "^/direct/": directProxy,
       "/opencode-server": {
         target: proxyTarget,
         changeOrigin: true,

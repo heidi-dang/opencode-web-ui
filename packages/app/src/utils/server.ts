@@ -32,6 +32,22 @@ export function authFromToken(token: string | null) {
 export function getEffectiveServerUrl(url: string): string {
   if (!url) return url
   const trimmed = url.trim()
+  if (typeof location === "object" && location.protocol === "https:" && trimmed.startsWith("http://")) {
+    try {
+      const parsed = new URL(trimmed)
+      const host = parsed.hostname
+      if (!host) return trimmed
+      if (parsed.port) {
+        const portNumber = Number(parsed.port)
+        if (!Number.isInteger(portNumber) || portNumber < 1 || portNumber > 65535) return trimmed
+      }
+      const port = parsed.port || "80"
+      const pathname = parsed.pathname === "/" ? "" : parsed.pathname.replace(/\/$/, "")
+      return `${location.origin}/direct/${host}/${port}${pathname}`
+    } catch {
+      return trimmed
+    }
+  }
   if (typeof location === "object" && location.protocol === "https:") {
     try {
       const parsed = new URL(trimmed, location.href)
@@ -41,24 +57,6 @@ export function getEffectiveServerUrl(url: string): string {
         return `${current.origin}/opencode-server`
       }
     } catch {}
-  }
-  if (typeof location === "object" && location.protocol === "https:" && trimmed.startsWith("http://")) {
-    try {
-      const parsed = new URL(trimmed)
-      const host = parsed.hostname
-      if (!host) return trimmed
-      if (parsed.port) {
-        const p = parseInt(parsed.port, 10)
-        if (isNaN(p) || p < 1 || p > 65535) {
-          return trimmed
-        }
-      }
-      const port = parsed.port || "80"
-      const pathname = parsed.pathname === "/" ? "" : parsed.pathname.replace(/\/+$/, "")
-      return `${location.origin}/direct/${host}/${port}${pathname}`
-    } catch {
-      return trimmed
-    }
   }
   return trimmed
 }
@@ -117,8 +115,8 @@ export function createSdkForServer({
     }
   })()
 
-  const parsed = new URL(getEffectiveServerUrl(server.url), typeof location === "object" ? location.href : "http://localhost")
-
+  const resolved = getEffectiveServerUrl(server.url)
+  const parsed = new URL(resolved, typeof location === "object" ? location.href : "http://localhost")
   const customFetch = createBasePathFetch(config.fetch ?? globalThis.fetch, parsed)
 
   return createOpencodeClient({
@@ -136,8 +134,8 @@ export function createApiForServer(input: {
   server: ServerConnection.HttpBase
   fetch?: typeof globalThis.fetch
 }): OpenCodeClient {
-  const parsed = new URL(getEffectiveServerUrl(input.server.url), typeof location === "object" ? location.href : "http://localhost")
-
+  const resolved = getEffectiveServerUrl(input.server.url)
+  const parsed = new URL(resolved, typeof location === "object" ? location.href : "http://localhost")
   const customFetch = createBasePathFetch(input.fetch ?? globalThis.fetch, parsed)
 
   const client = OpenCode.make({
@@ -165,7 +163,12 @@ export function createApiForServer(input: {
           new URL(`/api/session/${encodeURIComponent(value.sessionID)}/prompt`, parsed.origin),
           {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+              "Content-Type": "application/json",
+              ...(input.server.password
+                ? { Authorization: `Basic ${authTokenFromCredentials({ username: input.server.username, password: input.server.password })}` }
+                : {}),
+            },
             body: JSON.stringify({ id: value.id, prompt: value.prompt, delivery: value.delivery, resume: value.resume }),
           },
         )

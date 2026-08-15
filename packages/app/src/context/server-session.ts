@@ -746,6 +746,7 @@ export function createServerSession(
 
   const loadMessages = async (sessionID: string, limit: number, before?: string, mode?: "replace" | "prepend") => {
     if (meta.loading[sessionID]) return
+    limit = Math.max(1, Number.isFinite(limit) ? Math.floor(limit) : initialMessagePageSize)
     const active = generation(sessionID)
     const load: MessageLoadState = {
       touchedMessages: new Set(),

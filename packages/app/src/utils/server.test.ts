@@ -23,6 +23,21 @@ describe("authTokenFromCredentials", () => {
 })
 
 describe("getEffectiveServerUrl", () => {
+  test("maps insecure remote servers through the HTTPS direct proxy", () => {
+    const previous = globalThis.location
+    try {
+      Object.defineProperty(globalThis, "location", {
+        value: { protocol: "https:", origin: "https://preview.example.test", href: "https://preview.example.test/" },
+        configurable: true,
+      })
+      expect(getEffectiveServerUrl("http://139.180.175.60:4096")).toBe(
+        "https://preview.example.test/direct/139.180.175.60/4096",
+      )
+    } finally {
+      Object.defineProperty(globalThis, "location", { value: previous, configurable: true })
+    }
+  })
+
   test("returns original URL when not in https or url is empty", () => {
     expect(getEffectiveServerUrl("http://100.97.224.96:4096")).toBe("http://100.97.224.96:4096")
   })

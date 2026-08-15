@@ -51,6 +51,13 @@ export const createDirSyncContext = (
     const [store, setStore] = current()
     const result = Binary.search(store.session, session.id, (item) => item.id)
     if (result.found) {
+      if (store.session[result.index] === session) return
+      if (
+        store.session[result.index].id === session.id &&
+        store.session[result.index].time.updated === session.time.updated &&
+        store.session[result.index].title === session.title
+      )
+        return
       setStore("session", result.index, reconcile(session))
       return
     }
