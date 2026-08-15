@@ -5,6 +5,7 @@
     "": {
       "name": "opencode-web-ui",
       "devDependencies": {
+        "@opencode-ai/script": "workspace:*",
         "@tsconfig/bun": "catalog:",
         "oxlint-tsgolint": "0.21.0",
         "typescript": "catalog:",
@@ -320,6 +321,16 @@
         "@tsconfig/bun": "catalog:",
         "@types/bun": "catalog:",
         "@typescript/native-preview": "catalog:",
+      },
+    },
+    "packages/script": {
+      "name": "@opencode-ai/script",
+      "dependencies": {
+        "semver": "^7.6.3",
+      },
+      "devDependencies": {
+        "@types/bun": "catalog:",
+        "@types/semver": "^7.5.8",
       },
     },
     "packages/sdk": {
@@ -900,6 +911,8 @@
     "@opencode-ai/protocol": ["@opencode-ai/protocol@workspace:packages/protocol"],
 
     "@opencode-ai/schema": ["@opencode-ai/schema@workspace:packages/schema"],
+
+    "@opencode-ai/script": ["@opencode-ai/script@workspace:packages/script"],
 
     "@opencode-ai/sdk": ["@opencode-ai/sdk@workspace:packages/sdk"],
 
