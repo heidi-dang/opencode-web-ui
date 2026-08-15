@@ -15,7 +15,8 @@ const HOP_BY_HOP_HEADERS = new Set([
 
 function writeJson(res: ServerResponse, status: number, body: { error: string }) {
   if (res.headersSent) return
-  res.writeHead(status, { "content-type": "application/json; charset=utf-8" })
+  res.statusCode = status
+  res.setHeader("content-type", "application/json; charset=utf-8")
   res.end(JSON.stringify(body))
 }
 
@@ -74,7 +75,8 @@ export async function handleOpenCodeProxy(
     upstreamResponse.headers.forEach((value, key) => {
       if (!HOP_BY_HOP_HEADERS.has(key.toLowerCase())) responseHeaders[key] = value
     })
-    res.writeHead(upstreamResponse.status, responseHeaders)
+    res.statusCode = upstreamResponse.status
+    for (const [key, value] of Object.entries(responseHeaders)) res.setHeader(key, value)
 
     if (!upstreamResponse.body) {
       res.end()

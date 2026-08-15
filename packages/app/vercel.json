@@ -1,0 +1,10 @@
+{
+  "rewrites": [
+    { "source": "/api/opencode/:path*", "destination": "/api?path=/:path*" }
+  ],
+  "functions": {
+    "api/**/*.ts": {
+      "maxDuration": 60
+    }
+  }
+}
