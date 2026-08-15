@@ -1,0 +1,2 @@
+# Copy to /etc/caddy/Caddyfile.
+import /etc/caddy/opencode-ui.Caddyfile
