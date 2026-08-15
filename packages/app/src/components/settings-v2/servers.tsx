@@ -110,12 +110,6 @@ export const SettingsServersV2: Component = () => {
                       <div class="settings-v2-servers-copy">
                         <span class="settings-v2-servers-name">{serverName(item)}</span>
                         <span class="settings-v2-servers-meta">
-                          <Show when={health()?.model}>
-                            <span class="capitalize">
-                              {health()?.provider ? `${health()?.provider} ${health()?.model}` : health()?.model}
-                            </span>
-                            <Show when={health()?.version || item.type === "http"}> • </Show>
-                          </Show>
                           <Show when={health()?.version}>v{health()?.version}</Show>
                           <Show when={health()?.version && item.type === "http"}> • </Show>
                           <Show

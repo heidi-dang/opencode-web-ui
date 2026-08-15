@@ -11,11 +11,6 @@
   border: none;
   border-radius: var(--radius-md);
   padding: var(--card-pad-y) var(--card-pad-r) var(--card-pad-y) var(--card-pad-l);
-  transition: background-color 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1), transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-
-  &:hover {
-    background: color-mix(in srgb, var(--v2-background-bg-hover, rgba(255, 255, 255, 0.03)) 100%, transparent);
-  }
 
   /* text-14-regular */
   font-family: var(--font-family-sans);

@@ -61,11 +61,10 @@ import { TextShimmer } from "@opencode-ai/ui/text-shimmer"
 import { AnimatedCountList } from "./tool-count-summary"
 import { ToolStatusTitle } from "./tool-status-title"
 import { patchFiles } from "./apply-patch-file"
+import { partDefaultOpen } from "./part-default-open"
 import { animate } from "motion"
-import { useLocation } from "@solidjs/router"
 import { attached, inline, kind, typeLabel } from "./message-file"
 import { readPartText } from "./message-part-text"
-import { createStreamPacer } from "./stream-pacer"
 import { SessionProgressIndicatorV2 } from "../v2/components/session-progress-indicator-v2"
 
 async function writeClipboard(text: string): Promise<boolean> {
@@ -109,7 +108,7 @@ function ShellSubmessage(props: { text: string; animate?: boolean }) {
   })
 
   return (
-    <span data-component="shell-submessage">
+    <span data-component="shell-submessage" dir="ltr">
       <span ref={widthRef} data-slot="shell-submessage-width" style={{ width: props.animate ? "0px" : undefined }}>
         <span data-slot="basic-tool-tool-subtitle">
           <span
@@ -250,32 +249,86 @@ export type PartComponent = Component<MessagePartProps>
 
 export const PART_MAPPING: Record<string, PartComponent | undefined> = {}
 
+const TEXT_RENDER_PACE_MS = 24
+const TEXT_RENDER_IMMEDIATE = 512
+const TEXT_RENDER_SNAP = /[\s.,!?;:)\]]/
+
+function step(size: number) {
+  if (size <= 12) return 2
+  if (size <= 48) return 4
+  if (size <= 96) return 8
+  return Math.min(256, Math.ceil(size / 4))
+}
+
+function next(text: string, start: number) {
+  const end = Math.min(text.length, start + step(text.length - start))
+  const max = Math.min(text.length, end + 8)
+  for (let i = end; i < max; i++) {
+    if (TEXT_RENDER_SNAP.test(text[i] ?? "")) return i + 1
+  }
+  return end
+}
+
 function createPacedValue(getValue: () => string, live?: () => boolean) {
   const [value, setValue] = createSignal(getValue())
   let shown = getValue()
+  let timeout: ReturnType<typeof setTimeout> | undefined
+
+  const clear = () => {
+    if (!timeout) return
+    clearTimeout(timeout)
+    timeout = undefined
+  }
 
   const sync = (text: string) => {
     shown = text
     setValue(text)
   }
-  const pacer = createStreamPacer({ read: getValue, write: sync })
+
+  const run = () => {
+    timeout = undefined
+    const text = getValue()
+    if (!live?.()) {
+      sync(text)
+      return
+    }
+    if (!text.startsWith(shown) || text.length <= shown.length) {
+      sync(text)
+      return
+    }
+    if (text.length - shown.length <= TEXT_RENDER_IMMEDIATE) {
+      sync(text)
+      return
+    }
+    const end = next(text, shown.length)
+    sync(text.slice(0, end))
+    if (end < text.length) timeout = setTimeout(run, TEXT_RENDER_PACE_MS)
+  }
 
   createEffect(() => {
     const text = getValue()
     if (!live?.()) {
-      pacer.flush()
-      return
-    }
-    if (!text.startsWith(shown) || text.length < shown.length) {
-      pacer.cancel()
+      clear()
       sync(text)
       return
     }
-    if (text.length === shown.length) return
-    pacer.schedule()
+    if (!text.startsWith(shown) || text.length < shown.length) {
+      clear()
+      sync(text)
+      return
+    }
+    if (text.length - shown.length <= TEXT_RENDER_IMMEDIATE) {
+      clear()
+      sync(text)
+      return
+    }
+    if (text.length === shown.length || timeout) return
+    timeout = setTimeout(run, TEXT_RENDER_PACE_MS)
   })
 
-  onCleanup(pacer.cancel)
+  onCleanup(() => {
+    clear()
+  })
 
   return value
 }
@@ -407,10 +460,10 @@ function newLayout() {
   return typeof document !== "undefined" && document.body.hasAttribute("data-new-layout")
 }
 
-function webSearchProviderLabel(provider: unknown) {
-  if (provider === "parallel") return "Parallel Web Search"
-  if (provider === "exa") return "Exa Web Search"
-  return "Web Search"
+function webSearchProviderLabel(provider: unknown, i18n: ReturnType<typeof useI18n>) {
+  const name = provider === "parallel" ? "Parallel" : provider === "exa" ? "Exa" : undefined
+  if (name) return i18n.t("ui.tool.websearch.provider", { provider: name })
+  return i18n.t("ui.tool.websearch")
 }
 
 export function getToolInfo(
@@ -453,7 +506,7 @@ export function getToolInfo(
     case "websearch":
       return {
         icon: "window-cursor",
-        title: webSearchProviderLabel(metadata?.provider),
+        title: webSearchProviderLabel(metadata?.provider, i18n),
         subtitle: input.query,
       }
     case "task": {
@@ -530,29 +583,18 @@ function urls(text: string | undefined) {
     })
 }
 
-function sessionLink(id: string | undefined, path: string, href?: (id: string) => string | undefined) {
-  if (!id) return
-
-  const direct = href?.(id)
-  if (direct) return direct
-
-  const idx = path.indexOf("/session")
-  if (idx === -1) return
-  return `${path.slice(0, idx)}/session/${id}`
-}
-
-function currentSession(path: string) {
-  return path.match(/\/session\/([^/?#]+)/)?.[1]
+function sessionLink(id: string | undefined, href?: (id: string) => string | undefined) {
+  if (!id) return undefined
+  return href?.(id)
 }
 
 function taskSession(
   input: Record<string, any>,
-  path: string,
+  parentID: string | undefined,
   sessions: Session[] | undefined,
   agents?: readonly { name: string; color?: string }[],
 ) {
-  const parentID = currentSession(path)
-  if (!parentID) return
+  if (!parentID) return undefined
   const description = typeof input.description === "string" ? input.description : ""
   const agent = taskAgent(input.subagent_type, agents).name
   return (sessions ?? [])
@@ -677,15 +719,7 @@ export function renderable(part: PartType, showReasoningSummaries = true) {
   return !!PART_MAPPING[part.type]
 }
 
-function toolDefaultOpen(tool: string, shell = false, edit = false) {
-  if (tool === "bash" || tool === "shell") return shell
-  if (tool === "edit" || tool === "write" || tool === "patch" || tool === "apply_patch") return edit
-}
-
-export function partDefaultOpen(part: PartType, shell = false, edit = false) {
-  if (part.type !== "tool") return
-  return toolDefaultOpen(part.tool, shell, edit)
-}
+export { partDefaultOpen } from "./part-default-open"
 
 export function AssistantParts(props: {
   messages: AssistantMessage[]
@@ -1056,22 +1090,16 @@ export function ContextToolGroup(props: {
               <AnimatedCountList
                 items={[
                   {
-                    key: "read",
+                    key: "ui.messagePart.context.read",
                     count: summary().read,
-                    one: i18n.t("ui.messagePart.context.read.one"),
-                    other: i18n.t("ui.messagePart.context.read.other"),
                   },
                   {
-                    key: "search",
+                    key: "ui.messagePart.context.search",
                     count: summary().search,
-                    one: i18n.t("ui.messagePart.context.search.one"),
-                    other: i18n.t("ui.messagePart.context.search.other"),
                   },
                   {
-                    key: "list",
+                    key: "ui.messagePart.context.list",
                     count: summary().list,
-                    one: i18n.t("ui.messagePart.context.list.one"),
-                    other: i18n.t("ui.messagePart.context.list.other"),
                   },
                 ]}
                 fallback=""
@@ -1099,10 +1127,10 @@ export function ContextToolGroup(props: {
                             <span data-slot="basic-tool-tool-title">
                               <TextShimmer text={trigger().title} active={running()} />
                             </span>
-                            <Show when={!running() && trigger().subtitle}>
+                            <Show when={trigger().subtitle}>
                               <span data-slot="basic-tool-tool-subtitle">{trigger().subtitle}</span>
                             </Show>
-                            <Show when={!running() && trigger().args?.length}>
+                            <Show when={trigger().args?.length}>
                               <For each={trigger().args}>
                                 {(arg) => <span data-slot="basic-tool-tool-arg">{arg}</span>}
                               </For>
@@ -1274,7 +1302,7 @@ export function UserMessageDisplay(props: {
                   clickable={!!props.actions?.openAttachment}
                   onClick={() => props.actions?.openAttachment?.(file)}
                 >
-                  {typeLabel(name, file.mime)}
+                  {typeLabel(name, file.mime, i18n.t("ui.common.file"))}
                 </AttachmentCardV2>
               </Show>
             )
@@ -1296,7 +1324,11 @@ export function UserMessageDisplay(props: {
         }
       >
         <div data-slot="user-message-body">
-          <div data-slot="user-message-text" data-comments={messageComments().length > 0 ? "true" : undefined}>
+          <div
+            data-slot="user-message-text"
+            dir="auto"
+            data-comments={messageComments().length > 0 ? "true" : undefined}
+          >
             <HighlightedText text={text()} references={inlineFiles()} agents={agents()} />
             <Show when={messageComments().length > 0}>
               <UserMessageComments comments={messageComments()} bounded />
@@ -1522,7 +1554,7 @@ PART_MAPPING["tool"] = function ToolPartDisplay(props) {
   })
   const taskHref = createMemo(() => {
     if (part().tool !== "task") return
-    return sessionLink(taskId(), useLocation().pathname, data.sessionHref)
+    return sessionLink(taskId(), data.sessionHref)
   })
   const taskSubtitle = createMemo(() => {
     if (part().tool !== "task") return undefined
@@ -1555,12 +1587,22 @@ PART_MAPPING["tool"] = function ToolPartDisplay(props) {
                 <ToolErrorCard
                   tool={part().tool}
                   error={error()}
-                  title={part().tool === "websearch" ? webSearchProviderLabel(partMetadata().provider) : undefined}
+                  title={
+                    part().tool === "websearch" ? webSearchProviderLabel(partMetadata().provider, i18n) : undefined
+                  }
                   defaultOpen={props.defaultOpen}
                   open={controlledOpen()}
                   onOpenChange={props.onToolOpenChange ? handleToolOpenChange : undefined}
                   subtitle={taskSubtitle()}
                   href={taskHref()}
+                  onSubtitleClick={(event) => {
+                    if (!data.navigateToSession) return
+                    if (event.button !== 0 || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
+                    const id = taskId()
+                    if (!id) return
+                    event.preventDefault()
+                    data.navigateToSession(id)
+                  }}
                 />
               )
             }}
@@ -1690,9 +1732,7 @@ PART_MAPPING["text"] = function TextPartDisplay(props) {
     <Show when={text()}>
       <div data-component="text-part" data-timeline-part-id={part().id}>
         <div data-slot="text-part-body">
-          <Show when={streaming()} fallback={<Markdown text={text()} cacheKey={part().id} streaming={false} />}>
-            <PacedMarkdown text={text()} cacheKey={part().id} streaming={streaming()} />
-          </Show>
+          <PacedMarkdown text={text()} cacheKey={part().id} streaming={streaming()} />
         </div>
         <Show when={showCopy()}>
           <div data-slot="text-part-copy-wrapper" data-interrupted={interrupted() ? "" : undefined}>
@@ -1727,9 +1767,7 @@ PART_MAPPING["reasoning"] = function ReasoningPartDisplay(props) {
   return (
     <Show when={text()}>
       <div data-component="reasoning-part" data-timeline-part-id={part().id}>
-        <Show when={streaming()} fallback={<Markdown text={text()} cacheKey={part().id} streaming={false} />}>
-          <PacedMarkdown text={text()} cacheKey={part().id} streaming={streaming()} />
-        </Show>
+        <PacedMarkdown text={text()} cacheKey={part().id} streaming={streaming()} />
       </div>
     </Show>
   )
@@ -1913,12 +1951,13 @@ ToolRegistry.register({
 ToolRegistry.register({
   name: "websearch",
   render(props) {
+    const i18n = useI18n()
     const query = createMemo(() => {
       const value = props.input.query
       if (typeof value !== "string") return ""
       return value
     })
-    const title = createMemo(() => webSearchProviderLabel(props.metadata.provider))
+    const title = createMemo(() => webSearchProviderLabel(props.metadata.provider, i18n))
 
     return (
       <BasicTool
@@ -1941,11 +1980,10 @@ ToolRegistry.register({
   render(props) {
     const data = useData()
     const i18n = useI18n()
-    const location = useLocation()
     const childSessionId = createMemo(() => {
       const value = props.metadata.sessionId
       if (typeof value === "string" && value) return value
-      return taskSession(props.input, location.pathname, data.store.session, data.store.agent)
+      return taskSession(props.input, data.sessionID, data.store.session, data.store.agent)
     })
     const agent = createMemo(() => taskAgent(props.input.subagent_type, data.store.agent))
     const title = createMemo(() => agent().name ?? i18n.t("ui.tool.agent.default"))
@@ -1962,18 +2000,13 @@ ToolRegistry.register({
     })
     const running = createMemo(() => props.status === "pending" || props.status === "running")
 
-    const href = createMemo(() => sessionLink(childSessionId(), location.pathname, data.sessionHref))
+    const href = createMemo(() => sessionLink(childSessionId(), data.sessionHref))
     const clickable = createMemo(() => !!(childSessionId() && (data.navigateToSession || href())))
 
     const open = () => {
       const id = childSessionId()
       if (!id) return
-      if (data.navigateToSession) {
-        data.navigateToSession(id)
-        return
-      }
-      const value = href()
-      if (value) window.location.assign(value)
+      data.navigateToSession?.(id)
     }
 
     const navigate = (event: MouseEvent) => {
@@ -2055,9 +2088,11 @@ ToolRegistry.register({
     const i18n = useI18n()
     const pending = () => props.status === "pending" || props.status === "running"
     const sawPending = pending()
-    const command = createMemo(() => props.input.command ?? props.metadata.command ?? "")
-    const output = createMemo(() => stripAnsi(props.output || props.metadata.output || "").replace(/\r\n?/g, "\n"))
-    const text = createMemo(() => `$ ${command()}${output() ? "\n\n" + output() : ""}`)
+    const text = createMemo(() => {
+      const cmd = props.input.command ?? props.metadata.command ?? ""
+      const out = stripAnsi(props.output || props.metadata.output || "").replace(/\r\n?/g, "\n")
+      return `$ ${cmd}${out ? "\n\n" + out : ""}`
+    })
     const [copied, setCopied] = createSignal(false)
 
     const handleCopy = async () => {
@@ -2070,62 +2105,49 @@ ToolRegistry.register({
     }
 
     return (
-      <div data-component="shell-tool" data-status={props.status ?? "completed"}>
-        <BasicTool
-          {...props}
-          icon="console"
-          allowOpenWhilePending
-          trigger={(open) => (
-            <div data-slot="basic-tool-tool-info-structured">
-              <div data-slot="basic-tool-tool-info-main">
-                <span data-slot="basic-tool-tool-title">
-                  <TextShimmer text={i18n.t("ui.tool.shell")} active={pending()} />
-                </span>
-                <Show when={!open() && props.input.command}>
-                  <ShellSubmessage text={props.input.command} animate={sawPending} />
-                </Show>
-              </div>
-            </div>
-          )}
-        >
-          <div data-component="bash-output" data-pending={pending() ? "true" : undefined}>
-            <div data-slot="bash-copy">
-              <TooltipV2
-                value={copied() ? i18n.t("ui.message.copied") : i18n.t("ui.message.copy")}
-                placement="top"
-              >
-                <IconButtonV2
-                  icon={<IconV2 name={copied() ? "check" : "outline-copy"} size="small" />}
-                  size="normal"
-                  variant="ghost-muted"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={handleCopy}
-                  aria-label={copied() ? i18n.t("ui.message.copied") : i18n.t("ui.message.copy")}
-                />
-              </TooltipV2>
-            </div>
-            <div data-slot="bash-command">
-              <span data-slot="bash-prompt" aria-hidden="true">
-                $
+      <BasicTool
+        {...props}
+        icon="console"
+        allowOpenWhilePending
+        trigger={(open) => (
+          <div data-slot="basic-tool-tool-info-structured">
+            <div data-slot="basic-tool-tool-info-main">
+              <span data-slot="basic-tool-tool-title">
+                <TextShimmer text={i18n.t("ui.tool.shell")} active={pending()} />
               </span>
-              <code>{command()}</code>
+              <Show when={!open() && props.input.command}>
+                <ShellSubmessage text={props.input.command} animate={sawPending} />
+              </Show>
             </div>
-            <Show when={output()}>
-              <div
-                data-slot="bash-scroll"
-                data-scrollable
-                tabIndex={0}
-                role="region"
-                aria-label={i18n.t("ui.scrollView.ariaLabel")}
-              >
-                <pre data-slot="bash-pre">
-                  <code>{output()}</code>
-                </pre>
-              </div>
-            </Show>
           </div>
-        </BasicTool>
-      </div>
+        )}
+      >
+        <div data-component="bash-output" dir="ltr">
+          <div data-slot="bash-copy">
+            <TooltipV2 value={copied() ? i18n.t("ui.message.copied") : i18n.t("ui.message.copy")} placement="top">
+              <IconButtonV2
+                icon={<IconV2 name={copied() ? "check" : "outline-copy"} size="small" />}
+                size="normal"
+                variant="ghost-muted"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={handleCopy}
+                aria-label={copied() ? i18n.t("ui.message.copied") : i18n.t("ui.message.copy")}
+              />
+            </TooltipV2>
+          </div>
+          <div
+            data-slot="bash-scroll"
+            data-scrollable
+            tabIndex={0}
+            role="region"
+            aria-label={i18n.t("ui.scrollView.ariaLabel")}
+          >
+            <pre data-slot="bash-pre">
+              <code>{text()}</code>
+            </pre>
+          </div>
+        </div>
+      </BasicTool>
     )
   },
 })
@@ -2179,7 +2201,7 @@ ToolRegistry.register({
     })
 
     return (
-      <div data-component="edit-tool" data-status={props.status ?? "completed"}>
+      <div data-component="edit-tool">
         <BasicTool
           {...props}
           icon="code-lines"
@@ -2191,11 +2213,11 @@ ToolRegistry.register({
                   <span data-slot="message-part-title-text">
                     <TextShimmer text={i18n.t("ui.messagePart.title.edit")} active={pending()} />
                   </span>
-                  <Show when={filename()}>
+                  <Show when={!pending()}>
                     <span data-slot="message-part-title-filename">{filename()}</span>
                   </Show>
                 </div>
-                <Show when={props.input.filePath?.includes("/")}>
+                <Show when={!pending() && props.input.filePath?.includes("/")}>
                   <div data-slot="message-part-path">
                     <span data-slot="message-part-directory">{getDirectory(props.input.filePath!)}</span>
                   </div>

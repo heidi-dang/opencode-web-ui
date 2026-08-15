@@ -1,6 +1,6 @@
 {
   "name": "@opencode-ai/ui",
-  "version": "1.18.5",
+  "version": "1.18.18",
   "type": "module",
   "license": "MIT",
   "repository": {
@@ -58,7 +58,6 @@
   "scripts": {
     "build": "rm -rf dist && tsc -p tsconfig.build.json",
     "typecheck": "tsgo --noEmit",
-    "typecheck:scripts": "tsgo --noEmit -p tsconfig.scripts.json",
     "test": "bun test src --only-failures",
     "dev": "vite",
     "generate:tailwind": "bun run script/tailwind.ts",
@@ -95,7 +94,6 @@
     "katex": "0.16.27",
     "luxon": "catalog:",
     "marked": "catalog:",
-    "marked-katex-extension": "5.1.6",
     "marked-shiki": "catalog:",
     "morphdom": "2.7.8",
     "motion": "12.34.5",
@@ -105,6 +103,7 @@
     "remend": "catalog:",
     "shiki": "catalog:",
     "solid-list": "catalog:",
+    "solid-sonner": "catalog:",
     "strip-ansi": "7.1.2"
   },
   "peerDependencies": {

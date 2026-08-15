@@ -9,7 +9,6 @@ import { showToast } from "@/utils/toast"
 import { Tooltip, TooltipKeybind } from "@opencode-ai/ui/tooltip"
 import { getFilename } from "@opencode-ai/core/util/path"
 import { createEffect, createMemo, createSignal, For, onMount, Show } from "solid-js"
-import { useNavigate } from "@solidjs/router"
 import { createStore } from "solid-js/store"
 import { createMediaQuery } from "@solid-primitives/media"
 import { Portal } from "solid-js/web"
@@ -147,7 +146,6 @@ export function SessionHeader() {
   const settings = useSettings()
   const sync = useSync()
   const terminal = useTerminal()
-  const navigate = useNavigate()
   const { params, view } = useSessionLayout()
 
   const projectDirectory = createMemo(() => decode64(params.dir) ?? "")
@@ -244,13 +242,6 @@ export function SessionHeader() {
     reviewVisible: isDesktop(),
     reviewOpened: view().reviewPanel.opened(),
     onReviewToggle: () => view().reviewPanel.toggle(),
-    betterHarnessVisible: !!project()?.id,
-    betterHarnessLabel: "Better Harness",
-    onBetterHarnessOpen: () => {
-      if (project()?.id) {
-        navigate(`/server/${server.key}/project/${project()!.id}/better-harness`)
-      }
-    }
   }))
 
   const selectApp = (app: OpenApp) => {
@@ -298,9 +289,9 @@ export function SessionHeader() {
 
   return (
     <>
-      <Show when={search() && centerMount()}>
+      <Show when={search() && centerMount()} keyed>
         {(mount) => (
-          <Portal mount={mount()}>
+          <Portal mount={mount}>
             <Button
               type="button"
               variant="ghost"
@@ -317,10 +308,10 @@ export function SessionHeader() {
                 </span>
               </div>
 
-              <Show when={hotkey()}>
+              <Show when={hotkey()} keyed>
                 {(keybind) => (
                   <Keybind class="shrink-0 !border-0 !bg-transparent !shadow-none px-0 text-text-weaker">
-                    {keybind()}
+                    {keybind}
                   </Keybind>
                 )}
               </Show>
@@ -328,9 +319,9 @@ export function SessionHeader() {
           </Portal>
         )}
       </Show>
-      <Show when={rightMount()}>
+      <Show when={rightMount()} keyed>
         {(mount) => (
-          <Portal mount={mount()}>
+          <Portal mount={mount}>
             <Show
               when={isV2}
               fallback={
@@ -533,9 +524,6 @@ type SessionHeaderV2ActionsState = {
   reviewVisible: boolean
   reviewOpened: boolean
   onReviewToggle: () => void
-  betterHarnessVisible: boolean
-  betterHarnessLabel: string
-  onBetterHarnessOpen: () => void
 }
 
 function SessionHeaderV2Actions(props: { state: SessionHeaderV2ActionsState }) {
@@ -575,24 +563,6 @@ function SessionHeaderV2Actions(props: { state: SessionHeaderV2ActionsState }) {
           />
         </TooltipV2>
       </Show>
-      <Show when={props.state.betterHarnessVisible}>
-        <TooltipV2
-          class="shrink-0"
-          placement="bottom"
-          value={props.state.betterHarnessLabel}
-        >
-          <IconButtonV2
-            type="button"
-            variant="ghost-muted"
-            size="large"
-            class="!w-9 shrink-0"
-            onClick={props.state.onBetterHarnessOpen}
-            aria-label={props.state.betterHarnessLabel}
-            icon={<IconV2 name="providers" />}
-          />
-        </TooltipV2>
-      </Show>
     </div>
   )
-
 }

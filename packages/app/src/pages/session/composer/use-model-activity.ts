@@ -15,7 +15,7 @@ export function useModelActivity(sessionID: () => string, sync = useSync()) {
 
   // Use memos for reactive access to the normalized store
   const isWorking = createMemo(() => sync().data.session_working(sessionID()))
-  const lastEventAt = createMemo(() => sync().data.session_activity[sessionID()]?.lastMeaningfulEventAt ?? 0)
+  const lastEventAt = createMemo(() => sync().data.session_activity?.[sessionID()]?.lastMeaningfulEventAt ?? 0)
   
   // Determine if waiting for input or permission
   const questions = createMemo(() => sync().data.question[sessionID()] ?? [])

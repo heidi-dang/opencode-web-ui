@@ -53,6 +53,7 @@ import type {
   UserMessage,
 } from "@opencode-ai/sdk/v2"
 import { showToast } from "@/utils/toast"
+import { downloadSessionExport, fetchSessionExport, sessionExportFilename } from "@/utils/session-export"
 import { getDirectory, getFilename } from "@opencode-ai/core/util/path"
 import { Popover as KobaltePopover } from "@kobalte/core/popover"
 import { normalize } from "@opencode-ai/session-ui/session-diff"
@@ -161,10 +162,7 @@ function TimelineDiffSummaryRow(props: { diffs: SummaryDiff[] }) {
     >
       <div data-slot="session-turn-diffs-header">
         <span data-slot="session-turn-diffs-label">
-          {language.t(
-            props.diffs.length === 1 ? "ui.sessionTurn.diffs.changed.one" : "ui.sessionTurn.diffs.changed.other",
-            { count: String(props.diffs.length) },
-          )}
+          {language.plural("ui.sessionTurn.diffs.changed", props.diffs.length)}
         </span>
         <DiffChanges changes={props.diffs} />
         <Show when={overflow() > 0}>
@@ -289,7 +287,9 @@ export function MessageTimeline(props: {
     const visible = new Set(props.userMessages.map((message) => message.id))
     const boundary = sessionMessages().find((message) => message.role === "user" && !visible.has(message.id))?.id
     const messages = sync().data.session_message[id] ?? []
-    return boundary ? messages.filter((message) => message.id < boundary) : messages
+    if (!boundary) return messages
+    const index = messages.findIndex((message) => message.id === boundary)
+    return index < 0 ? messages : messages.slice(0, index)
   })
   const info = createMemo(() => {
     const id = sessionID()
@@ -646,7 +646,7 @@ export function MessageTimeline(props: {
   const viewShare = () => {
     const url = shareUrl()
     if (!url) return
-    platform.openLink(url)
+    platform.openExternal(url)
   }
 
   const errorMessage = (err: unknown) => {
@@ -807,6 +807,29 @@ export function MessageTimeline(props: {
       return
     }
     navigate(`/${params.dir}/session`)
+  }
+
+  const exportSession = async (sessionID: string) => {
+    try {
+      const data = await fetchSessionExport({
+        sessionID,
+        client: sdk().client,
+      })
+      const filename = sessionExportFilename(data.info)
+      downloadSessionExport(filename, data)
+      showToast({
+        variant: "success",
+        icon: "circle-check",
+        title: language.t("toast.session.export.success.title"),
+        description: language.t("toast.session.export.success.description", { filename }),
+      })
+    } catch (err) {
+      showToast({
+        variant: "error",
+        title: language.t("toast.session.export.failed.title"),
+        description: err instanceof Error ? err.message : language.t("toast.session.export.failed.description"),
+      })
+    }
   }
 
   const archiveSession = async (sessionID: string) => {
@@ -1106,13 +1129,13 @@ export function MessageTimeline(props: {
         return (
           <TimelineRowFrame row={commentStripRow}>
             <div class="w-full px-4 md:px-5 pb-2">
-              <div class="ml-auto max-w-[82%] overflow-x-auto no-scrollbar">
+              <div class="ms-auto max-w-[82%] overflow-x-auto no-scrollbar">
                 <div class="flex w-max min-w-full justify-end gap-2">
                   <Index each={comments()}>
                     {(comment) => (
                       <div
                         classList={{
-                          "shrink-0 max-w-[260px] rounded-md border-border-weak-base bg-background-stronger px-2.5 py-2": true,
+                          "shrink-0 max-w-[260px] rounded-[6px] border-border-weak-base bg-background-stronger px-2.5 py-2": true,
                           "border-[0.5px]": settings.general.newLayoutDesigns(),
                           border: !settings.general.newLayoutDesigns(),
                         }}
@@ -1344,7 +1367,11 @@ export function MessageTimeline(props: {
               onClick={props.onResumeScroll}
             >
               <div
-                class="flex items-center justify-center w-8 h-6 rounded-md border border-border-weaker-base bg-[color-mix(in_srgb,var(--surface-raised-stronger-non-alpha)_80%,transparent)] backdrop-blur-[0.75px] transition-colors group-hover:border-[var(--border-weak-base)] group-hover:[--icon-base:var(--icon-hover)] shadow-[var(--v2-elevation-floating)]"
+                class="flex items-center justify-center w-8 h-6 rounded-[6px] border border-border-weaker-base bg-[color-mix(in_srgb,var(--surface-raised-stronger-non-alpha)_80%,transparent)] backdrop-blur-[0.75px] transition-colors group-hover:border-[var(--border-weak-base)] group-hover:[--icon-base:var(--icon-hover)]"
+                style={{
+                  "box-shadow":
+                    "0 51px 60px 0 rgba(0,0,0,0.10), 0 15px 18px 0 rgba(0,0,0,0.12), 0 6.386px 7.513px 0 rgba(0,0,0,0.12), 0 2.31px 2.717px 0 rgba(0,0,0,0.20)",
+                }}
               >
                 <Icon name="arrow-down-to-line" size="small" />
               </div>
@@ -1417,7 +1444,7 @@ export function MessageTimeline(props: {
                     <button
                       type="button"
                       data-slot="session-title-parent"
-                      class="min-w-0 max-w-[40%] truncate pl-2 text-[13px] font-emphasis leading-4 tracking-v2 text-v2-text-text-faint transition-colors hover:text-v2-text-text-muted"
+                      class="min-w-0 max-w-[40%] truncate pl-2 text-[13px] font-[530] leading-4 tracking-[-0.04px] text-v2-text-text-faint transition-colors hover:text-v2-text-text-muted"
                       onClick={navigateParent}
                     >
                       {parentTitle()}
@@ -1437,8 +1464,8 @@ export function MessageTimeline(props: {
                         <h1
                           data-slot="session-title-child"
                           classList={{
-                            "truncate text-[13px] font-emphasis leading-4 tracking-v2 text-v2-text-text-base": true,
-                            "w-fit rounded-md px-2 py-1 hover:bg-v2-overlay-simple-overlay-hover":
+                            "truncate text-[13px] font-[530] leading-4 tracking-[-0.04px] text-v2-text-text-base": true,
+                            "w-fit rounded-[6px] px-2 py-1 hover:bg-v2-overlay-simple-overlay-hover":
                               settings.general.newLayoutDesigns(),
                             "grow-1 min-w-0": !settings.general.newLayoutDesigns(),
                           }}
@@ -1456,9 +1483,9 @@ export function MessageTimeline(props: {
                         value={title.draft}
                         disabled={titleMutation.isPending}
                         classList={{
-                          "block text-[13px] font-emphasis leading-4 tracking-v2 text-v2-text-text-base": true,
-                          "w-full flex-1 grow-1 min-w-0 pl-1 -ml-1 rounded-md": !settings.general.newLayoutDesigns(),
-                          "field-sizing-content self-start rounded-md px-2 py-1 ":
+                          "block text-[13px] font-[530] leading-4 tracking-[-0.04px] text-v2-text-text-base": true,
+                          "w-full flex-1 grow-1 min-w-0 pl-1 -ml-1 rounded-[6px]": !settings.general.newLayoutDesigns(),
+                          "field-sizing-content self-start rounded-[6px] px-2 py-1 ":
                             settings.general.newLayoutDesigns(),
                         }}
                         style={{
@@ -1563,6 +1590,9 @@ export function MessageTimeline(props: {
                                     </DropdownMenu.ItemLabel>
                                   </DropdownMenu.Item>
                                 </Show>
+                                <DropdownMenu.Item onSelect={() => exportSession(id)}>
+                                  <DropdownMenu.ItemLabel>{language.t("common.export")}</DropdownMenu.ItemLabel>
+                                </DropdownMenu.Item>
                                 <DropdownMenu.Item onSelect={() => void archiveSession(id)}>
                                   <DropdownMenu.ItemLabel>{language.t("common.archive")}</DropdownMenu.ItemLabel>
                                 </DropdownMenu.Item>
@@ -1634,6 +1664,9 @@ export function MessageTimeline(props: {
                                   {language.t("session.share.action.share")}...
                                 </MenuV2.Item>
                               </Show>
+                              <MenuV2.Item onSelect={() => exportSession(id)}>
+                                {language.t("common.export")}...
+                              </MenuV2.Item>
                               <MenuV2.Item onSelect={() => void archiveSession(id)}>
                                 {language.t("common.archive")}
                               </MenuV2.Item>
@@ -1750,10 +1783,10 @@ export function MessageTimeline(props: {
                               }
                             >
                               <div class="flex w-full flex-col gap-1.5 px-0.5 pt-0.5">
-                                <div class="select-none text-[13px] font-emphasis leading-none tracking-v2 text-v2-text-text-base [font-variation-settings:'slnt'_0]">
+                                <div class="select-none text-[13px] font-[530] leading-none tracking-[-0.04px] text-v2-text-text-base [font-variation-settings:'slnt'_0]">
                                   {language.t("session.share.popover.title")}
                                 </div>
-                                <div class="select-none text-[13px] font-body leading-5 tracking-v2 text-v2-text-text-muted [font-variation-settings:'slnt'_0]">
+                                <div class="select-none text-[13px] font-[440] leading-5 tracking-[-0.04px] text-v2-text-text-muted [font-variation-settings:'slnt'_0]">
                                   {shareUrl()
                                     ? language.t("session.share.popover.description.shared")
                                     : language.t("session.share.popover.description.unshared")}
@@ -1777,14 +1810,14 @@ export function MessageTimeline(props: {
                                 >
                                   <div class="flex flex-col gap-2">
                                     <div
-                                      class="flex h-8 w-full items-center gap-1.5 rounded-md py-1 pl-2.5 pr-1.5 shadow-[var(--v2-elevation-button-neutral)]"
+                                      class="flex h-8 w-full items-center gap-1.5 rounded-[6px] py-1 pl-2.5 pr-1.5 shadow-[var(--v2-elevation-button-neutral)]"
                                       style={{
                                         background:
                                           "linear-gradient(180deg, var(--v2-alpha-light-2) 0%, var(--v2-alpha-light-0) 100%), var(--v2-background-bg-button-neutral)",
                                       }}
                                     >
                                       <div
-                                        class="min-w-0 flex-1 truncate select-text cursor-text text-[13px] font-body leading-5 tracking-v2 text-v2-text-text-base [font-variation-settings:'slnt'_0]"
+                                        class="min-w-0 flex-1 truncate select-text cursor-text text-[13px] font-[440] leading-5 tracking-[-0.04px] text-v2-text-text-base [font-variation-settings:'slnt'_0]"
                                         onClick={selectShareUrlText}
                                       >
                                         {shareUrl()}

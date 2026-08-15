@@ -1,8 +1,6 @@
-export function sessionPanelLayout(input: { review: boolean; terminal: boolean; files: boolean; preview?: boolean }) {
-  const hasSidePanel = input.review || input.files;
-  const visibleCount = [hasSidePanel, input.terminal, input.preview].filter(Boolean).length;
+export function sessionPanelLayout(input: { review: boolean; terminal: boolean; files: boolean }) {
   return {
-    visible: hasSidePanel || input.terminal || !!input.preview,
-    stacked: visibleCount >= 2,
+    visible: input.review || input.terminal || input.files,
+    stacked: input.review && input.terminal,
   }
 }

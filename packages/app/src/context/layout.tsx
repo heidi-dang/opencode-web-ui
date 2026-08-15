@@ -281,11 +281,6 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
           height: DEFAULT_TERMINAL_HEIGHT,
           opened: false,
         },
-        preview: {
-          opened: false,
-          url: "http://localhost:5173",
-          height: 400,
-        },
         review: {
           diffStyle: "split" as ReviewDiffStyle,
           panelOpened: DEFAULT_REVIEW_PANEL_OPENED,
@@ -825,9 +820,6 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
         const terminalOpened = createMemo(() => store.terminal?.opened ?? false)
         const reviewPanelOpened = createMemo(() => store.review?.panelOpened ?? DEFAULT_REVIEW_PANEL_OPENED)
         const reviewPanelSource = createMemo(() => (reviewPanelOpened() ? ephemeral.reviewPanelSource : "other"))
-        const previewPanelOpened = createMemo(() => store.preview?.opened ?? false)
-        const previewPanelUrl = createMemo(() => store.preview?.url ?? "http://localhost:5173")
-        const previewPanelHeight = createMemo(() => store.preview?.height ?? 400)
 
         function setTerminalOpened(next: boolean) {
           const current = store.terminal
@@ -839,24 +831,6 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
           const value = current.opened ?? false
           if (value === next) return
           setStore("terminal", "opened", next)
-        }
-
-        function setPreviewPanelOpened(next: boolean) {
-          const current = store.preview
-          if (!current) {
-            setStore("preview", { opened: next, url: "http://localhost:5173", height: 400 })
-            return
-          }
-          if (current.opened === next) return
-          setStore("preview", "opened", next)
-        }
-
-        function setPreviewPanelUrl(url: string) {
-          setStore("preview", "url", url)
-        }
-
-        function setPreviewPanelHeight(height: number) {
-          setStore("preview", "height", height)
         }
 
         function setReviewPanelOpened(next: boolean, source: ReviewPanelSource) {
@@ -910,22 +884,6 @@ export const { use: useLayout, provider: LayoutProvider } = createSimpleContext(
             },
             toggle() {
               setTerminalOpened(!terminalOpened())
-            },
-          },
-          previewPanel: {
-            opened: previewPanelOpened,
-            url: previewPanelUrl,
-            height: previewPanelHeight,
-            setUrl: setPreviewPanelUrl,
-            setHeight: setPreviewPanelHeight,
-            open() {
-              setPreviewPanelOpened(true)
-            },
-            close() {
-              setPreviewPanelOpened(false)
-            },
-            toggle() {
-              setPreviewPanelOpened(!previewPanelOpened())
             },
           },
           reviewPanel: {

@@ -76,9 +76,9 @@ export const DialogSelectModelUnpaidV2: Component<{ model?: ModelState }> = (pro
       </DialogHeader>
       <DialogBody class="max-h-[calc(100vh_-_68px)] min-h-0 flex-none gap-0 overflow-y-auto px-2 pb-2">
         <div ref={listEl} class="flex min-h-0 flex-col">
-          <div class="flex w-full flex-col items-start pb-3">
+          <div data-section="free-models" class="flex w-full flex-col items-start pb-3">
             <div class="flex h-8 w-full flex-none select-none flex-row items-center px-3 pb-2">
-              <div class="flex h-5 items-center text-[13px] font-body leading-5 tracking-v2 text-v2-text-text-muted [font-family:var(--v2-font-family-sans)] [font-variant-numeric:tabular-nums] [font-variation-settings:'slnt'_0]">
+              <div class="flex h-5 items-center text-[13px] font-[440] leading-5 tracking-[-0.04px] text-v2-text-text-muted [font-family:var(--v2-font-family-sans)] [font-variant-numeric:tabular-nums] [font-variation-settings:'slnt'_0]">
                 {language.t("dialog.model.unpaid.freeModels.title")}
               </div>
             </div>
@@ -101,7 +101,7 @@ export const DialogSelectModelUnpaidV2: Component<{ model?: ModelState }> = (pro
                 >
                   <button
                     type="button"
-                    class="flex w-full scroll-my-3.5 flex-row items-center gap-1.5 rounded-md px-3 py-2 text-left text-[13px] font-emphasis leading-5 tracking-v2 text-v2-text-text-base [font-family:var(--v2-font-family-sans)] [font-variation-settings:'slnt'_0] hover:bg-v2-overlay-simple-overlay-hover focus:bg-v2-overlay-simple-overlay-hover focus:outline-none"
+                    class="flex w-full scroll-my-3.5 flex-row items-center gap-1.5 rounded-md px-3 py-2 text-left text-[13px] font-[530] leading-5 tracking-[-0.04px] text-v2-text-text-base [font-family:var(--v2-font-family-sans)] [font-variation-settings:'slnt'_0] hover:bg-v2-overlay-simple-overlay-hover focus:bg-v2-overlay-simple-overlay-hover focus:outline-none"
                     onClick={() => selectModel(item)}
                   >
                     <span class="min-w-0 truncate">{displayModelName(item.name)}</span>
@@ -121,7 +121,7 @@ export const DialogSelectModelUnpaidV2: Component<{ model?: ModelState }> = (pro
           <div class="flex w-full flex-col">
             <div class="flex w-full flex-col items-start rounded-lg border-[0.5px] border-v2-border-border-muted bg-v2-background-bg-layer-02 p-2.5 pt-2">
               <div class="flex h-8 w-full select-none items-center px-0.5 pb-2">
-                <div class="flex h-5 items-center text-[13px] font-body leading-5 tracking-v2 text-v2-text-text-muted [font-family:var(--v2-font-family-sans)] [font-variant-numeric:tabular-nums] [font-variation-settings:'slnt'_0]">
+                <div class="flex h-5 items-center text-[13px] font-[440] leading-5 tracking-[-0.04px] text-v2-text-text-muted [font-family:var(--v2-font-family-sans)] [font-variant-numeric:tabular-nums] [font-variation-settings:'slnt'_0]">
                   {language.t("dialog.model.unpaid.addMore.title")}
                 </div>
               </div>
@@ -134,7 +134,8 @@ export const DialogSelectModelUnpaidV2: Component<{ model?: ModelState }> = (pro
                   {(provider) => (
                     <button
                       type="button"
-                      class="flex min-h-11 w-full scroll-my-3.5 flex-row items-start gap-2 rounded-md bg-v2-background-bg-base px-3 py-2.5 text-left text-[13px] font-emphasis leading-5 tracking-v2 text-v2-text-text-base [font-family:var(--v2-font-family-sans)] [font-variation-settings:'slnt'_0] hover:bg-v2-background-bg-layer-01 focus:bg-v2-background-bg-layer-01 focus:outline-none"
+                      data-provider-id={provider.id}
+                      class="flex min-h-11 w-full scroll-my-3.5 flex-row items-start gap-2 rounded-md bg-v2-background-bg-base px-3 py-2.5 text-left text-[13px] font-[530] leading-5 tracking-[-0.04px] text-v2-text-text-base [font-family:var(--v2-font-family-sans)] [font-variation-settings:'slnt'_0] hover:bg-v2-background-bg-layer-01 focus:bg-v2-background-bg-layer-01 focus:outline-none"
                       classList={{
                         "border-[0.5px] border-transparent shadow-[var(--v2-elevation-raised)]":
                           theme.mode() !== "dark",
@@ -146,7 +147,7 @@ export const DialogSelectModelUnpaidV2: Component<{ model?: ModelState }> = (pro
                       <span class="flex min-w-0 flex-col">
                         <span class="truncate">{provider.name}</span>
                         <Show when={provider.id === "opencode" || provider.id === "opencode-go"}>
-                          <span class="truncate font-body text-v2-text-text-muted">
+                          <span class="truncate font-[440] text-v2-text-text-muted">
                             {language.t(
                               provider.id === "opencode"
                                 ? "dialog.provider.opencode.tagline"
@@ -160,7 +161,7 @@ export const DialogSelectModelUnpaidV2: Component<{ model?: ModelState }> = (pro
                 </For>
                 <button
                   type="button"
-                  class="col-span-full flex h-8 w-full scroll-my-3.5 items-center justify-start rounded-md px-3 text-left text-[13px] font-body leading-5 tracking-v2 text-v2-text-text-muted [font-family:var(--v2-font-family-sans)] [font-variation-settings:'slnt'_0] hover:bg-v2-overlay-simple-overlay-hover focus:bg-v2-overlay-simple-overlay-hover focus:outline-none"
+                  class="col-span-full flex h-8 w-full scroll-my-3.5 items-center justify-start rounded-md px-3 text-left text-[13px] font-[440] leading-5 tracking-[-0.04px] text-v2-text-text-muted [font-family:var(--v2-font-family-sans)] [font-variation-settings:'slnt'_0] hover:bg-v2-overlay-simple-overlay-hover focus:bg-v2-overlay-simple-overlay-hover focus:outline-none"
                   onClick={() => openProviders()}
                 >
                   {language.t("dialog.model.unpaid.viewMoreProviders")}

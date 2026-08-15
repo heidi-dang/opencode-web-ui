@@ -1,5 +1,0 @@
-User-agent: *
-Disallow: /opencode-server/
-Allow: /
-
-Sitemap: https://ai.tnaprovider.com.au/sitemap.xml

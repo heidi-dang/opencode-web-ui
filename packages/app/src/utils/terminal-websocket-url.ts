@@ -25,7 +25,7 @@ export function terminalWebSocketURL(input: {
     next.searchParams.set("ticket", input.ticket)
     return next
   }
-  if (input.password && (!input.sameOrigin || input.authToken)) {
+  if (isV1 && input.password && (!input.sameOrigin || input.authToken)) {
     next.searchParams.set(
       "auth_token",
       authTokenFromCredentials({ username: input.username, password: input.password }),

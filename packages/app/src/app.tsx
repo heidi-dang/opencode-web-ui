@@ -3,7 +3,6 @@ import * as Sentry from "@sentry/solid"
 import { I18nProvider } from "@opencode-ai/ui/context"
 import { DialogProvider } from "@opencode-ai/ui/context/dialog"
 import { FileComponentProvider } from "@opencode-ai/ui/context/file"
-import { MarkedProvider } from "@opencode-ai/ui/context/marked"
 import { File } from "@opencode-ai/session-ui/file"
 import { Font } from "@opencode-ai/ui/font"
 import { Splash } from "@opencode-ai/ui/logo"
@@ -58,28 +57,19 @@ import { SettingsProvider, useSettings } from "@/context/settings"
 import { TabsProvider, useTabs, type DraftTab } from "@/context/tabs"
 import { SDKProvider, useSDK } from "@/context/sdk"
 import { WslServersProvider } from "@/wsl/context"
-import { DirectoryDataProvider } from "@/pages/directory-data-provider"
+import DirectoryLayout, { DirectoryDataProvider } from "@/pages/directory-layout"
+import LegacyLayout from "@/pages/layout"
+import NewLayout from "@/pages/layout-new"
 import { ErrorPage } from "./pages/error"
 import { useCheckServerHealth } from "./utils/server-health"
 import { legacySessionHref, legacySessionServer, requireServerKey, sessionHref } from "./utils/session-route"
 import { createSessionLineage } from "@/pages/session/session-lineage"
-import { SessionRouteErrorBoundary } from "@/pages/session/session-error-boundary"
 
-import { isRecoverableDynamicImportError, safeLazy } from "@/utils/dynamic-import-recovery"
+import { SessionPage, SessionRouteErrorBoundary, TargetSessionRouteContent } from "@/pages/session"
+import { NewHome } from "@/pages/home"
+import { LegacyHome } from "@/pages/home/legacy-home"
 
-declare const __BUILD_ID__: string
-
-const DirectoryLayout = safeLazy(() => import("@/pages/directory-layout"), __BUILD_ID__)
-const LegacyLayout = safeLazy(() => import("@/pages/layout"), __BUILD_ID__)
-const NewLayout = safeLazy(() => import("@/pages/layout-new"), __BUILD_ID__)
-const SessionPage = safeLazy(() => import("@/pages/session").then((m) => ({ default: m.SessionPage })), __BUILD_ID__)
-const TargetSessionRouteContent = safeLazy(() => import("@/pages/session").then((m) => ({ default: m.TargetSessionRouteContent })), __BUILD_ID__)
-const NewHome = safeLazy(() => import("@/pages/home").then((m) => ({ default: m.NewHome })), __BUILD_ID__)
-const LegacyHome = safeLazy(() => import("@/pages/home/legacy-home").then((m) => ({ default: m.LegacyHome })), __BUILD_ID__)
-const FleetPage = safeLazy(() => import("@/pages/fleet").then((m) => ({ default: m.FleetPage })), __BUILD_ID__)
-const NewSession = safeLazy(() => import("@/pages/new-session"), __BUILD_ID__)
-const FlowdeckDashboard = safeLazy(() => import("@/pages/flowdeck"), __BUILD_ID__)
-const BetterHarnessPage = safeLazy(() => import("@/features/better-harness").then((m) => ({ default: m.BetterHarnessPage })), __BUILD_ID__)
+const NewSession = lazy(() => import("@/pages/new-session"))
 
 const SessionRoute = () => {
   const settings = useSettings()
@@ -112,9 +102,7 @@ const SessionRoute = () => {
 
   return (
     <SessionRouteErrorBoundary sessionID={params.id}>
-      <MarkedProvider>
-        <SessionPage />
-      </MarkedProvider>
+      <SessionPage />
     </SessionRouteErrorBoundary>
   )
 }
@@ -141,9 +129,7 @@ function TargetServerRoute(props: ParentProps) {
 
 const TargetSessionRoute = () => (
   <TargetServerRoute>
-    <MarkedProvider>
-      <TargetSessionRouteContent />
-    </MarkedProvider>
+    <TargetSessionRouteContent />
   </TargetServerRoute>
 )
 
@@ -234,9 +220,7 @@ function ResolvedDraftRoute(props: { draft: DraftTab }) {
             <SDKProvider directory={directory}>
               <DirectoryDataProvider directory={directory} server={serverKey}>
                 <DraftProviders>
-                  <MarkedProvider>
-                    <NewSession />
-                  </MarkedProvider>
+                  <NewSession />
                 </DraftProviders>
               </DirectoryDataProvider>
             </SDKProvider>
@@ -249,7 +233,13 @@ function ResolvedDraftRoute(props: { draft: DraftTab }) {
 
 function UiI18nBridge(props: ParentProps) {
   const language = useLanguage()
-  return <I18nProvider value={{ locale: language.intl, t: language.t }}>{props.children}</I18nProvider>
+  return (
+    <I18nProvider
+      value={{ locale: language.intl, layoutLocale: language.layoutLocale, t: language.t, plural: language.plural }}
+    >
+      {props.children}
+    </I18nProvider>
+  )
 }
 
 function LayoutCompatibility(props: ParentProps) {
@@ -312,7 +302,7 @@ function BodyDesignClass() {
     document.body.classList.toggle("text-12-regular", !enabled)
     document.body.classList.toggle("font-(family-name:--font-family-text)", enabled)
     document.body.classList.toggle("text-[13px]", enabled)
-    document.body.classList.toggle("font-body", enabled)
+    document.body.classList.toggle("font-[440]", enabled)
   })
 
   return null
@@ -342,7 +332,7 @@ function DesktopCommands() {
     if (platform.platform === "desktop" && platform.exportDebugLogs) {
       commands.push({
         id: "logs.export",
-        title: "Export logs",
+        title: language.t("command.logs.export"),
         category: language.t("command.category.settings"),
         onSelect: () => {
           void platform.exportDebugLogs?.()
@@ -400,7 +390,12 @@ function DraftProviders(props: ParentProps) {
   )
 }
 
-export function AppBaseProviders(props: ParentProps<{ locale?: Locale }>) {
+export function AppBaseProviders(
+  props: ParentProps<{
+    locale?: Locale
+    onNativeTranslations?: Parameters<typeof LanguageProvider>[0]["onNativeTranslations"]
+  }>,
+) {
   return (
     <MetaProvider>
       <Font />
@@ -409,7 +404,7 @@ export function AppBaseProviders(props: ParentProps<{ locale?: Locale }>) {
           void window.api?.setTitlebar?.({ mode, scheme })
         }}
       >
-        <LanguageProvider locale={props.locale}>
+        <LanguageProvider locale={props.locale} onNativeTranslations={props.onNativeTranslations}>
           <UiI18nBridge>
             <ErrorBoundary
               fallback={(error) => {
@@ -642,10 +637,6 @@ function Routes(props: { serverScoped?: JSX.Element }) {
       </Route>
       <Show when={settings.general.newLayoutDesigns()}>
         <Route path="/" component={NewHome} />
-        <Route path="/fleet" component={FleetPage} />
-        <Route path="/flowdeck" component={FlowdeckDashboard} />
-        <Route path="/better-harness" component={BetterHarnessPage} />
-        <Route path="/server/:serverKey/project/:projectKey/better-harness" component={BetterHarnessPage} />
         <Route path="/:dir/session/:id" component={NewLayoutLegacySessionRedirect} />
         <Route path="/server/:serverKey/session/:id" component={TargetSessionRoute} />
       </Show>

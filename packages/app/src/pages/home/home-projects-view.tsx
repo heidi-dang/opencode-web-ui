@@ -1,6 +1,5 @@
 import { type Accessor, createMemo, For, type JSX, onCleanup, Show, splitProps } from "solid-js"
 import { createStore } from "solid-js/store"
-import { useNavigate } from "@solidjs/router"
 import { DragDropProvider, PointerSensor } from "@dnd-kit/solid"
 import { isSortable, useSortable } from "@dnd-kit/solid/sortable"
 import { AutoScroller, Feedback, PointerActivationConstraints } from "@dnd-kit/dom"
@@ -59,7 +58,6 @@ export type HomeProjectsViewProps = {
   onCloseProject: (server: ServerConnection.Any, directory: string) => void
   onOpenSettings: () => void
   onOpenHelp: () => void
-  onOpenFleet: () => void
 }
 
 export function HomeProjectsView(props: HomeProjectsViewProps) {
@@ -81,7 +79,7 @@ export function HomeProjectsView(props: HomeProjectsViewProps) {
       }}
     >
       <div class="flex h-7 min-w-0 shrink-0 items-center justify-between pl-1.5 pr-3">
-        <div class="text-v2-text-text-muted font-emphasis">{props.language.t("home.projects")}</div>
+        <div class="text-v2-text-text-muted [font-weight:530]">{props.language.t("home.projects")}</div>
         <Show
           when={props.servers().length === 1 && !(props.projects().length === 0 && props.recentlyClosed().length > 0)}
         >
@@ -150,7 +148,6 @@ export function HomeProjectsView(props: HomeProjectsViewProps) {
         class="mb-8 mt-4 hidden shrink-0 lg:flex"
         onOpenSettings={props.onOpenSettings}
         onOpenHelp={props.onOpenHelp}
-        onOpenFleet={props.onOpenFleet}
         language={props.language}
       />
     </aside>
@@ -161,36 +158,10 @@ export function HomeUtilityNav(props: {
   class?: string
   onOpenSettings: () => void
   onOpenHelp: () => void
-  onOpenFleet: () => void
   language: ReturnType<typeof useLanguage>
 }) {
-  const navigate = useNavigate()
   return (
     <div class={`${props.class ?? ""} min-w-0 flex-col gap-1 pr-3`}>
-      <HomeProjectNavButton
-        type="button"
-        class="text-v2-text-text-faint [&>[data-slot=icon-svg]]:text-v2-icon-icon-muted"
-        onClick={props.onOpenFleet}
-      >
-        <IconV2 name="monitor" size="small" />
-        <span class={HOME_PROJECT_NAV_LABEL}>{props.language.t("sidebar.fleet")}</span>
-      </HomeProjectNavButton>
-      <HomeProjectNavButton
-        type="button"
-        class="text-v2-text-text-faint [&>[data-slot=icon-svg]]:text-v2-icon-icon-muted"
-        onClick={() => navigate("/flowdeck")}
-      >
-        <IconV2 name="status" size="small" />
-        <span class={HOME_PROJECT_NAV_LABEL}>FlowDeck</span>
-      </HomeProjectNavButton>
-      <HomeProjectNavButton
-        type="button"
-        class="text-v2-text-text-faint [&>[data-slot=icon-svg]]:text-v2-icon-icon-muted"
-        onClick={() => navigate("/better-harness")}
-      >
-        <IconV2 name="providers" size="small" />
-        <span class={HOME_PROJECT_NAV_LABEL}>Better Harness</span>
-      </HomeProjectNavButton>
       <HomeProjectNavButton
         type="button"
         class="text-v2-text-text-faint [&>[data-slot=icon-svg]]:text-v2-icon-icon-muted"
@@ -237,7 +208,7 @@ function HomeServerRow(props: {
     if (props.contextMenuOpen(id)) props.onSetContextMenuOpen(id, false)
   })
   return (
-    <div class="group/server relative flex h-7 min-w-0 items-center rounded-md">
+    <div class="group/server relative flex h-7 min-w-0 items-center rounded-[6px]">
       <HomeProjectNavButton
         type="button"
         class="pr-16 disabled:opacity-60"
@@ -389,25 +360,26 @@ function HomeProjectSlot(
     index: () => number
   },
 ) {
-  const project = createMemo(() => props.items.find((item) => item.worktree === props.worktree))
+  const initial = props.items.find((item) => item.worktree === props.worktree)
+  if (!initial) return
+  const project = createMemo<LocalProject>(
+    (previous) => props.items.find((item) => item.worktree === props.worktree) ?? previous,
+    initial,
+  )
 
   return (
-    <Show when={project()}>
-      {(item) => (
-        <HomeProjectRow
-          {...props}
-          project={item()}
-          server={props.server}
-          index={props.index}
-          serverSelected={props.selection().server === ServerConnection.key(props.server)}
-          selected={
-            props.selection().server === ServerConnection.key(props.server) &&
-            props.selection().directory === props.worktree
-          }
-          unseen={props.unseenCount(props.server, item())}
-        />
-      )}
-    </Show>
+    <HomeProjectRow
+      {...props}
+      project={project()}
+      server={props.server}
+      index={props.index}
+      serverSelected={props.selection().server === ServerConnection.key(props.server)}
+      selected={
+        props.selection().server === ServerConnection.key(props.server) &&
+        props.selection().directory === props.worktree
+      }
+      unseen={props.unseenCount(props.server, project())}
+    />
   )
 }
 
@@ -432,7 +404,7 @@ function HomeProjectEmpty(
       </HomeProjectNavButton>
       <Show when={props.items.length > 0}>
         <div class="mt-3 flex h-7 min-w-0 shrink-0 items-center pl-1.5 pr-3">
-          <div class="text-v2-text-text-faint font-emphasis">{props.language.t("home.recentlyClosed")}</div>
+          <div class="text-v2-text-text-faint [font-weight:530]">{props.language.t("home.recentlyClosed")}</div>
         </div>
         <For each={props.items}>
           {(project) => <HomeRecentlyClosedRow {...props} project={project} server={props.server} />}
@@ -501,8 +473,12 @@ function HomeProjectRow(
   return (
     <div
       ref={sortable.ref}
-      class="group/project relative flex h-7 min-w-0 items-center rounded-md"
+      class="group/project relative flex h-7 min-w-0 items-center rounded-[6px]"
       classList={{ "z-10": sortable.isDragSource() }}
+      onContextMenu={(event) => {
+        event.preventDefault()
+        props.onSetContextMenuOpen(contextMenuID(), true)
+      }}
     >
       <HomeProjectNavButton
         type="button"
@@ -510,7 +486,6 @@ function HomeProjectRow(
         class="pr-16 disabled:opacity-60"
         classList={{
           "bg-v2-background-bg-layer-01 text-v2-text-text-base": sortable.isDragSource(),
-          "[box-shadow:inset_0_0_0_0.5px_var(--v2-border-border-muted)]": sortable.isDragSource(),
         }}
         data-selected={props.selected ? "" : undefined}
         aria-current={props.selected ? "page" : undefined}
@@ -616,11 +591,11 @@ function HomeProjectNavButton(props: JSX.ButtonHTMLAttributes<HTMLButtonElement>
     <button
       {...rest}
       class={`
-        flex h-7 min-w-0 w-full shrink-0 cursor-default items-center gap-2 rounded-md bg-transparent px-1.5 text-left
-        text-v2-text-text-muted font-body transition-[background-color,color,box-shadow] duration-[120ms] ease-in-out
-        hover:bg-v2-background-bg-layer-01 hover:text-v2-text-text-base hover:[box-shadow:inset_0_0_0_0.5px_var(--v2-border-border-muted)]
+        flex h-7 min-w-0 w-full shrink-0 cursor-default items-center gap-2 rounded-[6px] bg-transparent px-1.5 text-left
+        text-v2-text-text-muted [font-weight:440] transition-[background-color,color,box-shadow] duration-[120ms] ease-in-out
+        hover:bg-v2-background-bg-layer-01 hover:text-v2-text-text-base
         data-[selected]:bg-v2-background-bg-layer-03 data-[selected]:text-v2-text-text-base
-        data-[selected]:[box-shadow:inset_0_0_0_0.5px_var(--v2-border-border-muted)] data-[selected]:hover:bg-v2-background-bg-layer-03
+        data-[selected]:hover:bg-v2-background-bg-layer-03
         focus-visible:bg-v2-background-bg-layer-01 focus-visible:text-v2-text-text-base focus-visible:outline-none
         focus-visible:[box-shadow:inset_0_0_0_0.5px_var(--v2-border-border-muted)]
         ${local.class ?? ""}

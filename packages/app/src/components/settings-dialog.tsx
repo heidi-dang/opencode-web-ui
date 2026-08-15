@@ -4,8 +4,6 @@ import { useCommand } from "@/context/command"
 import { useLanguage } from "@/context/language"
 import { useDialog } from "@opencode-ai/ui/context/dialog"
 
-import { DialogSettings as DialogSettingsV2 } from "@/components/settings-v2"
-
 export function useSettingsDialog(defaultValue?: string) {
   const dialog = useDialog()
   const params = useParams<{ id?: string }>()
@@ -19,8 +17,10 @@ export function useSettingsDialog(defaultValue?: string) {
   return () => {
     const current = ++run
     const sessionID = params.id
-    if (dead || run !== current) return
-    void dialog.show(() => <DialogSettingsV2 sessionID={sessionID} defaultValue={defaultValue} />)
+    void import("@/components/settings-v2").then((module) => {
+      if (dead || run !== current) return
+      void dialog.show(() => <module.DialogSettings sessionID={sessionID} defaultValue={defaultValue} />)
+    })
   }
 }
 

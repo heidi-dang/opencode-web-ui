@@ -15,7 +15,7 @@ function abortFromInput(input: RequestInfo | URL, init?: RequestInit) {
 describe("checkServerHealth", () => {
   test("returns healthy response with version", async () => {
     let request: URL | undefined
-    const fetch = (async (input: URL | RequestInfo, _init?: any) => {
+    const fetch = (async (input: RequestInfo | URL) => {
       request = input instanceof URL ? input : new URL(input instanceof Request ? input.url : input)
       return new Response(JSON.stringify({ healthy: true, version: "1.2.3" }), {
         status: 200,
@@ -26,35 +26,33 @@ describe("checkServerHealth", () => {
     const result = await checkServerHealth(server, fetch)
 
     expect(result).toEqual({ healthy: true, version: "1.2.3" })
-    expect(request?.pathname).toBe("/health")
+    expect(request?.pathname).toBe("/api/health")
   })
 
   test("falls back to the V1 health endpoint", async () => {
     const paths: string[] = []
-    const fetch = (async (input: URL | RequestInfo, _init?: any) => {
+    const fetch = (async (input: RequestInfo | URL) => {
       const url = input instanceof URL ? input : new URL(input instanceof Request ? input.url : input)
       paths.push(url.pathname)
-      if (url.pathname === "/health") return new Response(undefined, { status: 404 })
-      if (url.pathname === "/global/health") return new Response(undefined, { status: 404 })
+      if (url.pathname === "/api/health") return new Response(undefined, { status: 404 })
       return Response.json({ healthy: true, version: "1.18.4" })
     }) as unknown as typeof globalThis.fetch
 
     expect(await checkServerHealth(server, fetch)).toEqual({ healthy: true, version: "1.18.4" })
-    expect(paths).toEqual(["/health", "/global/health", "/api/health"])
+    expect(paths).toEqual(["/api/health", "/global/health"])
   })
 
   test("falls back when the current health response is malformed", async () => {
     const paths: string[] = []
-    const fetch = (async (input: URL | RequestInfo, _init?: any) => {
+    const fetch = (async (input: RequestInfo | URL) => {
       const url = input instanceof URL ? input : new URL(input instanceof Request ? input.url : input)
       paths.push(url.pathname)
-      if (url.pathname === "/health") return new Response("null", { status: 500 })
-      if (url.pathname === "/global/health") return new Response("null", { status: 500 })
+      if (url.pathname === "/api/health") return Response.json({})
       return Response.json({ healthy: true, version: "1.18.4" })
     }) as unknown as typeof globalThis.fetch
 
     expect(await checkServerHealth(server, fetch)).toEqual({ healthy: true, version: "1.18.4" })
-    expect(paths).toEqual(["/health", "/global/health", "/api/health"])
+    expect(paths).toEqual(["/api/health", "/global/health"])
   })
 
   test("allows slow servers thirty seconds by default", async () => {
@@ -68,7 +66,7 @@ describe("checkServerHealth", () => {
       },
     })
 
-    const fetch = (async (_input: URL | RequestInfo, _init?: any) =>
+    const fetch = (async () =>
       new Response(JSON.stringify({ healthy: true, version: "1.2.3" }), {
         status: 200,
         headers: { "content-type": "application/json" },
@@ -83,7 +81,7 @@ describe("checkServerHealth", () => {
   })
 
   test("returns unhealthy when request fails", async () => {
-    const fetch = (async (_input: URL | RequestInfo, _init?: any) => {
+    const fetch = (async () => {
       throw new Error("network")
     }) as unknown as typeof globalThis.fetch
 
@@ -100,13 +98,9 @@ describe("checkServerHealth", () => {
     })
 
     let aborted = false
-    const fetch = (async (input: URL | RequestInfo, init?: any) => {
-      const signal = abortFromInput(input, init)
-      if (signal?.aborted) {
-        aborted = true
-        return Promise.reject(new DOMException("Aborted", "AbortError"))
-      }
-      return new Promise<Response>((_resolve, reject) => {
+    const fetch = ((input: RequestInfo | URL, init?: RequestInit) =>
+      new Promise<Response>((_resolve, reject) => {
+        const signal = abortFromInput(input, init)
         signal?.addEventListener(
           "abort",
           () => {
@@ -115,8 +109,7 @@ describe("checkServerHealth", () => {
           },
           { once: true },
         )
-      })
-    }) as unknown as typeof globalThis.fetch
+      })) as unknown as typeof globalThis.fetch
 
     const result = await checkServerHealth(server, fetch, {
       timeoutMs: 10,
@@ -131,9 +124,8 @@ describe("checkServerHealth", () => {
 
   test("uses provided abort signal", async () => {
     let signal: AbortSignal | undefined
-    const fetch = (async (input: URL | RequestInfo, init?: any) => {
-      const currentSignal = abortFromInput(input, init)
-      if (currentSignal) signal = currentSignal
+    const fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      signal = abortFromInput(input, init)
       return new Response(JSON.stringify({ healthy: true, version: "1.2.3" }), {
         status: 200,
         headers: { "content-type": "application/json" },
@@ -145,16 +137,14 @@ describe("checkServerHealth", () => {
       signal: abort.signal,
     })
 
-    expect(signal).toBeDefined()
-    expect(signal?.aborted).toBe(false)
+    expect(signal).toBe(abort.signal)
   })
 
   test("retries transient failures and eventually succeeds", async () => {
     let count = 0
-    const fetch = (async (_input: URL | RequestInfo, _init?: any) => {
+    const fetch = (async () => {
       count += 1
-      // The 3rd attempt succeeds on /health, and the 4th is the /api/model/default fetch
-      if (count <= 2) throw new TypeError("network")
+      if (count < 3) throw new TypeError("network")
       return new Response(JSON.stringify({ healthy: true, version: "1.2.3" }), {
         status: 200,
         headers: { "content-type": "application/json" },
@@ -166,13 +156,13 @@ describe("checkServerHealth", () => {
       retryDelayMs: 1,
     })
 
-    expect(count).toBeGreaterThanOrEqual(3)
+    expect(count).toBe(3)
     expect(result).toEqual({ healthy: true, version: "1.2.3" })
   })
 
   test("returns unhealthy when retries are exhausted", async () => {
     let count = 0
-    const fetch = (async (_input: URL | RequestInfo, _init?: any) => {
+    const fetch = (async () => {
       count += 1
       throw new TypeError("network")
     }) as unknown as typeof globalThis.fetch
@@ -182,7 +172,7 @@ describe("checkServerHealth", () => {
       retryDelayMs: 1,
     })
 
-    expect(count).toBe(15)
+    expect(count).toBe(6)
     expect(result).toEqual({ healthy: false })
   })
 })

@@ -75,10 +75,10 @@ export type State = {
     [sessionID: string]: Message[]
   }
   session_message: {
-    [sessionID: string]: SessionMessageInfo[] | undefined
+    [sessionID: string]: SessionMessageInfo[]
   }
-  session_activity: {
-    [sessionID: string]: { lastMeaningfulEventAt: number } | undefined
+  session_activity?: {
+    [sessionID: string]: { lastMeaningfulEventAt: number }
   }
   part: {
     [messageID: string]: Part[]

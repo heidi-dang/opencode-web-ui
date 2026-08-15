@@ -43,22 +43,6 @@ export default [
       )
     },
   },
-  {
-    name: "opencode-desktop:non-blocking-css",
-    // In production builds, convert render-blocking <link rel="stylesheet"> to
-    // an async preload-swap so CSS does not block first paint.
-    transformIndexHtml: {
-      order: "post",
-      handler(html, ctx) {
-        if (ctx.server) return html // dev only: keep normal
-        return html.replace(
-          /<link rel="stylesheet" crossorigin href="([^"]+)">/g,
-          (_, href) =>
-            `<link rel="preload" as="style" crossorigin href="${href}" onload="this.onload=null;this.rel='stylesheet'"><noscript><link rel="stylesheet" href="${href}"></noscript>`,
-        )
-      },
-    },
-  },
   tailwindcss(),
   solidPlugin(),
 ]

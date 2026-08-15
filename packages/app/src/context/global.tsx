@@ -138,7 +138,7 @@ function createServerCtx(
   })
 
   const isLocal =
-    (conn?.type === "sidecar" && conn.variant === "base") || (conn?.type === "http" && isLocalHost(conn.http?.url))
+    (conn?.type === "sidecar" && conn.variant === "base") || (conn?.type === "http" && isLocalHost(conn.http.url))
 
   return {
     queryClient,
@@ -155,8 +155,7 @@ function createServerCtx(
 
 export type ServerCtx = ReturnType<typeof createServerCtx>
 
-function isLocalHost(url?: string) {
-  if (!url) return undefined
+function isLocalHost(url: string) {
   const host = url.replace(/^https?:\/\//, "").split(":")[0]
   if (host === "localhost" || host === "127.0.0.1") return "local"
 }

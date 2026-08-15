@@ -9,7 +9,7 @@ import { TextField } from "@opencode-ai/ui/text-field"
 import { useMutation } from "@tanstack/solid-query"
 import { showToast } from "@/utils/toast"
 import { useNavigate } from "@solidjs/router"
-import { createEffect, createMemo, createResource, createSignal, Show } from "solid-js"
+import { createEffect, createMemo, createResource, Show } from "solid-js"
 import { createStore } from "solid-js/store"
 import { ServerHealthIndicator, ServerRow } from "@/components/server/server-row"
 import { useGlobal } from "@/context/global"
@@ -17,7 +17,7 @@ import { useLanguage } from "@/context/language"
 import { usePlatform } from "@/context/platform"
 import { normalizeServerUrl, ServerConnection, useServer } from "@/context/server"
 import { detectServerProtocol } from "@/utils/server-protocol"
-import { checkServerHealth, type ServerHealth, useCheckServerHealth } from "@/utils/server-health"
+import { type ServerHealth, useCheckServerHealth } from "@/utils/server-health"
 import { useSettings } from "@/context/settings"
 import { useTabs } from "@/context/tabs"
 
@@ -31,13 +31,12 @@ interface ServerFormProps {
   placeholder: string
   busy: boolean
   error: string
-  status: ServerHealthState | undefined
+  status: boolean | undefined
   onChange: (value: string) => void
   onNameChange: (value: string) => void
   onUsernameChange: (value: string) => void
   onPasswordChange: (value: string) => void
   onSubmit: () => void
-  onTest: () => void
   onBack: () => void
 }
 
@@ -79,63 +78,33 @@ function useDefaultServer() {
   return { defaultKey: () => defaultKey.latest, canDefault, setDefault }
 }
 
-type ServerHealthState = {
-  healthy?: boolean
-  requiresAuth?: boolean
-  authFailed?: boolean
-}
-
 function useServerPreview() {
-  const platform = usePlatform()
-  let abortController: AbortController | undefined
+  const checkServerHealth = useCheckServerHealth()
 
   const looksComplete = (value: string) => {
     const normalized = normalizeServerUrl(value)
     if (!normalized) return false
-    try {
-      const url = new URL(normalized)
-      if (url.port) {
-        const port = parseInt(url.port, 10)
-        if (isNaN(port) || port <= 0 || port > 65535) return false
-      }
-      return true
-    } catch {
-      return false
-    }
+    const host = normalized.replace(/^https?:\/\//, "").split("/")[0]
+    if (!host) return false
+    if (host.includes("localhost") || host.startsWith("127.0.0.1")) return true
+    return host.includes(".") || host.includes(":")
   }
 
   const previewStatus = async (
     value: string,
     username: string,
     password: string,
-    setStatusState: (value: ServerHealthState | undefined) => void,
+    setStatus: (value: boolean | undefined) => void,
   ) => {
-    if (abortController) {
-      abortController.abort()
-    }
-    abortController = new AbortController()
-    const signal = abortController.signal
-
-    setStatusState(undefined)
+    setStatus(undefined)
     if (!looksComplete(value)) return
     const normalized = normalizeServerUrl(value)
     if (!normalized) return
     const http: ServerConnection.HttpBase = { url: normalized }
     if (username) http.username = username
     if (password) http.password = password
-    
-    try {
-      const result = await checkServerHealth(http, platform.fetch ?? globalThis.fetch, { signal })
-      if (signal.aborted) return
-      setStatusState({
-        healthy: result.healthy,
-        requiresAuth: result.requiresAuth,
-        authFailed: result.authFailed,
-      })
-    } catch {
-      if (signal.aborted) return
-      setStatusState({ healthy: false })
-    }
+    const result = await checkServerHealth(http)
+    setStatus(result.healthy)
   }
 
   return { previewStatus }
@@ -143,48 +112,6 @@ function useServerPreview() {
 
 function ServerForm(props: ServerFormProps) {
   const language = useLanguage()
-  const [host, setHost] = createSignal("")
-  const [port, setPort] = createSignal("4096")
-
-  createEffect(() => {
-    if (props.value) {
-      try {
-        const clean = props.value.replace(/^https?:\/\//, "")
-        const parts = clean.split(":")
-        if (parts[0]) setHost(parts[0])
-        if (parts[1]) setPort(parts[1].split("/")[0])
-      } catch {}
-    }
-  })
-
-  const updateUrl = (h: string, p: string) => {
-    let cleanHost = h.trim()
-    if (cleanHost === "http" || cleanHost === "https" || cleanHost === "http:" || cleanHost === "https:") {
-      props.onChange("")
-      return
-    }
-    if (cleanHost.includes("://")) {
-      try {
-        const parsed = new URL(cleanHost)
-        cleanHost = parsed.hostname
-        if (parsed.port) p = parsed.port
-      } catch {}
-    }
-    const cleanPort = p.trim() || "4096"
-    const constructed = cleanHost && cleanHost.length > 1 ? `http://${cleanHost}:${cleanPort}` : ""
-    props.onChange(constructed)
-  }
-
-  const handleHostChange = (val: string) => {
-    setHost(val)
-    updateUrl(val, port())
-  }
-
-  const handlePortChange = (val: string) => {
-    setPort(val)
-    updateUrl(host(), val)
-  }
-
   const keyDown = (event: KeyboardEvent) => {
     event.stopPropagation()
     if (event.key === "Escape") {
@@ -197,63 +124,36 @@ function ServerForm(props: ServerFormProps) {
     props.onSubmit()
   }
 
-  const normalizedPreview = createMemo(() => {
-    if (!props.value) return ""
-    return normalizeServerUrl(props.value) ?? props.value
-  })
-
   return (
-    <div class="flex flex-col gap-4">
-      <div class="bg-surface-base rounded-md p-4 sm:p-5 flex flex-col gap-4 border border-border-weak">
-        <div class="text-14-medium font-semibold text-text-primary mb-0.5 flex items-center justify-between">
-          <span>Server Setup Wizard</span>
-          <span class="text-xs text-text-muted font-normal">Step-by-step Setup</span>
+    <div>
+      <div class="bg-surface-base rounded-md p-5 flex flex-col gap-3">
+        <div class="flex-1 min-w-0 [&_[data-slot=input-wrapper]]:relative">
+          <TextField
+            type="text"
+            label={language.t("dialog.server.add.url")}
+            placeholder={props.placeholder}
+            value={props.value}
+            autofocus
+            validationState={props.error ? "invalid" : "valid"}
+            error={props.error}
+            disabled={props.busy}
+            onChange={props.onChange}
+            onKeyDown={keyDown}
+          />
         </div>
-
-        {/* Step 1 & 2: IP Address / Host & Port */}
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 min-w-0">
-          <div class="sm:col-span-2 min-w-0">
-            <TextField
-              type="text"
-              label="1. IP Address / Host"
-              placeholder="e.g. 100.98.24.11 or localhost"
-              value={host()}
-              autofocus
-              validationState={props.error ? "invalid" : "valid"}
-              disabled={props.busy}
-              onChange={handleHostChange}
-              onKeyDown={keyDown}
-            />
-          </div>
-          <div class="min-w-0">
-            <TextField
-              type="text"
-              label="2. Port"
-              placeholder="4096"
-              value={port()}
-              disabled={props.busy}
-              onChange={handlePortChange}
-              onKeyDown={keyDown}
-            />
-          </div>
-        </div>
-
-        {/* Step 3: Server Name (Optional) */}
         <TextField
           type="text"
-          label={`3. ${language.t("dialog.server.add.name")} (Optional)`}
-          placeholder="e.g. Home PC / Workstation"
+          label={language.t("dialog.server.add.name")}
+          placeholder={language.t("dialog.server.add.namePlaceholder")}
           value={props.name}
           disabled={props.busy}
           onChange={props.onNameChange}
           onKeyDown={keyDown}
         />
-
-        {/* Step 4: Authentication Credentials */}
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 min-w-0">
+        <div class="grid grid-cols-2 gap-2 min-w-0">
           <TextField
             type="text"
-            label={`4. ${language.t("dialog.server.add.username")}`}
+            label={language.t("dialog.server.add.username")}
             placeholder={language.t("dialog.server.add.usernamePlaceholder")}
             value={props.username}
             disabled={props.busy}
@@ -269,48 +169,6 @@ function ServerForm(props: ServerFormProps) {
             onChange={props.onPasswordChange}
             onKeyDown={keyDown}
           />
-        </div>
-
-        {/* Endpoint Health Preview */}
-        <Show when={normalizedPreview()}>
-          <div class="bg-surface-base-hover/60 p-3 rounded-md border border-border-weak flex flex-col gap-1.5 text-xs">
-            <div class="text-text-muted flex justify-between items-center">
-              <span class="font-medium">Configured Target Endpoint:</span>
-              <Show when={props.status !== undefined}>
-                <Show when={props.status?.healthy}>
-                  <span class="text-emerald-400 font-semibold flex items-center gap-1">✓ Reachable</span>
-                </Show>
-                <Show when={!props.status?.healthy && props.status?.requiresAuth && !props.status?.authFailed}>
-                  <span class="text-amber-400 font-semibold flex items-center gap-1">🔒 Credentials Required</span>
-                </Show>
-                <Show when={!props.status?.healthy && props.status?.authFailed}>
-                  <span class="text-rose-400 font-semibold flex items-center gap-1">🔒 Invalid Credentials</span>
-                </Show>
-                <Show when={!props.status?.healthy && !props.status?.requiresAuth}>
-                  <span class="text-rose-400 font-semibold flex items-center gap-1">✗ Unreachable</span>
-                </Show>
-              </Show>
-            </div>
-            <div class="font-mono text-text-primary truncate font-medium">
-              {normalizedPreview()}
-            </div>
-          </div>
-        </Show>
-
-        <Show when={props.error}>
-          <div class="text-xs text-rose-400 font-medium">{props.error}</div>
-        </Show>
-        
-        <div class="flex justify-end pt-2">
-          <Button
-            variant="secondary"
-            size="small"
-            onClick={props.onTest}
-            disabled={props.busy || !props.value}
-            class="text-xs px-3"
-          >
-            Test Connection
-          </Button>
         </div>
       </div>
     </div>
@@ -350,7 +208,7 @@ export function useServerManagementController(options: { onSelect?: () => void; 
       password: "",
       error: "",
       showForm: false,
-      status: undefined as ServerHealthState | undefined,
+      status: undefined as boolean | undefined,
     },
     editServer: {
       id: undefined as string | undefined,
@@ -359,7 +217,7 @@ export function useServerManagementController(options: { onSelect?: () => void; 
       username: "",
       password: "",
       error: "",
-      status: undefined as ServerHealthState | undefined,
+      status: undefined as boolean | undefined,
     },
   })
 
@@ -399,24 +257,18 @@ export function useServerManagementController(options: { onSelect?: () => void; 
         http: { url: normalized },
       }
       if (store.addServer.name.trim()) conn.displayName = store.addServer.name.trim()
-      if (store.addServer.username) conn.http.username = store.addServer.username
       if (store.addServer.password) conn.http.password = store.addServer.password
-      let result = await checkServerHealth(conn.http)
-      if (!result.healthy && typeof location === "object" && location.origin) {
-        const proxyHttp = { ...conn.http, url: `${location.origin}/opencode-server` }
-        const proxyResult = await checkServerHealth(proxyHttp)
-        if (proxyResult.healthy) {
-          result = proxyResult
-        }
-      }
+      if (store.addServer.password && store.addServer.username) conn.http.username = store.addServer.username
+      const result = await checkServerHealth(conn.http)
       if (!result.healthy) {
-        if (result.requiresAuth && (!store.addServer.username || !store.addServer.password)) {
-          setStore("addServer", { error: "Server requires authentication. Please enter Username & Password." })
-        } else if (result.requiresAuth && result.authFailed) {
-          setStore("addServer", { error: "Authentication Failed: Invalid Username or Password." })
-        } else {
-          setStore("addServer", { error: language.t("dialog.server.add.error") })
-        }
+        setStore("addServer", { error: language.t("dialog.server.add.error") })
+        return
+      }
+      if (
+        !settings.general.newLayoutDesigns() &&
+        (await detectServerProtocol(conn.http, platform.fetch ?? globalThis.fetch)) === "v2"
+      ) {
+        setStore("addServer", { error: language.t("dialog.server.add.error") })
         return
       }
 
@@ -543,7 +395,10 @@ export function useServerManagementController(options: { onSelect?: () => void; 
 
   const handleAddChange = (value: string) => {
     if (addMutation.isPending) return
-    setStore("addServer", { url: value, error: "", status: undefined })
+    setStore("addServer", { url: value, error: "" })
+    void previewStatus(value, store.addServer.username, store.addServer.password, (next) =>
+      setStore("addServer", { status: next }),
+    )
   }
 
   const handleAddNameChange = (value: string) => {
@@ -553,17 +408,26 @@ export function useServerManagementController(options: { onSelect?: () => void; 
 
   const handleAddUsernameChange = (value: string) => {
     if (addMutation.isPending) return
-    setStore("addServer", { username: value, error: "", status: undefined })
+    setStore("addServer", { username: value, error: "" })
+    void previewStatus(store.addServer.url, value, store.addServer.password, (next) =>
+      setStore("addServer", { status: next }),
+    )
   }
 
   const handleAddPasswordChange = (value: string) => {
     if (addMutation.isPending) return
-    setStore("addServer", { password: value, error: "", status: undefined })
+    setStore("addServer", { password: value, error: "" })
+    void previewStatus(store.addServer.url, store.addServer.username, value, (next) =>
+      setStore("addServer", { status: next }),
+    )
   }
 
   const handleEditChange = (value: string) => {
     if (editMutation.isPending) return
-    setStore("editServer", { value, error: "", status: undefined })
+    setStore("editServer", { value, error: "" })
+    void previewStatus(value, store.editServer.username, store.editServer.password, (next) =>
+      setStore("editServer", { status: next }),
+    )
   }
 
   const handleEditNameChange = (value: string) => {
@@ -573,27 +437,18 @@ export function useServerManagementController(options: { onSelect?: () => void; 
 
   const handleEditUsernameChange = (value: string) => {
     if (editMutation.isPending) return
-    setStore("editServer", { username: value, error: "", status: undefined })
+    setStore("editServer", { username: value, error: "" })
+    void previewStatus(store.editServer.value, value, store.editServer.password, (next) =>
+      setStore("editServer", { status: next }),
+    )
   }
 
   const handleEditPasswordChange = (value: string) => {
     if (editMutation.isPending) return
-    setStore("editServer", { password: value, error: "", status: undefined })
-  }
-
-  const testConnection = () => {
-    const isAdd = isAddMode()
-    const value = isAdd ? store.addServer.url : store.editServer.value
-    const username = isAdd ? store.addServer.username : store.editServer.username
-    const password = isAdd ? store.addServer.password : store.editServer.password
-    
-    void previewStatus(value, username, password, (next) => {
-      if (isAdd) {
-        setStore("addServer", { status: next })
-      } else {
-        setStore("editServer", { status: next })
-      }
-    })
+    setStore("editServer", { password: value, error: "" })
+    void previewStatus(store.editServer.value, store.editServer.username, value, (next) =>
+      setStore("editServer", { status: next }),
+    )
   }
 
   const mode = createMemo<"list" | "add" | "edit">(() => {
@@ -634,9 +489,7 @@ export function useServerManagementController(options: { onSelect?: () => void; 
       username: conn.http.username ?? "",
       password: conn.http.password ?? "",
       error: "",
-      status: global.servers.health[ServerConnection.key(conn)]?.healthy !== undefined
-        ? { healthy: global.servers.health[ServerConnection.key(conn)]?.healthy }
-        : undefined,
+      status: global.servers.health[ServerConnection.key(conn)]?.healthy,
     })
   }
 
@@ -710,7 +563,6 @@ export function useServerManagementController(options: { onSelect?: () => void; 
     resetForm,
     submitForm,
     handleRemove,
-    testConnection,
     handleFormChange: () => (isAddMode() ? handleAddChange : handleEditChange),
     handleFormNameChange: () => (isAddMode() ? handleAddNameChange : handleEditNameChange),
     handleFormUsernameChange: () => (isAddMode() ? handleAddUsernameChange : handleEditUsernameChange),
@@ -848,7 +700,6 @@ export function ServerConnectionForm(props: { controller: ReturnType<typeof useS
         onUsernameChange={props.controller.handleFormUsernameChange()}
         onPasswordChange={props.controller.handleFormPasswordChange()}
         onSubmit={props.controller.submitForm}
-        onTest={props.controller.testConnection}
         onBack={props.controller.resetForm}
       />
       <div class="shrink-0 pb-5">

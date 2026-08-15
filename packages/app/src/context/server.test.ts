@@ -3,20 +3,12 @@ import { createRoot, createSignal } from "solid-js"
 import { createStore } from "solid-js/store"
 import {
   createServerProjects,
-  getEffectiveServerUrl,
   migrateCanonicalLocalServerState,
   nextServerAfterRemoval,
   resolveServerList,
   ServerConnection,
 } from "./server"
 import { ServerScope } from "@/utils/server-scope"
-
-describe("getEffectiveServerUrl", () => {
-  test("returns original URL when origin is HTTP or location is undefined", () => {
-    expect(getEffectiveServerUrl("http://100.124.192.60:4096")).toBe("http://100.124.192.60:4096")
-    expect(getEffectiveServerUrl("https://heidi-dev.ts.net:4096")).toBe("https://heidi-dev.ts.net:4096")
-  })
-})
 
 describe("resolveServerList", () => {
   test("lets startup auth_token credentials override a persisted same-url server", () => {

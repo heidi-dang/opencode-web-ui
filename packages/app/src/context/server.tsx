@@ -4,8 +4,6 @@ import { createStore, type SetStoreFunction, type Store } from "solid-js/store"
 import { Persist, persisted } from "@/utils/persist"
 import { pathKey } from "@/utils/path-key"
 import { ServerScope } from "@/utils/server-scope"
-import { saveCredentials, clearCredentials, getCredentials, runCredentialMigration } from "@/utils/server-credentials"
-export { getEffectiveServerUrl } from "@/utils/server"
 
 type StoredProject = { worktree: string; expanded: boolean }
 type StoredServer = string | ServerConnection.HttpBase | ServerConnection.Http
@@ -26,60 +24,16 @@ export function normalizeServerUrl(input: string) {
   const trimmed = input.trim()
   if (!trimmed) return
   const withProtocol = /^https?:\/\//.test(trimmed) ? trimmed : `http://${trimmed}`
-
-  let url: URL
-  try {
-    url = new URL(withProtocol)
-  } catch {
-    return undefined
-  }
-
-  // Support numeric port validation
-  if (url.port) {
-    const port = parseInt(url.port, 10)
-    if (isNaN(port) || port <= 0 || port > 65535) return undefined
-  }
-
-  let cleanPath = url.pathname.replace(/\/+$/, "")
-  const isLocalHost = url.hostname === "localhost" || url.hostname === "127.0.0.1"
-
-  if (typeof location === "object" && location.hostname) {
-    // Protect against duplicate proxy transformation when returning to local context
-    if (cleanPath.endsWith("/opencode-server") && !isLocalHost && url.hostname !== location.hostname) {
-      cleanPath = cleanPath.replace(/\/opencode-server$/, "")
-    }
-
-    const isLocalTarget = isLocalHost || url.hostname === location.hostname
-    if (
-      location.hostname !== "localhost" &&
-      location.hostname !== "127.0.0.1" &&
-      isLocalTarget &&
-      (url.port === "4096" || cleanPath.endsWith("/opencode-server"))
-    ) {
-      const originUrl = new URL(location.origin)
-      const originPath = originUrl.pathname.replace(/\/+$/, "")
-      if (!originPath.endsWith("/opencode-server")) {
-        return `${location.origin}/opencode-server`
-      }
-      return location.origin
-    }
-  }
-
-  url.pathname = cleanPath
-  return url.toString().replace(/\/+$/, "")
+  return withProtocol.replace(/\/+$/, "")
 }
 
 export function serverName(conn?: ServerConnection.Any, ignoreDisplayName = false) {
   if (!conn) return ""
   if (conn.displayName && !ignoreDisplayName) return conn.displayName
-  if (conn.type === "http" && conn.http?.url) {
-    return conn.http.url.replace(/^https?:\/\//, "").replace(/\/+$/, "")
-  }
-  return ""
+  return conn.http.url.replace(/^https?:\/\//, "").replace(/\/+$/, "")
 }
 
-function isLocalHost(url?: string) {
-  if (!url) return undefined
+function isLocalHost(url: string) {
   const host = url.replace(/^https?:\/\//, "").split(":")[0]
   if (host === "localhost" || host === "127.0.0.1") return "local"
 }
@@ -200,31 +154,15 @@ export function resolveServerList(input: {
   )
 
   for (const value of input.stored) {
-    const rawUrl = typeof value === "string" ? value : "http" in value ? value.http.url : value.url
-    const normalizedUrl = normalizeServerUrl(rawUrl) ?? rawUrl
     const conn: ServerConnection.Http =
       typeof value === "string"
         ? {
             type: "http" as const,
-            http: { url: normalizedUrl },
+            http: { url: value },
           }
         : "http" in value
-          ? { ...value, http: { ...value.http, url: normalizedUrl } }
-          : { type: "http", http: { ...value, url: normalizedUrl } }
-
-    if (conn.http.password) {
-      const pw = conn.http.password
-      if (pw.startsWith("http://") || pw.startsWith("https://")) {
-        const stored = getCredentials(pw)
-        if (stored?.password) {
-          conn.http.password = stored.password
-          if (stored.username) conn.http.username = stored.username
-        } else {
-          delete conn.http.password
-        }
-      }
-    }
-
+          ? value
+          : { type: "http", http: value }
     const key = ServerConnection.key(conn)
 
     const existing = deduped.get(key)
@@ -284,27 +222,24 @@ export namespace ServerConnection {
     | (Sidecar | Ssh)
 
   export const key = (conn: Any): Key => {
-    if (!conn) return Key.make("")
     switch (conn.type) {
       case "http":
-        return Key.make(conn.http?.url ?? "")
+        return Key.make(conn.http.url)
       case "sidecar": {
         if (conn.variant === "wsl") return Key.make(`wsl:${conn.distro}`)
         return Key.make("sidecar")
       }
       case "ssh":
         return Key.make(`ssh:${conn.host}`)
-      default:
-        return Key.make("")
     }
   }
 
   export type Key = string & { _brand: "Key" }
   export const Key = { make: (v: string) => v as Key }
 
-  export const builtin = (conn?: Any) => !!conn && conn.type === "sidecar" && conn.variant === "base"
+  export const builtin = (conn: Any) => conn.type === "sidecar" && conn.variant === "base"
   export const local = (conn?: Any) =>
-    !!conn && (builtin(conn) || (conn.type === "http" && isLocalHost(conn.http?.url) === "local"))
+    !!conn && (builtin(conn) || (conn.type === "http" && isLocalHost(conn.http.url) === "local"))
 }
 
 export function nextServerAfterRemoval(
@@ -325,7 +260,6 @@ export const { use: useServer, provider: ServerProvider } = createSimpleContext(
     canonicalLocalServer?: ServerConnection.Key
     servers?: Array<ServerConnection.Any>
   }) => {
-    runCredentialMigration()
     const [store, setStore, _, ready] = persisted(
       {
         ...Persist.global("server", ["server.v3"]),
@@ -356,15 +290,7 @@ export const { use: useServer, provider: ServerProvider } = createSimpleContext(
     function add(input: ServerConnection.Http) {
       const url_ = normalizeServerUrl(input.http.url)
       if (!url_) return
-      const hasPassword = !!input.http.password
-      if (hasPassword) {
-        saveCredentials(url_, input.http.username, input.http.password!)
-      }
-      const conn: ServerConnection.Http = {
-        ...input,
-        authToken: undefined,
-        http: { ...input.http, url: url_, password: hasPassword ? url_ : undefined },
-      }
+      const conn: ServerConnection.Http = { ...input, authToken: undefined, http: { ...input.http, url: url_ } }
       return batch(() => {
         const existing = store.list.findIndex((x) => url(x) === url_)
         if (existing !== -1) {
@@ -378,7 +304,6 @@ export const { use: useServer, provider: ServerProvider } = createSimpleContext(
     }
 
     function remove(key: ServerConnection.Key) {
-      clearCredentials(key)
       const next = nextServerAfterRemoval(allServers(), key, props.defaultServer)
       const list = store.list.filter((x) => url(x) !== key)
       batch(() => {

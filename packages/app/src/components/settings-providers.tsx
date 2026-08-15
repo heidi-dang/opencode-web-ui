@@ -90,7 +90,7 @@ const SettingsProvidersContent: Component<{ onBack?: () => void }> = (props) => 
   const note = (id: string) => PROVIDER_NOTES.find((item) => item.match(id))?.key
 
   const isConfigCustom = (providerID: string) => {
-    const provider = serverSync?.()?.data?.config?.provider?.[providerID]
+    const provider = serverSync().data.config.provider?.[providerID]
     if (!provider) return false
     if (provider.npm !== "@ai-sdk/openai-compatible") return false
     if (!provider.models || Object.keys(provider.models).length === 0) return false
@@ -99,9 +99,9 @@ const SettingsProvidersContent: Component<{ onBack?: () => void }> = (props) => 
 
   const disableProvider = async (providerID: string, name: string) => {
     if (protocol() !== "v1") return
-    const before = serverSync?.()?.data?.config?.disabled_providers ?? []
+    const before = serverSync().data.config.disabled_providers ?? []
     const next = before.includes(providerID) ? before : [...before, providerID]
-    serverSync?.()?.set("config", "disabled_providers", next)
+    serverSync().set("config", "disabled_providers", next)
 
     await serverSync()
       .updateConfig({ disabled_providers: next })

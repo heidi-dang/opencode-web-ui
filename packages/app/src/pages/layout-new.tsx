@@ -1,18 +1,13 @@
 import { createEffect, Suspense, type ParentProps } from "solid-js"
-import { Splash } from "@opencode-ai/ui/logo"
 import { createStore } from "solid-js/store"
-import { useNavigate } from "@solidjs/router"
 import { DebugBar } from "@/components/debug-bar"
 import { TabsInfoPopup } from "@/components/help-button"
 import { Titlebar, type TitlebarUpdate } from "@/components/titlebar"
 import { usePlatform } from "@/context/platform"
-import { setNavigate } from "@/utils/notification-click"
 import { setV2Toast, ToastRegion } from "@/utils/toast"
 
 export default function NewLayout(props: ParentProps) {
   const platform = usePlatform()
-  const navigate = useNavigate()
-  setNavigate(navigate)
   const [state, setState] = createStore({ debugTools: true })
 
   createEffect(() => setV2Toast(true))
@@ -44,15 +39,7 @@ export default function NewLayout(props: ParentProps) {
         }
       />
       <main class="flex-1 min-h-0 min-w-0 overflow-x-hidden flex flex-col items-start contain-strict">
-        <Suspense
-          fallback={
-            <div class="flex-1 flex items-center justify-center">
-              <Splash class="w-8 h-10 opacity-30 animate-pulse" />
-            </div>
-          }
-        >
-          {props.children}
-        </Suspense>
+        <Suspense>{props.children}</Suspense>
       </main>
       {import.meta.env.DEV && state.debugTools && <DebugBar inline />}
       <TabsInfoPopup />

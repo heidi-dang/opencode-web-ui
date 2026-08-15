@@ -28,9 +28,6 @@ export const SidebarContent = (props: {
   settingsLabel: Accessor<string>
   settingsKeybind: Accessor<string | undefined>
   onOpenSettings: () => void
-  onOpenFleet: () => void
-  onOpenFlowdeck: () => void
-  onOpenBetterHarness: () => void
   helpLabel: Accessor<string>
   onOpenHelp: () => void
   renderPanel: () => JSX.Element
@@ -93,33 +90,6 @@ export const SidebarContent = (props: {
           </DragDropProvider>
         </div>
         <div class="shrink-0 w-full pt-3 pb-6 flex flex-col items-center gap-2">
-          <Tooltip placement={placement()} value="Fleet">
-            <IconButton
-              icon="server"
-              variant="ghost"
-              size="large"
-              onClick={props.onOpenFleet}
-              aria-label="Fleet"
-            />
-          </Tooltip>
-          <Tooltip placement={placement()} value="FlowDeck">
-            <IconButton
-              icon="status"
-              variant="ghost"
-              size="large"
-              onClick={props.onOpenFlowdeck}
-              aria-label="FlowDeck"
-            />
-          </Tooltip>
-          <Tooltip placement={placement()} value="Better Harness">
-            <IconButton
-              icon="providers"
-              variant="ghost"
-              size="large"
-              onClick={props.onOpenBetterHarness}
-              aria-label="Better Harness"
-            />
-          </Tooltip>
           <TooltipKeybind placement={placement()} title={props.settingsLabel()} keybind={props.settingsKeybind() ?? ""}>
             <IconButton
               icon="settings-gear"

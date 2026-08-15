@@ -85,9 +85,7 @@ export function DialogSelectDirectoryV2(props: DialogSelectDirectoryV2Props) {
       sync.data.path.home ||
       sync.data.path.directory ||
       fallbackPath()?.home ||
-      fallbackPath()?.directory ||
-      (Array.isArray(sync.data.project) && sync.data.project[0]?.worktree) ||
-      "",
+      fallbackPath()?.directory,
   )
   const search = createDirectorySearch({ sdk, home, base: () => root() || start() })
   const [suggestions] = createResource(input, async (value) => {
@@ -331,6 +329,7 @@ export function DialogSelectDirectoryV2(props: DialogSelectDirectoryV2Props) {
                 {(suggestion, index) => (
                   <button
                     id={`directory-picker-v2-suggestion-${index()}`}
+                    data-directory-path={suggestion.absolute}
                     role="option"
                     aria-selected={index() === activeSuggestion()}
                     data-active={index() === activeSuggestion() ? "" : undefined}

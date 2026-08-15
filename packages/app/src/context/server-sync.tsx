@@ -1,6 +1,5 @@
 import type {
   Config,
-  LspStatus,
   OpencodeClient,
   Path,
   Project,
@@ -145,17 +144,10 @@ export const loadMcpResourcesQuery = (
     placeholderData: {},
   })
 
-export const loadLspQuery = (
-  scope: ServerScope,
-  directory: string,
-  sdk: OpencodeClient,
-): ApiQueryOptions<LspStatus[], readonly [ServerScope, string, "lsp"]> =>
-  queryOptions<LspStatus[], Error, LspStatus[], readonly [ServerScope, string, "lsp"]>({
+export const loadLspQuery = (scope: ServerScope, directory: string, sdk: OpencodeClient) =>
+  queryOptions({
     queryKey: [scope, directory, "lsp"] as const,
-    queryFn: () => sdk.lsp.status().then((r) => {
-      if (!r.data) return []
-      return Array.isArray(r.data) ? r.data : Object.values(r.data)
-    }),
+    queryFn: () => sdk.lsp.status().then((r) => r.data ?? []),
   })
 
 export const loadActiveSessionsQuery = (
@@ -192,7 +184,7 @@ function makeQueryOptionsApi(
   protocol: Promise<"v1" | "v2">,
 ) {
   return {
-    globalConfig: () => loadGlobalConfigQuery(scope, serverSDK()),
+    globalConfig: () => loadGlobalConfigQuery(scope, serverSDK(), protocol),
     projects: () => loadProjectsQuery(scope, serverAPI.project),
     providers: (directory: PathKey | null) =>
       loadProvidersQuery(scope, directory, serverAPI, directory ? sdkFor(directory) : serverSDK(), protocol),
@@ -298,6 +290,10 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
 
   const queryClient = useQueryClient()
   const homeSessions = createHomeSessionIndexCache(queryClient, ServerConnection.key(serverSDK.server))
+  const refreshProviders = () =>
+    queryClient.refetchQueries({
+      predicate: (query) => query.queryKey[0] === serverSDK.scope && query.queryKey[2] === "providers",
+    })
 
   let bootedAt = 0
   let bootingRoot = false
@@ -427,7 +423,7 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
                 : loadRootSessions({ api: serverSDK.api.session, directory, limit }),
             )
             .then((x) => {
-              const nonArchived = x.data
+              const nonArchived = (x.data ?? [])
                 .filter((s) => !!s?.id)
                 .filter((s) => !s.time?.archived)
                 .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
@@ -545,6 +541,7 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
       homeSessions.apply(event)
     }
     homeSessions.refresh(event.type)
+    if (eventType === "integration.connection.updated") void refreshProviders()
 
     if (directory === "global") {
       if (eventType === "server.connected" && activeSessionsQuery.data === undefined && !activeSessionsQuery.isFetching)
@@ -686,6 +683,7 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
     peek: children.peek,
     disableMcp: children.disableMcp,
     queryOptions: queryOptionsApi,
+    refreshProviders,
     // bootstrap,
     updateConfig: updateConfigMutation.mutateAsync,
     project: projectApi,

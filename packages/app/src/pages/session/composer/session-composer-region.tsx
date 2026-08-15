@@ -1,15 +1,11 @@
-import { Show, createMemo, type JSX } from "solid-js"
+import { Show, type JSX } from "solid-js"
 import { useLanguage } from "@/context/language"
 import { useSettings } from "@/context/settings"
-import { useSync } from "@/context/sync"
-import { useParams } from "@solidjs/router"
 import { SessionPermissionDock } from "@/pages/session/composer/session-permission-dock"
 import { SessionQuestionDock } from "@/pages/session/composer/session-question-dock"
 import { SessionFollowupDock } from "@/pages/session/composer/session-followup-dock"
 import { SessionRevertDock } from "@/pages/session/composer/session-revert-dock"
 import { SessionTodoDock } from "@/pages/session/composer/session-todo-dock"
-import { StreamingStatusBar, type ActivityHint } from "@/pages/session/composer/streaming-status-bar"
-import { SessionProgressRing } from "@/pages/session/composer/session-progress-ring"
 import type { SessionComposerRegionController } from "./session-composer-region-controller"
 
 export function SessionComposerRegion(props: {
@@ -19,43 +15,10 @@ export function SessionComposerRegion(props: {
   const language = useLanguage()
   const controller = props.controller
   const settings = useSettings()
-  const sync = useSync()
-  const params = useParams<{ id: string }>()
-  const isV2Working = createMemo(
-    () => settings.general.newLayoutDesigns() && sync().data.session_working(params.id ?? ""),
-  )
   const rolled = () => {
     const revert = controller.revert()
     return revert?.items.length ? revert : undefined
   }
-
-  const activityHint = createMemo<ActivityHint>(() => {
-    const sId = params.id ?? ""
-    if (!sync().data.session_working(sId)) return "thinking"
-    
-    const messages = sync().data.message[sId]
-    if (!messages?.length) return "thinking"
-    
-    const lastMsg = messages[messages.length - 1]
-    const parts = sync().data.part[lastMsg.id]
-    if (!parts?.length) return "thinking"
-    
-    const lastPart = parts[parts.length - 1]
-    switch (lastPart.type) {
-      case "tool":
-        if (["bash", "shell", "command"].some((name) => lastPart.tool?.includes(name))) return "shell"
-        if (["edit", "write", "patch", "file", "read", "grep", "glob"].some((name) => lastPart.tool?.includes(name)))
-          return "file"
-        return "tool"
-      case "text":
-        return "text"
-      case "step-start":
-      case "step-finish":
-        return "step"
-      default:
-        return "thinking"
-    }
-  })
 
   return (
     <div
@@ -115,14 +78,6 @@ export function SessionComposerRegion(props: {
                   collapseLabel={language.t("session.todo.collapse")}
                   expandLabel={language.t("session.todo.expand")}
                   dockProgress={controller.dockProgress()}
-                  progressRing={
-                    <Show when={settings.general.newLayoutDesigns()}>
-                      <SessionProgressRing
-                        todos={controller.state.todos()}
-                        working={controller.state.todos().some((t) => t.status === "in_progress")}
-                      />
-                    </Show>
-                  }
                 />
               </div>
             </div>
@@ -171,16 +126,11 @@ export function SessionComposerRegion(props: {
             <div
               classList={{
                 "relative z-[70]": true,
-                "streaming-active-glow-enhanced": isV2Working(),
               }}
               style={{
-                "margin-top": settings.general.newLayoutDesigns() ? "8px" : `${-controller.lift()}px`,
+                "margin-top": `${-controller.lift()}px`,
               }}
             >
-              {/* V2 streaming status bar — shown above the prompt while AI works */}
-              <Show when={settings.general.newLayoutDesigns()}>
-                <StreamingStatusBar activityHint={activityHint()} />
-              </Show>
               <Show when={controller.followup()?.items.length}>
                 <SessionFollowupDock
                   items={controller.followup()!.items}

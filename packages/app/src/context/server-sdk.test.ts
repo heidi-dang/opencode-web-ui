@@ -1,12 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import {
-  adaptServerEvent,
-  coalesceServerEvents,
-  enqueueServerEvent,
-  isLatencySensitiveServerEvent,
-  resumeStreamAfterPageShow,
-  streamReconnectDelay,
-} from "./server-sdk"
+import { adaptServerEvent, coalesceServerEvents, enqueueServerEvent, resumeStreamAfterPageShow } from "./server-sdk"
 import type { OpenCodeEvent } from "@opencode-ai/client/promise"
 import type { Event } from "@opencode-ai/sdk/v2/client"
 
@@ -20,10 +13,6 @@ describe("resumeStreamAfterPageShow", () => {
 
     expect(starts).toBe(1)
   })
-})
-
-test("stream reconnects back off without exceeding five seconds", () => {
-  expect([1, 2, 3, 4, 5, 8].map(streamReconnectDelay)).toEqual([250, 500, 1_000, 2_000, 4_000, 5_000])
 })
 
 describe("adaptServerEvent", () => {
@@ -203,54 +192,5 @@ describe("enqueueServerEvent", () => {
     enqueue("busy")
 
     expect(events).toHaveLength(2)
-  })
-})
-
-describe("isLatencySensitiveServerEvent", () => {
-  const event = (payload: Event) => ({ directory: "/repo", payload })
-
-  test("keeps stream deltas and text snapshots on the bounded batching lane", () => {
-    expect(
-      isLatencySensitiveServerEvent(
-        event({
-          type: "message.part.delta",
-          properties: { sessionID: "session", messageID: "message", partID: "part", field: "text", delta: "a" },
-        } as Event),
-      ),
-    ).toBe(false)
-    expect(
-      isLatencySensitiveServerEvent(
-        event({
-          type: "message.part.updated",
-          properties: {
-            part: { id: "part", sessionID: "session", messageID: "message", type: "text", text: "a" },
-          },
-        } as Event),
-      ),
-    ).toBe(false)
-  })
-
-  test("flushes todo, status, and tool lifecycle events without waiting for the batch timer", () => {
-    const todo = event({ id: "todo-event", type: "todo.updated", properties: { sessionID: "session", todos: [] } } as Event)
-    const status = event({
-      type: "session.status",
-      properties: { sessionID: "session", status: { type: "busy" } },
-    } as Event)
-    const tool = event({
-      type: "message.part.updated",
-      properties: {
-        part: {
-          id: "part",
-          sessionID: "session",
-          messageID: "message",
-          type: "tool",
-          tool: "bash",
-          callID: "call",
-          state: { status: "running", input: {} },
-        },
-      },
-    } as Event)
-
-    expect([todo, status, tool].map(isLatencySensitiveServerEvent)).toEqual([true, true, true])
   })
 })

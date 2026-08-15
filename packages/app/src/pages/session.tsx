@@ -5,8 +5,8 @@ import { createQuery, skipToken, useMutation, useQueryClient } from "@tanstack/s
 import {
   batch,
   ErrorBoundary,
-  lazy,
   onCleanup,
+  Suspense,
   Show,
   Match,
   Switch,
@@ -43,7 +43,7 @@ import { NewSessionView, SessionHeader } from "@/components/session"
 import { ErrorPage } from "@/pages/error"
 import { CommentsProvider, useComments } from "@/context/comments"
 import { useCommand } from "@/context/command"
-import { DirectoryDataProvider } from "@/pages/directory-data-provider"
+import { DirectoryDataProvider } from "@/pages/directory-layout"
 import { useServerSync } from "@/context/server-sync"
 import { useLanguage } from "@/context/language"
 import { useLayout } from "@/context/layout"
@@ -73,7 +73,7 @@ import {
 import { createOpenReviewFile, createSessionTabs, createSizing, shouldShowFileTree } from "@/pages/session/helpers"
 import { MessageTimeline } from "@/pages/session/timeline/message-timeline"
 import { createTimelineModel } from "@/pages/session/timeline/model"
-import { type DiffStyle, type SessionReviewTabProps } from "@/pages/session/review-tab"
+import { type DiffStyle, SessionReviewTab, type SessionReviewTabProps } from "@/pages/session/review-tab"
 import { useSessionLayout } from "@/pages/session/session-layout"
 import { restorePromptModel, syncPromptModel, syncSessionModel } from "@/pages/session/session-model-helpers"
 import {
@@ -86,17 +86,14 @@ import { sessionPanelLayout } from "@/pages/session/session-panel-layout"
 import { SessionReviewEmptyChangesV2 } from "@opencode-ai/session-ui/v2/session-review-empty-changes-v2"
 import { SessionReviewEmptyNoGitV2 } from "@opencode-ai/session-ui/v2/session-review-empty-no-git-v2"
 import { SessionReviewV2SidebarToggle } from "@opencode-ai/session-ui/v2/session-review-v2"
+import { ReviewPanelV2 } from "@/pages/session/v2/review-panel-v2"
 import { createReviewPanelV2State } from "@/pages/session/v2/review-panel-v2-state"
 import { reviewDiffDirectory, reviewDiffNeedsLoad, reviewRootDirectory } from "@/pages/session/v2/review-diff-kinds"
+import { TerminalPanel } from "@/pages/session/terminal-panel"
+import { TerminalPanelV2 } from "@/pages/session/terminal-panel-v2"
 import { useComposerCommands } from "@/pages/session/use-composer-commands"
 import { useSessionCommands } from "@/pages/session/use-session-commands"
 import { useSessionHashScroll } from "@/pages/session/use-session-hash-scroll"
-
-const SessionReviewTab = lazy(() => import("@/pages/session/review-tab").then((m) => ({ default: m.SessionReviewTab })))
-const ReviewPanelV2 = lazy(() => import("@/pages/session/v2/review-panel-v2").then((m) => ({ default: m.ReviewPanelV2 })))
-const TerminalPanel = lazy(() => import("@/pages/session/terminal-panel").then((m) => ({ default: m.TerminalPanel })))
-const TerminalPanelV2 = lazy(() => import("@/pages/session/terminal-panel-v2").then((m) => ({ default: m.TerminalPanelV2 })))
-const PreviewPanel = lazy(() => import("@/pages/session/preview-panel").then((m) => ({ default: m.PreviewPanel })))
 import { Identifier } from "@/utils/id"
 import { diffs as list } from "@/utils/diffs"
 import { Persist, persisted } from "@/utils/persist"
@@ -116,7 +113,7 @@ type VcsMode = "git" | "branch"
 
 const sessionViewState = () => ({
   messageId: undefined as string | undefined,
-  mobileTab: "session" as "session" | "changes" | "preview",
+  mobileTab: "session" as "session" | "changes",
 })
 
 function isCurrentSessionNotFoundError(error: unknown, sessionID: string | undefined) {
@@ -180,9 +177,71 @@ function TargetSessionSettingsCommand() {
   return null
 }
 
-import { SessionRouteErrorBoundary } from "./session/session-error-boundary"
-export { SessionRouteErrorBoundary }
-import { SessionErrorFallback } from "./session/session-error-fallback"
+export function SessionRouteErrorBoundary(
+  props: ParentProps<{ sessionID?: string; serverKey?: ServerConnection.Key; padded?: boolean }>,
+) {
+  const settings = useSettings()
+  return (
+    <ErrorBoundary
+      fallback={(error) =>
+        settings.general.newLayoutDesigns() ? (
+          <SessionRouteFrame padded={props.padded}>
+            <SessionPanelFrame newLayout raised={!!props.sessionID}>
+              <SessionErrorFallback error={error} sessionID={props.sessionID} serverKey={props.serverKey} />
+            </SessionPanelFrame>
+          </SessionRouteFrame>
+        ) : (
+          <ErrorPage error={error} />
+        )
+      }
+    >
+      {props.children}
+    </ErrorBoundary>
+  )
+}
+
+function SessionErrorFallback(props: { error: unknown; sessionID?: string; serverKey?: ServerConnection.Key }) {
+  const language = useLanguage()
+  const server = useServer()
+  const tabs = useTabs()
+  const displayServer = createMemo(() => {
+    const key = props.serverKey ?? server.key
+    const conn = server.list.find((item) => ServerConnection.key(item) === key)
+    return conn ? serverName(conn) : key
+  })
+  const closeTab = () => {
+    if (!props.sessionID) return
+    tabs.removeSessionTab({ server: props.serverKey ?? server.key, sessionId: props.sessionID })
+  }
+  if (isCurrentSessionNotFoundError(props.error, props.sessionID)) {
+    return (
+      <div class="flex-1 min-h-0 overflow-hidden">
+        <div class="h-full px-6 pb-42 -mt-4 flex flex-col items-center justify-center text-center gap-4">
+          <div class="flex flex-col items-center gap-2">
+            <div class="text-16-medium text-text max-w-md">{language.t("session.error.notFound")}</div>
+            <div class="text-13-regular text-text-weak max-w-md">
+              {language.t("session.error.notFound.description")}
+            </div>
+          </div>
+          <Show when={props.sessionID}>
+            {(sessionID) => (
+              <div class="max-w-full flex flex-col items-center gap-1">
+                <div class="max-w-full text-11-regular text-text-faint break-all">{displayServer()}</div>
+                <code class="max-w-full rounded-[4px] px-1 py-0.5 font-mono text-xs font-medium leading-4 text-text-base break-all bg-[color-mix(in_oklch,var(--v2-text-text-base)_8%,transparent)]">
+                  {sessionID()}
+                </code>
+              </div>
+            )}
+          </Show>
+          <ButtonV2 variant="neutral" size="normal" icon="xmark-small" onClick={closeTab}>
+            {language.t("session.error.notFound.closeTab")}
+          </ButtonV2>
+        </div>
+      </div>
+    )
+  }
+  return <ErrorPage error={props.error} />
+}
 
 function ResolvedTargetSessionRoute() {
   const params = useParams<{ serverKey: string; id: string }>()
@@ -392,10 +451,8 @@ export default function Page() {
   const desktopV2ReviewOpen = createMemo(() => newSessionDesign() && desktopReviewOpen() && !!params.id)
   const terminalOpen = createMemo(() => view().terminal.opened())
   const desktopTerminalOpen = createMemo(() => isDesktop() && terminalOpen())
-  const previewPanelOpen = createMemo(() => view().previewPanel.opened())
-  const desktopPreviewPanelOpen = createMemo(() => isDesktop() && previewPanelOpen())
   const desktopInlineTerminalOnlyOpen = createMemo(
-    () => newSessionDesign() && desktopTerminalOpen() && !desktopV2ReviewOpen() && !desktopPreviewPanelOpen(),
+    () => newSessionDesign() && desktopTerminalOpen() && !desktopV2ReviewOpen(),
   )
   const desktopFileTreeOpen = createMemo(
     () =>
@@ -406,7 +463,7 @@ export default function Page() {
       }),
   )
   const desktopSessionResizeOpen = createMemo(() =>
-    newSessionDesign() ? desktopV2ReviewOpen() || desktopTerminalOpen() || desktopPreviewPanelOpen() : desktopReviewOpen(),
+    newSessionDesign() ? desktopV2ReviewOpen() || desktopTerminalOpen() : desktopReviewOpen(),
   )
   const desktopSidePanelOpen = createMemo(() => desktopSessionResizeOpen() || desktopFileTreeOpen())
   let panelRow: HTMLDivElement | undefined
@@ -450,7 +507,6 @@ export default function Page() {
       review: desktopV2ReviewOpen(),
       terminal: desktopTerminalOpen(),
       files: desktopFileTreeOpen(),
-      preview: desktopPreviewPanelOpen(),
     }),
   )
 
@@ -610,7 +666,6 @@ export default function Page() {
     return list
   })
   const mobileChanges = createMemo(() => !isDesktop() && store.mobileTab === "changes")
-  const mobilePreview = createMemo(() => !isDesktop() && store.mobileTab === "preview")
   const wantsReview = createMemo(() =>
     isDesktop()
       ? desktopFileTreeOpen() ||
@@ -843,18 +898,16 @@ export default function Page() {
         return [
           sdk().directory,
           id,
-          serverSDK().protocolKind(),
           id ? (sync().data.session_status[id]?.type ?? "idle") : "idle",
           id ? composer.blocked() : false,
         ] as const
       },
-      ([dir, id, protocol, status, blocked]) => {
+      ([dir, id, status, blocked]) => {
         if (todoFrame !== undefined) cancelAnimationFrame(todoFrame)
         if (todoTimer !== undefined) window.clearTimeout(todoTimer)
         todoFrame = undefined
         todoTimer = undefined
         if (!id) return
-        if (protocol !== "v1") return
         if (status === "idle" && !blocked) return
         const cached = untrack(() => sync().data.todo[id] !== undefined)
 
@@ -1798,7 +1851,9 @@ export default function Page() {
 
       const session = sdk().api.session
       const target = sync()
-      const next = userMessages().find((item) => item.id > id)
+      const index = userMessages().findIndex((item) => item.id === id)
+      if (index < 0) return
+      const next = userMessages()[index + 1]
       const last = target.session.get(sessionID)?.revert
 
       await runPromptRollbackMutation({
@@ -1838,8 +1893,10 @@ export default function Page() {
   const rolled = createMemo(() => {
     const id = revertMessageID()
     if (!id) return []
+    const index = userMessages().findIndex((item) => item.id === id)
+    if (index < 0) return []
     return userMessages()
-      .filter((item) => item.id >= id)
+      .slice(index)
       .map((item) => ({ id: item.id, text: line(item.id) }))
   })
 
@@ -1968,7 +2025,7 @@ export default function Page() {
         <Tabs.Trigger
           value="session"
           classList={{
-            "!w-1/3 !max-w-none": true,
+            "!w-1/2 !max-w-none": true,
             "!border-b-0 !border-t !border-border-weak-base [&:has([data-selected])]:!border-t-transparent": bottom,
           }}
           classes={{ button: compact ? "w-full !py-2" : "w-full" }}
@@ -1979,7 +2036,7 @@ export default function Page() {
         <Tabs.Trigger
           value="changes"
           classList={{
-            "!w-1/3 !max-w-none !border-r-0": true,
+            "!w-1/2 !max-w-none !border-r-0": true,
             "!border-b-0 !border-t !border-border-weak-base [&:has([data-selected])]:!border-t-transparent": bottom,
           }}
           classes={{ button: compact ? "w-full !py-2" : "w-full" }}
@@ -1988,17 +2045,6 @@ export default function Page() {
           {hasReview()
             ? language.t("session.review.filesChanged", { count: reviewCount() })
             : language.t("session.review.change.other")}
-        </Tabs.Trigger>
-        <Tabs.Trigger
-          value="preview"
-          classList={{
-            "!w-1/3 !max-w-none !border-r-0": true,
-            "!border-b-0 !border-t !border-border-weak-base [&:has([data-selected])]:!border-t-transparent": bottom,
-          }}
-          classes={{ button: compact ? "w-full !py-2" : "w-full" }}
-          onClick={() => setStore("mobileTab", "preview")}
-        >
-          Preview
         </Tabs.Trigger>
       </Tabs.List>
     </Tabs>
@@ -2032,11 +2078,6 @@ export default function Page() {
                 loadingClass: "px-4 py-4 text-text-weak",
                 emptyClass: "h-full pb-64 -mt-4 flex flex-col items-center justify-center text-center gap-6",
               })}
-            </div>
-          </Match>
-          <Match when={params.id && mobilePreview()}>
-            <div class="relative h-full overflow-hidden flex flex-col">
-              <PreviewPanel />
             </div>
           </Match>
           <Match when={params.id}>
@@ -2181,6 +2222,10 @@ export default function Page() {
                         comments.clear()
                         resumeScroll()
                       },
+                      get edit() {
+                        return editingFollowup()
+                      },
+                      onEditLoaded: clearFollowupEdit,
                       shouldQueue: queueEnabled,
                       onQueue: queueFollowup,
                       onAbort: () => {
@@ -2189,14 +2234,7 @@ export default function Page() {
                         setFollowup("paused", id, true)
                       },
                     })
-                    return (
-                      <PromptInputV2Composer
-                        controller={controller}
-                        borderUnderlay
-                        edit={editingFollowup()}
-                        onEditLoaded={clearFollowupEdit}
-                      />
-                    )
+                    return <PromptInputV2Composer controller={controller} borderUnderlay />
                   }}
                 </Show>
               }
@@ -2248,7 +2286,7 @@ export default function Page() {
             <div onPointerDown={() => size.start()}>
               <ResizeHandle
                 classList={{
-                  "-right-1": settings.general.newLayoutDesigns(),
+                  "-end-1": settings.general.newLayoutDesigns(),
                 }}
                 direction="horizontal"
                 size={sessionPanelResizedWidth()}
@@ -2264,52 +2302,56 @@ export default function Page() {
         </div>
 
         <Show when={!newSessionDesign() && desktopSidePanelOpen()}>
-          <SessionSidePanel
-            canReview={canReview}
-            diffs={reviewDiffs}
-            diffsReady={reviewReady}
-            empty={reviewEmptyText}
-            hasReview={hasReview}
-            reviewHasFocusableContent={hasReview}
-            reviewCount={reviewCount}
-            reviewPanel={reviewPanel}
-            activeDiff={activeReviewFile()}
-            focusReviewDiff={focusReviewDiff}
-            reviewSnap={ui.reviewSnap}
-            size={size}
-          />
+          <Suspense>
+            <SessionSidePanel
+              canReview={canReview}
+              diffs={reviewDiffs}
+              diffsReady={reviewReady}
+              empty={reviewEmptyText}
+              hasReview={hasReview}
+              reviewHasFocusableContent={hasReview}
+              reviewCount={reviewCount}
+              reviewPanel={reviewPanel}
+              activeDiff={activeReviewFile()}
+              focusReviewDiff={focusReviewDiff}
+              reviewSnap={ui.reviewSnap}
+              size={size}
+            />
+          </Suspense>
         </Show>
         <Show when={newSessionDesign()}>
-          <Show when={isDesktop() ? desktopV2PanelLayout().visible : (terminalOpen() || previewPanelOpen())}>
+          <Show when={isDesktop() ? desktopV2PanelLayout().visible : terminalOpen()}>
             <div class="min-w-0 h-full flex flex-1 flex-col">
               <Show when={isDesktop() && (desktopV2ReviewOpen() || desktopFileTreeOpen())}>
                 <div class="min-h-0 flex-1">
-                  <SessionSidePanel
-                    canReview={canReview}
-                    diffs={reviewDiffs}
-                    diffsReady={reviewReady}
-                    empty={reviewEmptyText}
-                    hasReview={hasReview}
-                    reviewHasFocusableContent={() => hasReview() || reviewV2State.sidebarOpened()}
-                    reviewCount={reviewCount}
-                    reviewPanel={reviewPanelV2}
-                    reviewSidebarToggle={(disabled) => (
-                      <SessionReviewV2SidebarToggle
-                        opened={reviewV2State.sidebarOpened()}
-                        disabled={disabled}
-                        onToggle={reviewV2State.toggleSidebar}
-                      />
-                    )}
-                    fileBrowserState={reviewV2State}
-                    activeDiff={activeReviewFile()}
-                    focusReviewDiff={focusReviewDiff}
-                    reviewSnap={ui.reviewSnap}
-                    size={size}
-                    stacked={desktopV2PanelLayout().stacked}
-                  />
+                  <Suspense>
+                    <SessionSidePanel
+                      canReview={canReview}
+                      diffs={reviewDiffs}
+                      diffsReady={reviewReady}
+                      empty={reviewEmptyText}
+                      hasReview={hasReview}
+                      reviewHasFocusableContent={() => hasReview() || reviewV2State.sidebarOpened()}
+                      reviewCount={reviewCount}
+                      reviewPanel={reviewPanelV2}
+                      reviewSidebarToggle={(disabled) => (
+                        <SessionReviewV2SidebarToggle
+                          opened={reviewV2State.sidebarOpened()}
+                          disabled={disabled}
+                          onToggle={reviewV2State.toggleSidebar}
+                        />
+                      )}
+                      fileBrowserState={reviewV2State}
+                      activeDiff={activeReviewFile()}
+                      focusReviewDiff={focusReviewDiff}
+                      reviewSnap={ui.reviewSnap}
+                      size={size}
+                      stacked={desktopV2PanelLayout().stacked}
+                    />
+                  </Suspense>
                 </div>
               </Show>
-              <Show when={desktopV2PanelLayout().stacked && terminalOpen()}>
+              <Show when={desktopV2PanelLayout().stacked}>
                 <div class="relative h-2 shrink-0" onPointerDown={() => size.start()}>
                   <ResizeHandle
                     class="!relative !inset-auto !h-full !w-full !transform-none"
@@ -2334,33 +2376,6 @@ export default function Page() {
                   }}
                 >
                   <TerminalPanelV2 stacked={desktopV2PanelLayout().stacked} />
-                </div>
-              </Show>
-              <Show when={desktopV2PanelLayout().stacked && previewPanelOpen()}>
-                <div class="relative h-2 shrink-0" onPointerDown={() => size.start()}>
-                  <ResizeHandle
-                    class="!relative !inset-auto !h-full !w-full !transform-none"
-                    direction="vertical"
-                    size={view().previewPanel.height()}
-                    min={100}
-                    max={typeof window === "undefined" ? 600 : window.innerHeight * 0.6}
-                    collapseThreshold={50}
-                    onResize={(height) => {
-                      size.touch()
-                      view().previewPanel.setHeight(height)
-                    }}
-                    onCollapse={() => view().previewPanel.close()}
-                  />
-                </div>
-              </Show>
-              <Show when={previewPanelOpen()}>
-                <div
-                  classList={{
-                    "min-h-0 shrink-0": desktopV2PanelLayout().stacked,
-                    "min-h-0 flex-1": !desktopV2PanelLayout().stacked,
-                  }}
-                >
-                  <PreviewPanel stacked={desktopV2PanelLayout().stacked} />
                 </div>
               </Show>
             </div>

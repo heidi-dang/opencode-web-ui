@@ -1,11 +1,11 @@
 import { usePlatform } from "@/context/platform"
 import { ServerConnection } from "@/context/server"
-import { authTokenFromCredentials, createSdkForServer, getEffectiveServerUrl } from "./server"
+import { authTokenFromCredentials, createSdkForServer } from "./server"
 import { ClientError, OpenCode } from "@opencode-ai/client"
 import { Accessor, createEffect, onCleanup } from "solid-js"
 import { createStore, reconcile } from "solid-js/store"
 
-export type ServerHealth = { healthy: boolean; version?: string; provider?: string; model?: string; requiresAuth?: boolean; authFailed?: boolean }
+export type ServerHealth = { healthy: boolean; version?: string }
 
 interface CheckServerHealthOptions {
   timeoutMs?: number
@@ -48,42 +48,34 @@ function wait(ms: number, signal?: AbortSignal) {
       reject(new DOMException("Aborted", "AbortError"))
       return
     }
-    const onAbort = () => {
-      clearTimeout(timer)
-      reject(new DOMException("Aborted", "AbortError"))
-    }
     const timer = setTimeout(() => {
       signal?.removeEventListener("abort", onAbort)
       resolve()
     }, ms)
+    const onAbort = () => {
+      clearTimeout(timer)
+      reject(new DOMException("Aborted", "AbortError"))
+    }
     signal?.addEventListener("abort", onAbort, { once: true })
   })
 }
 
 function retryable(error: unknown, signal?: AbortSignal) {
   if (signal?.aborted) return false
-  if (error instanceof ClientError) {
-    const status = (error as { status?: number }).status
-    if (status === 401 || status === 403) return false
-    if (status !== undefined && status >= 400 && status < 500) return false
-  }
-  return true
+  if (error instanceof ClientError) return error.reason === "Transport"
+  if (!(error instanceof Error)) return false
+  if (error.name === "AbortError" || error.name === "TimeoutError") return false
+  if (error instanceof TypeError) return true
+  return /network|fetch|econnreset|econnrefused|enotfound|timedout/i.test(error.message)
 }
 
-export function checkServerHealth(
+export async function checkServerHealth(
   server: ServerConnection.HttpBase,
   fetch: typeof globalThis.fetch,
   opts?: CheckServerHealthOptions,
 ): Promise<ServerHealth> {
-  const key = cacheKey(server)
-  const cached = healthCache.get(key)
-  const now = Date.now()
-  if (cached && cached.fetch === fetch && (cached.done ? now - cached.at < cacheMs : now - cached.at < defaultTimeoutMs)) {
-    return cached.promise
-  }
-
-  const { signal: timeoutSig, clear } = timeoutSignal(opts?.timeoutMs ?? defaultTimeoutMs)
-  const signal = opts?.signal ? AbortSignal.any([opts.signal, timeoutSig]) : timeoutSig
+  const timeout = opts?.signal ? undefined : timeoutSignal(opts?.timeoutMs ?? defaultTimeoutMs)
+  const signal = opts?.signal ?? timeout?.signal
   const retryCount = opts?.retryCount ?? defaultRetryCount
   const retryDelayMs = opts?.retryDelayMs ?? defaultRetryDelayMs
   const next = (count: number, error: unknown) => {
@@ -93,43 +85,14 @@ export function checkServerHealth(
       .catch(() => ({ healthy: false }))
   }
   const attempt = async (count: number): Promise<ServerHealth> => {
-    const effectiveUrl = getEffectiveServerUrl(server.url)
-    const authHeaders = server.password
-      ? { Authorization: `Basic ${authTokenFromCredentials({ username: server.username, password: server.password })}` }
-      : undefined
-
-    const processRes = async (res: Response | null): Promise<ServerHealth | null> => {
-      if (!res) return null
-      if (res.ok) {
-        const json = await res.json().catch(() => ({}))
-        return { healthy: json.healthy !== false, version: json.version, provider: json.provider, model: json.model }
-      }
-      if (res.status === 401 || res.status === 403) {
-        return {
-          healthy: false,
-          requiresAuth: true,
-          authFailed: Boolean(server.username || server.password),
-        }
-      }
-      return null
-    }
-
-    // Direct / Proxy Probe for raw status check
-    try {
-      const probePaths = ["/health", "/global/health", "/api/health"]
-      for (const path of probePaths) {
-        try {
-          const res = await fetch(new URL(path.replace(/^\/+/, ""), effectiveUrl.endsWith("/") ? effectiveUrl : effectiveUrl + "/").toString(), { headers: authHeaders, signal }).catch(() => null)
-          const result = await processRes(res)
-          if (result) return result
-        } catch {}
-      }
-    } catch {}
-
     const current = await OpenCode.make({
-      baseUrl: effectiveUrl,
+      baseUrl: server.url,
       fetch,
-      headers: authHeaders,
+      headers: server.password
+        ? {
+            Authorization: `Basic ${authTokenFromCredentials({ username: server.username, password: server.password })}`,
+          }
+        : undefined,
     })
       .health.get({ signal })
       .then((x) =>
@@ -141,16 +104,12 @@ export function checkServerHealth(
     if ("data" in current && current.data) return current.data
     if (signal?.aborted) return { healthy: false }
 
-    const sdk = createSdkForServer({ server, fetch, signal })
-    return sdk
+    return createSdkForServer({ server, fetch, signal })
       .global.health()
-      .then((x) => {
-        if (x.error) return next(count, x.error)
-        return { healthy: x.data?.healthy === true, version: x.data?.version }
-      })
+      .then((x) => (x.error ? next(count, x.error) : { healthy: x.data?.healthy === true, version: x.data?.version }))
       .catch((error) => next(count, error))
   }
-  return attempt(0).finally(() => clear?.())
+  return attempt(0).finally(() => timeout?.clear?.())
 }
 
 const pollMs = 10_000
@@ -191,7 +150,6 @@ export const useServerHealth = (servers: Accessor<ServerConnection.Any[]>, enabl
       const results: Record<string, ServerHealth> = {}
       await Promise.all(
         list.map(async (conn) => {
-          if (!conn || conn.type !== "http" || !conn.http || !conn.http.url) return
           const key = ServerConnection.key(conn)
           const result = await checkServerHealth(conn.http)
           results[key] = result

@@ -1,7 +1,7 @@
 import { createRoot, createSignal, getOwner, onCleanup, runWithOwner, type Owner } from "solid-js"
 import { createStore, type SetStoreFunction, type Store } from "solid-js/store"
 import { Persist, persisted } from "@/utils/persist"
-import type { LspStatus, VcsInfo } from "@opencode-ai/sdk/v2/client"
+import type { VcsInfo } from "@opencode-ai/sdk/v2/client"
 import {
   DIR_IDLE_TTL_MS,
   MAX_DIR_STORES,
@@ -249,32 +249,13 @@ export function createChildStoreManager(input: {
             get lsp_ready() {
               return instanceQueriesEnabled() && !lspQuery.isLoading
             },
-            get lsp(): LspStatus[] {
-              if (lspQuery.isLoading || !lspQuery.data) return []
-              
-              // Helper to check LspStatus shape
-              const isRecord = (item: unknown): item is Record<string, unknown> => {
-                return item !== null && typeof item === "object"
-              }
-              const isLspStatus = (item: unknown): item is LspStatus => {
-                return isRecord(item) && typeof item.name === "string" && typeof item.state === "string"
-              }
-
-              let raw = lspQuery.data
-              let arr: unknown[] = []
-              if (Array.isArray(raw)) {
-                arr = raw
-              } else if (raw !== null && typeof raw === "object") {
-                arr = Object.values(raw)
-              }
-
-              return arr.filter(isLspStatus)
+            get lsp() {
+              return lspQuery.isLoading ? [] : (lspQuery.data ?? [])
             },
             vcs: vcsStore.value,
             limit: 5,
             message: {},
             session_message: {},
-            session_activity: {},
             part: {},
             part_text_accum_delta: {},
           })

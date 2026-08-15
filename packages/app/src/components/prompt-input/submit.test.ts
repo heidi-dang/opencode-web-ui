@@ -92,8 +92,6 @@ const clientFor = (directory: string) => {
             location: { directory: location },
           }
         },
-        rename: async () => undefined,
-        interrupt: async () => undefined,
         prompt: async (input: unknown) => {
           sentPrompts.push(directory)
           promptInputs.push(input)
@@ -141,7 +139,6 @@ beforeAll(async () => {
 
   mock.module("@opencode-ai/core/util/encode", () => ({
     base64Encode: (value: string) => value,
-    base64Decode: (value: string) => value,
   }))
 
   mock.module("@/context/local", () => ({

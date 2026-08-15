@@ -17,7 +17,6 @@ import { useGlobal } from "@/context/global"
 import { useSettings } from "@/context/settings"
 import { useMcpToggle } from "@/context/mcp"
 import { useServerProtocol } from "@/context/server-sdk"
-import { DialogSelectServer } from "./dialog-select-server"
 
 const pluginEmptyMessage = (value: string, file: string): JSXElement => {
   const parts = value.split(file)
@@ -160,8 +159,11 @@ export function StatusPopoverServerBody() {
         defaultLabel: language.t("common.default"),
         manageLabel: language.t("status.popover.action.manageServers"),
         onManage: () => {
-          if (dialogDead) return
-          dialog.show(() => <DialogSelectServer />, defaultServer.refresh)
+          const run = ++dialogRun
+          void import("./dialog-select-server").then((x) => {
+            if (dialogDead || dialogRun !== run) return
+            dialog.show(() => <x.DialogSelectServer />, defaultServer.refresh)
+          })
         },
       }}
     />
@@ -381,8 +383,11 @@ export function StatusPopoverBody(props: { shown: Accessor<boolean> }) {
                   variant="secondary"
                   class="mt-3 self-start h-8 px-3 py-1.5"
                   onClick={() => {
-                    if (dialogDead) return
-                    dialog.show(() => <DialogSelectServer />, defaultServer.refresh)
+                    const run = ++dialogRun
+                    void import("./dialog-select-server").then((x) => {
+                      if (dialogDead || dialogRun !== run) return
+                      dialog.show(() => <x.DialogSelectServer />, defaultServer.refresh)
+                    })
                   }}
                 >
                   {language.t("status.popover.action.manageServers")}

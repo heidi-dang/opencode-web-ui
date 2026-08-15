@@ -3,33 +3,14 @@
 import * as Sentry from "@sentry/solid"
 import { render } from "solid-js/web"
 import { AppBaseProviders, AppInterface } from "@/app"
+import { loadInitialLocale } from "@/context/language"
 import { type Platform, PlatformProvider } from "@/context/platform"
+import { createBrowserDraftStore } from "@/utils/draft-store"
 import { dict as en } from "@/i18n/en"
 import { dict as zh } from "@/i18n/zh"
-import { handleNotificationClick } from "@/utils/notification-click"
 import { authFromToken } from "@/utils/server"
 import pkg from "../package.json"
-import { normalizeServerUrl, ServerConnection } from "./context/server"
-
-if (typeof window !== "undefined") {
-  window.addEventListener("error", (event) => {
-    if (event.message?.includes("ResizeObserver loop")) {
-      event.stopImmediatePropagation()
-    }
-  })
-
-  // Register service worker for offline-capable PWA (production only).
-  // Skipped in dev mode to avoid Vite HMR conflicts.
-  if (!import.meta.env.DEV && "serviceWorker" in navigator) {
-    window.addEventListener("load", () => {
-      navigator.serviceWorker
-        .register("/sw.js", { updateViaCache: "none" })
-        .catch(() => {
-          // Non-critical — app still works without SW
-        })
-    })
-  }
-}
+import { ServerConnection } from "./context/server"
 
 const DEFAULT_SERVER_URL_KEY = "opencode.settings.dat:defaultServerUrl"
 
@@ -71,14 +52,10 @@ const setStorage = (key: string, value: string | null) => {
   }
 }
 
-const readDefaultServerUrl = () => {
-  const raw = getStorage(DEFAULT_SERVER_URL_KEY)
-  if (!raw) return null
-  return normalizeServerUrl(raw) ?? raw
-}
+const readDefaultServerUrl = () => getStorage(DEFAULT_SERVER_URL_KEY)
 const writeDefaultServerUrl = (url: string | null) => setStorage(DEFAULT_SERVER_URL_KEY, url)
 
-const notify: Platform["notify"] = async (title, description, href) => {
+const notify: Platform["notify"] = async (title, description, onClick) => {
   if (!("Notification" in window)) return
 
   const permission =
@@ -97,21 +74,17 @@ const notify: Platform["notify"] = async (title, description, href) => {
   })
 
   notification.onclick = () => {
-    handleNotificationClick(href)
+    window.focus()
+    onClick?.()
     notification.close()
   }
 }
 
-const openLink: Platform["openLink"] = (url) => {
-  window.open(url, "_blank")
-}
-
-const back: Platform["back"] = () => {
-  window.history.back()
-}
-
-const forward: Platform["forward"] = () => {
-  window.history.forward()
+const openExternal: Platform["openExternal"] = (value) => {
+  if (!URL.canParse(value)) return
+  const url = new URL(value)
+  if (url.protocol !== "http:" && url.protocol !== "https:" && url.protocol !== "mailto:") return
+  window.open(url.href, "_blank", "noopener,noreferrer")
 }
 
 const restart: Platform["restart"] = async () => {
@@ -124,13 +97,10 @@ if (!(root instanceof HTMLElement) && import.meta.env.DEV) {
 }
 
 const getCurrentUrl = () => {
-  if (location.hostname.includes("opencode.ai")) return normalizeServerUrl("http://localhost:4096")!
-  if (import.meta.env.DEV) {
-    const host = import.meta.env.VITE_OPENCODE_SERVER_HOST || (location.hostname !== "" ? location.hostname : "localhost")
-    const port = import.meta.env.VITE_OPENCODE_SERVER_PORT ?? "4096"
-    return normalizeServerUrl(`http://${host}:${port}`)!
-  }
-  return normalizeServerUrl(location.origin) ?? location.origin
+  if (location.hostname.includes("opencode.ai")) return "http://localhost:4096"
+  if (import.meta.env.DEV)
+    return `http://${import.meta.env.VITE_OPENCODE_SERVER_HOST ?? "localhost"}:${import.meta.env.VITE_OPENCODE_SERVER_PORT ?? "4096"}`
+  return location.origin
 }
 
 const getDefaultUrl = () => {
@@ -148,10 +118,9 @@ const clearAuthToken = () => {
 
 const platform: Platform = {
   platform: "web",
+  draftStore: createBrowserDraftStore(),
   version: pkg.version,
-  openLink,
-  back,
-  forward,
+  openExternal,
   restart,
   notify,
   getDefaultServer: async () => {
@@ -181,29 +150,31 @@ if (import.meta.env.VITE_SENTRY_DSN) {
 }
 
 if (root instanceof HTMLElement) {
-  const auth = authFromToken(new URLSearchParams(location.search).get("auth_token"))
-  clearAuthToken()
-  const server: ServerConnection.Http = {
-    type: "http",
-    authToken: !!auth,
-    http: {
-      url: getCurrentUrl(),
-      ...auth,
-    },
-  }
-  render(
-    () => (
-      <PlatformProvider value={platform}>
-        <AppBaseProviders>
-          <AppInterface
-            defaultServer={ServerConnection.Key.make(getDefaultUrl())}
-            canonicalLocalServer={ServerConnection.key(server)}
-            servers={[server]}
-            disableHealthCheck
-          />
-        </AppBaseProviders>
-      </PlatformProvider>
-    ),
-    root,
-  )
+  void loadInitialLocale().then((locale) => {
+    const auth = authFromToken(new URLSearchParams(location.search).get("auth_token"))
+    clearAuthToken()
+    const server: ServerConnection.Http = {
+      type: "http",
+      authToken: !!auth,
+      http: {
+        url: getCurrentUrl(),
+        ...auth,
+      },
+    }
+    render(
+      () => (
+        <PlatformProvider value={platform}>
+          <AppBaseProviders locale={locale}>
+            <AppInterface
+              defaultServer={ServerConnection.Key.make(getDefaultUrl())}
+              canonicalLocalServer={ServerConnection.key(server)}
+              servers={[server]}
+              disableHealthCheck
+            />
+          </AppBaseProviders>
+        </PlatformProvider>
+      ),
+      root,
+    )
+  })
 }

@@ -1,19 +1,6 @@
-import type { SessionApi, SessionInfo } from "@opencode-ai/client/promise"
+import type { SessionApi } from "@opencode-ai/client/promise"
 import { normalizeSessionInfo } from "@/utils/session"
-import type { OpencodeClient, Session } from "@opencode-ai/sdk/v2/client"
-
-function isRecord(item: unknown): item is Record<string, unknown> {
-  return item !== null && typeof item === "object"
-}
-
-function isValidSessionInput(item: unknown): item is Session | SessionInfo {
-  return isRecord(item) && typeof item.id === "string"
-}
-
-function parseSessionData(data: unknown): Session[] {
-  const arr = Array.isArray(data) ? data : (typeof data === "object" && data !== null ? Object.values(data) : [])
-  return arr.filter(isValidSessionInput).map(normalizeSessionInfo)
-}
+import type { OpencodeClient } from "@opencode-ai/sdk/v2/client"
 
 export async function loadRootSessions(input: { api: Pick<SessionApi, "list">; directory: string; limit: number }) {
   const result = await input.api.list({
@@ -23,20 +10,20 @@ export async function loadRootSessions(input: { api: Pick<SessionApi, "list">; d
     order: "desc",
   })
   return {
-    data: parseSessionData(result.data),
+    data: result.data.map(normalizeSessionInfo),
     limit: input.limit,
     limited: true,
   } as const
 }
 
 export async function loadRootSessionsV1(input: { client: OpencodeClient; directory: string; limit: number }) {
-  let result;
   try {
-    result = await input.client.session.list({ directory: input.directory, roots: true, limit: input.limit })
+    const result = await input.client.session.list({ directory: input.directory, roots: true, limit: input.limit })
+    return { data: result.data, limit: input.limit, limited: true } as const
   } catch {
-    result = await input.client.session.list({ directory: input.directory, roots: true })
+    const result = await input.client.session.list({ directory: input.directory, roots: true })
+    return { data: result.data, limit: input.limit, limited: false } as const
   }
-  return { data: parseSessionData(result.data), limit: input.limit, limited: true } as const
 }
 
 export function estimateRootSessionTotal(input: { count: number; limit: number; limited: boolean }) {

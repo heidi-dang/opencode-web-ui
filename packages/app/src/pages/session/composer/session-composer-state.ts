@@ -9,7 +9,6 @@ import { usePermission } from "@/context/permission"
 import { useSDK } from "@/context/sdk"
 import { useSync } from "@/context/sync"
 import { sessionPermissionRequest, sessionQuestionRequest } from "./session-request-tree"
-import { todoSignature } from "./todo-signature"
 
 export const todoState = (input: {
   count: number
@@ -95,9 +94,6 @@ export function createSessionComposerController(options?: { closeMs?: number | (
 
   let timer: number | undefined
   let raf: number | undefined
-  // Tracks the signature of todos that were already dismissed so that
-  // server re-sends of the same completed list don't re-open the dock.
-  let dismissed: { count: number; key: string } | undefined
 
   const closeMs = () => {
     const value = options?.closeMs
@@ -118,51 +114,21 @@ export function createSessionComposerController(options?: { closeMs?: number | (
   const clear = () => {
     const id = params.id
     if (!id) return
-    // Record what we dismissed so server re-sends don't re-open the dock.
-    const current = serverSync().session.data.todo[id]
-    if (current && current.length > 0) {
-      dismissed = { count: current.length, key: current.map((t) => t.content).join(",") }
-    }
     sync().set("todo", id, [])
-  }
-
-  // Returns true if the incoming todos match the previously dismissed set.
-  const isDismissed = (list: Todo[]) => {
-    if (!dismissed) return false
-    if (list.length !== dismissed.count) return false
-    // Only treat as dismissed if every item is terminal (completed/cancelled).
-    if (!list.every((t) => t.status === "completed" || t.status === "cancelled")) return false
-    return list.map((t) => t.content).join(",") === dismissed.key
   }
 
   createEffect(
     on(
-      () => [params.id, todoSignature(todos()), todos().length, done(), live()] as const,
-      ([id, , count, complete, active], previous) => {
+      () => [params.id, todos().length, done(), live()] as const,
+      ([id, count, complete, active], previous) => {
         if (raf) cancelAnimationFrame(raf)
         raf = undefined
-
-        // Reset dismissed tracker when session changes or genuinely new todos arrive.
-        if (!previous || previous[0] !== id) {
-          dismissed = undefined
-        } else if (count > 0 && !complete) {
-          // New in-progress/pending todos arrived — no longer dismissed.
-          dismissed = undefined
-        }
 
         const next = todoState({
           count,
           done: complete,
           live: active,
         })
-
-        // Suppress re-open for a dismissed (already-seen) completed todo list.
-        if ((next === "close" || next === "clear") && count > 0 && isDismissed(todos())) {
-          if (timer) window.clearTimeout(timer)
-          timer = undefined
-          setStore({ dock: false, closing: false, opening: false })
-          return
-        }
 
         if (!previous || previous[0] !== id) {
           if (timer) window.clearTimeout(timer)
