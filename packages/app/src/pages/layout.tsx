@@ -1235,7 +1235,6 @@ export default function LegacyLayout(props: ParentProps) {
           session: await listAllSessions(serverSDK().api.session, {
             directory: item,
             parentID: null,
-            order: "desc",
           }).catch(() => []),
         })),
       ),
@@ -1456,9 +1455,9 @@ export default function LegacyLayout(props: ParentProps) {
     })
     const dismiss = () => toaster.dismiss(progress)
 
-    let sessions: Session[]
-    try {
-      sessions = await listAllSessions(serverSDK().api.session, { directory, order: "desc" })
+  let sessions: Session[]
+  try {
+  sessions = await listAllSessions(serverSDK().api.session, { directory })
     } catch (err) {
       setBusy(directory, false)
       dismiss()
@@ -1601,10 +1600,9 @@ export default function LegacyLayout(props: ParentProps) {
     })
 
     const refresh = async () => {
-      const sessions = await listAllSessions(serverSDK().api.session, {
-        directory: props.directory,
-        order: "desc",
-      }).catch((err) => {
+  const sessions = await listAllSessions(serverSDK().api.session, {
+  directory: props.directory,
+  }).catch((err) => {
         setState({ status: "error", dirty: false })
         showToast({
           title: language.t("workspace.reset.failed.title"),

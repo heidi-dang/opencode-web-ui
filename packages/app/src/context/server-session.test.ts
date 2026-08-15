@@ -293,7 +293,7 @@ describe("server session", () => {
 
     await store.sync("root")
 
-    expect(requests).toEqual([{ sessionID: "root", limit: 20, order: "desc" }])
+    expect(requests).toEqual([{ sessionID: "root", limit: 20 }])
     expect(store.data.session_message.root.map((message) => message.id)).toEqual([user.id, assistant.id])
   })
 
@@ -329,7 +329,7 @@ describe("server session", () => {
     await store.sync("root")
 
     expect(requests).toEqual([
-      { sessionID: "root", limit: 20, order: "desc" },
+      { sessionID: "root", limit: 20 },
       { sessionID: "root", limit: 20, cursor: "older" },
     ])
     expect(store.data.message.root.map((message) => message.id)).toEqual([

@@ -27,7 +27,7 @@ type HomeSessionPage = { data?: V2SessionListResponse | SessionInfo[] }
 
 export async function loadHomeSessionIndex(
   list: (
-    input: { limit: number; order: "desc"; cursor?: string },
+    input: { limit: number; cursor?: string },
     options: { signal?: AbortSignal },
   ) => Promise<HomeSessionPage>,
   eventSequence = 0,
@@ -40,7 +40,6 @@ export async function loadHomeSessionIndex(
     const response = await list(
       {
         limit: HOME_V2_SESSION_PAGE_LIMIT,
-        order: "desc",
         ...(cursor ? { cursor } : {}),
       },
       { signal },

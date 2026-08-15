@@ -22,14 +22,13 @@ export async function loadRootSessions(input: { api: Pick<SessionApi, "list">; d
       directory: input.directory,
       parentID: null,
       limit: input.limit,
-      order: "desc",
     })
   } catch (firstError) {
     // Transitional v2 servers reject the explicit null root filter. Retry
     // once with the older equivalent query, but preserve the error if both
     // contracts fail so the UI never presents failure as an empty list.
     try {
-      result = await input.api.list({ directory: input.directory, limit: input.limit, order: "desc" })
+      result = await input.api.list({ directory: input.directory, limit: input.limit })
     } catch {
       throw firstError
     }

@@ -38,7 +38,7 @@ describe("Home V2 session index", () => {
     })
 
     expect(result.sessions).toHaveLength(1)
-    expect(calls).toEqual([{ limit: HOME_V2_SESSION_PAGE_LIMIT, order: "desc" }])
+    expect(calls).toEqual([{ limit: HOME_V2_SESSION_PAGE_LIMIT }])
   })
 
   test("loads subsequent pages until the session index is complete", async () => {
@@ -65,9 +65,9 @@ describe("Home V2 session index", () => {
 
     expect(result.sessions).toHaveLength(HOME_V2_SESSION_PAGE_LIMIT + 1)
     expect(calls).toEqual([
-      { input: { limit: HOME_V2_SESSION_PAGE_LIMIT, order: "desc" }, signal: controller.signal },
+      { input: { limit: HOME_V2_SESSION_PAGE_LIMIT }, signal: controller.signal },
       {
-        input: { limit: HOME_V2_SESSION_PAGE_LIMIT, order: "desc", cursor: "next-page" },
+        input: { limit: HOME_V2_SESSION_PAGE_LIMIT, cursor: "next-page" },
         signal: controller.signal,
       },
     ])
