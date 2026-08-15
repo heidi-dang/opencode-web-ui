@@ -210,7 +210,7 @@ function DraftRoute() {
         {(draft) => (
           <Show
             when={settings.general.newLayoutDesigns()}
-            fallback={<Navigate href={`/${base64Encode(draft.directory)}/session`} />}
+            fallback={<LegacyDraftRoute draft={draft} />}
           >
             <ResolvedDraftRoute draft={draft} />
           </Show>
@@ -218,6 +218,18 @@ function DraftRoute() {
       </Show>
     </Show>
   )
+}
+
+function LegacyDraftRoute(props: { draft: DraftTab }) {
+  const server = useServer()
+  const navigate = useNavigate()
+
+  createEffect(() => {
+    if (server.key !== props.draft.server) server.setActive(props.draft.server)
+    navigate(`/${base64Encode(props.draft.directory)}/session`, { replace: true })
+  })
+
+  return null
 }
 
 function ResolvedDraftRoute(props: { draft: DraftTab }) {

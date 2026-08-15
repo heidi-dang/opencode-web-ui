@@ -189,10 +189,11 @@ export function createHomeSessionsController(home: HomeController) {
                 pathKey(item.worktree) === directoryKey ||
                 item.sandboxes?.some((sandbox) => pathKey(sandbox) === directoryKey),
             ) ?? projectForSession(session, home.project.list(), projectByID())
-        const conn = home.server.focused()
+        const selectedServer = home.selection.value().server
+        const conn = home.server.list().find((item) => ServerConnection.key(item) === selectedServer)
         if (!conn) return
         const directory = project?.worktree ?? session.directory
-        const ctx = home.server.focusedContext()
+        const ctx = home.server.context(conn)
         if (!ctx) return
         ctx.projects.open(directory)
         if (options?.background) {
