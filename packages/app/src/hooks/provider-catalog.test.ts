@@ -20,15 +20,18 @@ test("selects the ready catalog for an explicit directory", () => {
   ).toBe(directory)
 })
 
-test("returns an empty catalog while an explicit directory is unresolved", () => {
+test("falls back to the global catalog while an explicit directory is unresolved", () => {
+  const global = catalog("global")
+
   expect(selectProviderCatalog({ explicit: true })).toEqual({ all: new Map(), connected: [], default: {} })
   expect(
     selectProviderCatalog({
       explicit: true,
       directory: "/repo",
       catalog: { ready: false, providers: catalog("directory") },
+      global,
     }),
-  ).toEqual({ all: new Map(), connected: [], default: {} })
+  ).toBe(global)
 })
 
 test("uses the route catalog when it is ready", () => {
