@@ -63,6 +63,35 @@ export default defineConfig({
     allowedHosts: [],
     port: 3000,
     proxy: {
+      "/direct": {
+        target: "http://127.0.0.1:4096",
+        changeOrigin: true,
+        router: (req) => {
+          console.log("[v0] direct proxy route", req.url)
+          const parts = (req.url ?? "").split("/")
+          const host = parts[2]
+          const port = Number(parts[3])
+          if (!host || !parts[3]) return "http://127.0.0.1:4096"
+          if (!host || !Number.isInteger(port) || port < 1 || port > 65535) return "http://127.0.0.1:4096"
+          return `http://${host}:${port}`
+        },
+        configure: (proxy) => {
+          proxy.on("proxyReq", (proxyReq, req) => {
+            const path = req.url?.replace(/^\/direct\/[^/]+\/\d+/, "") || "/"
+            proxyReq.path = path
+            for (const header of hopByHopHeaders) proxyReq.removeHeader(header)
+          })
+          proxy.on("proxyReqWs", (proxyReq) => {
+            for (const header of hopByHopHeaders) proxyReq.removeHeader(header)
+          })
+          proxy.on("error", (_err, _req, res) => {
+            if (res && !res.headersSent) {
+              res.statusCode = 502
+              res.end()
+            }
+          })
+        },
+      },
       ...(hasRemoteServer
         ? {
             "/opencode-server": {
@@ -92,6 +121,7 @@ export default defineConfig({
             },
           }
         : {}),
+    },
   },
   build: {
     target: "esnext",

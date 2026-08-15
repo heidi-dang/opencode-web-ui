@@ -29,6 +29,17 @@ describe("detectServerProtocol", () => {
     expect(await detectServerProtocol(server, fetcher)).toBe("v2")
   })
 
+  test("recognizes legacy V1 servers through global health", async () => {
+    const fetcher = mockFetch((input) => {
+      const path = new URL(input instanceof Request ? input.url : input).pathname
+      if (path === "/health") return Promise.resolve(new Response("<html>", { status: 200, headers: { "content-type": "text/html" } }))
+      if (path === "/global/health") return Promise.resolve(json({ healthy: true, version: "1.18.4" }))
+      return Promise.resolve(json({}, 404))
+    })
+
+    expect(await detectServerProtocol(server, fetcher)).toBe("v1")
+  })
+
   test("recognizes the transitional V1 API health response", async () => {
     const fetcher = mockFetch((input) => {
       const path = new URL(input instanceof Request ? input.url : input).pathname

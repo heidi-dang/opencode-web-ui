@@ -34,8 +34,10 @@ export async function detectServerProtocol(
   const projects = await probe(server, fetch, "/project").catch(() => undefined)
   if (Array.isArray(projects)) return "v2"
 
-  const health = await probe(server, fetch, "/health").catch(() => undefined)
-  if (health && "pid" in health && typeof health.pid === "number") return "v2"
-  if (health && "healthy" in health && health.healthy === true) return "v1"
+  for (const path of ["/health", "/global/health"]) {
+    const health = await probe(server, fetch, path).catch(() => undefined)
+    if (health && "pid" in health && typeof health.pid === "number") return "v2"
+    if (health && "healthy" in health && health.healthy === true) return "v1"
+  }
   return "unknown"
 }

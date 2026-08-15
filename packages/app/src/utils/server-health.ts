@@ -147,13 +147,15 @@ export function checkServerHealth(
 
     // Use one canonical probe. The SDK call below is the compatibility
     // fallback, so do not fan out to several expected-404 endpoints.
-    try {
-      const healthUrl = new URL("health", effectiveUrl.endsWith("/") ? effectiveUrl : `${effectiveUrl}/`)
-      const res = await fetch(healthUrl.toString(), { headers: authHeaders, signal }).catch(() => null)
-      const result = await processRes(res)
-      if (result) return result
-    } catch {}
-    if (signal.aborted) return { healthy: false, unreachable: true }
+    for (const path of ["health", "global/health"]) {
+      try {
+        const healthUrl = new URL(path, effectiveUrl.endsWith("/") ? effectiveUrl : `${effectiveUrl}/`)
+        const res = await fetch(healthUrl.toString(), { headers: authHeaders, signal }).catch(() => null)
+        const result = await processRes(res)
+        if (result) return result
+      } catch {}
+      if (signal.aborted) return { healthy: false, unreachable: true }
+    }
 
     if (signal?.aborted) return { healthy: false, unreachable: true }
     const result = { healthy: false as const }

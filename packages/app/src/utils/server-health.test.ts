@@ -78,7 +78,26 @@ describe("checkServerHealth", () => {
     }) as unknown as typeof globalThis.fetch
 
     expect(await checkServerHealth(server, fetch, { retryCount: 0 })).toEqual({ healthy: false, invalidEndpoint: true })
-    expect(paths).toEqual(["/health"])
+    expect(paths).toEqual(["/health", "/global/health"])
+  })
+
+  test("falls back to the legacy global health endpoint", async () => {
+    const paths: string[] = []
+    const fetch = (async (input: URL | RequestInfo, _init?: any) => {
+      const url = input instanceof URL ? input : new URL(input instanceof Request ? input.url : input)
+      paths.push(url.pathname)
+      if (url.pathname === "/health") return new Response("<html>", { status: 200, headers: { "content-type": "text/html" } })
+      return new Response(JSON.stringify({ healthy: true, version: "1.18.4" }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      })
+    }) as unknown as typeof globalThis.fetch
+
+    expect(await checkServerHealth({ ...server, username: "heidiluong", password: "secret" }, fetch)).toEqual({
+      healthy: true,
+      version: "1.18.4",
+    })
+    expect(paths).toEqual(["/health", "/global/health"])
   })
 
   test("allows slow servers thirty seconds by default", async () => {
@@ -206,7 +225,7 @@ describe("checkServerHealth", () => {
       retryDelayMs: 1,
     })
 
-    expect(count).toBe(3)
+    expect(count).toBe(6)
     expect(result).toEqual({ healthy: false, unreachable: true })
   })
 })
