@@ -4,7 +4,7 @@ import { createSimpleContext } from "@opencode-ai/ui/context"
 import { createGlobalEmitter } from "@solid-primitives/event-bus"
 import { makeEventListener } from "@solid-primitives/event-listener"
 import { type Accessor, batch, createMemo, createResource, onCleanup, onMount } from "solid-js"
-import { createApiForServer, createSdkForServer, type ServerApi } from "@/utils/server"
+import { createApiForServer, createSdkForServer, serverTransportUrl, type ServerApi } from "@/utils/server"
 import { useLanguage } from "./language"
 import { usePlatform } from "./platform"
 import { ServerConnection, useServer } from "./server"
@@ -187,11 +187,15 @@ type ServerSDKBase = {
 function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerScope): ServerSDKBase {
   const platform = usePlatform()
   const abort = new AbortController()
+  const transportServer = {
+    ...server,
+    http: { ...server.http, url: serverTransportUrl(server.http.url) },
+  }
 
   const eventFetch = (() => {
     if (!platform.fetch || !server) return
     try {
-      const url = new URL(server.http.url)
+      const url = new URL(transportServer.http.url)
       const loopback = url.hostname === "localhost" || url.hostname === "127.0.0.1" || url.hostname === "::1"
       if (url.protocol === "http:" && !loopback) return platform.fetch
     } catch {
@@ -199,13 +203,13 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
     }
   })()
 
-  const eventApi = createApiForServer({ server: server.http, fetch: eventFetch })
+  const eventApi = createApiForServer({ server: transportServer.http, fetch: eventFetch })
   const eventSdk = createSdkForServer({
     signal: abort.signal,
     fetch: eventFetch,
-    server: server.http,
+    server: transportServer.http,
   })
-  const protocol = detectServerProtocol(server.http, platform.fetch ?? globalThis.fetch)
+  const protocol = detectServerProtocol(transportServer.http, platform.fetch ?? globalThis.fetch)
   const [protocolKind] = createResource(
     () => protocol,
     (value) => value,
@@ -294,7 +298,7 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
           if (!isStreamClosed(error, attempt?.signal) && !streamErrorLogged) {
             streamErrorLogged = true
             console.error("[global-sdk] event stream failed", {
-              url: server.http.url,
+              url: transportServer.http.url,
               fetch: eventFetch ? "platform" : "webview",
               error,
             })
@@ -334,14 +338,14 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
   })
 
   const sdk = createSdkForServer({
-    server: server.http,
+    server: transportServer.http,
     fetch: platform.fetch,
     throwOnError: true,
   })
-  const currentApi: ServerApi = createApiForServer({ server: server.http, fetch: platform.fetch })
+  const currentApi: ServerApi = createApiForServer({ server: transportServer.http, fetch: platform.fetch })
   const legacy = (directory?: string) =>
     createSdkForServer({
-      server: server.http,
+      server: transportServer.http,
       fetch: platform.fetch,
       throwOnError: true,
       directory,
@@ -353,7 +357,7 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
     scope,
     protocol,
     protocolKind,
-    url: server.http.url,
+    url: transportServer.http.url,
     client: sdk,
     api,
     currentApi,
@@ -364,7 +368,7 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
     },
     createClient(opts: Omit<Parameters<typeof createSdkForServer>[0], "server" | "fetch">) {
       return createSdkForServer({
-        server: server.http,
+        server: transportServer.http,
         fetch: platform.fetch,
         ...opts,
       })
