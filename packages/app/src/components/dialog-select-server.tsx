@@ -404,7 +404,9 @@ export function useServerManagementController(options: { onSelect?: () => void; 
       let connection = conn
       let result = await checkServerHealth(conn.http)
       if (!result.healthy && typeof location === "object" && location.origin) {
-        const proxyHttp = { ...conn.http, url: `${location.origin}/opencode-server` }
+        const remote = new URL(conn.http.url)
+        const proxyPath = `/direct/${encodeURIComponent(remote.hostname)}/${remote.port || (remote.protocol === "https:" ? 443 : 80)}`
+        const proxyHttp = { ...conn.http, url: `${location.origin}${proxyPath}` }
         const proxyResult = await checkServerHealth(proxyHttp)
         if (proxyResult.healthy) {
           result = proxyResult
