@@ -47,6 +47,8 @@ export function createHomeController() {
   }
 
   function openProjectNewSession(conn: ServerConnection.Any, directory: string) {
+    const key = ServerConnection.key(conn)
+    server.setActive(key)
     const ctx = global.ensureServerCtx(conn)
     ctx.projects.open(directory)
     ctx.projects.touch(directory)
@@ -84,6 +86,7 @@ export function createHomeController() {
             .some((project) => project.worktree === directory)
         )
           return
+        server.setActive(key)
         setSelection(toggleHomeProjectSelection(selection(), key, directory))
       },
       add: (conn: ServerConnection.Any, directories: string[]) => {
@@ -92,6 +95,7 @@ export function createHomeController() {
         const ctx = global.ensureServerCtx(conn)
         directories.forEach((item) => ctx.projects.open(item))
         ctx.projects.touch(directory)
+        server.setActive(ServerConnection.key(conn))
         setSelection({ server: ServerConnection.key(conn), directory })
       },
       openNewSession: () => {

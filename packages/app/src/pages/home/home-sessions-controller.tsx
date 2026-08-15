@@ -195,6 +195,7 @@ export function createHomeSessionsController(home: HomeController) {
         const directory = project?.worktree ?? session.directory
         const ctx = home.server.context(conn)
         if (!ctx) return
+        home.selection.set({ server: ServerConnection.key(conn), directory })
         ctx.projects.open(directory)
         if (options?.background) {
           tabs.addSessionTab({ server: ServerConnection.key(conn), sessionId: session.id })
