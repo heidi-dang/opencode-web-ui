@@ -47,11 +47,11 @@ const directProxy = {
   target: "http://127.0.0.1",
   changeOrigin: true,
   router: (req) => {
-    const match = req.url?.match(/^\/direct\/([^/]+)\/(\\d+)(\/.*)?$/)
+    const match = req.url?.match(/^\/direct\/([^/]+)\/(\d+)(\/.*)?$/)
     if (!match) return "http://127.0.0.1"
     return `http://${match[1]}:${match[2]}`
   },
-  rewrite: (path) => path.replace(/^\/direct\/[^/]+\/\\d+/, "") || "/",
+  rewrite: (path) => path.replace(/^\/direct\/[^/]+\/\d+/, "") || "/",
 }
 
 const hopByHopHeaders = [

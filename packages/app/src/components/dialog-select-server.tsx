@@ -20,6 +20,7 @@ import { detectServerProtocol } from "@/utils/server-protocol"
 import { checkServerHealth, type ServerHealth, useCheckServerHealth } from "@/utils/server-health"
 import { useSettings } from "@/context/settings"
 import { useTabs } from "@/context/tabs"
+import { getEffectiveServerUrl } from "@/utils/server"
 
 const DEFAULT_USERNAME = "opencode"
 
@@ -404,7 +405,7 @@ export function useServerManagementController(options: { onSelect?: () => void; 
       let connection = conn
       let result = await checkServerHealth(conn.http)
       if (!result.healthy && typeof location === "object" && location.origin) {
-        const proxyHttp = { ...conn.http, url: `${location.origin}/opencode-server` }
+        const proxyHttp = { ...conn.http, url: getEffectiveServerUrl(conn.http.url) }
         const proxyResult = await checkServerHealth(proxyHttp)
         if (proxyResult.healthy) {
           result = proxyResult
