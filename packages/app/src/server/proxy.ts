@@ -11,6 +11,8 @@ const HOP_BY_HOP_HEADERS = new Set([
   "trailer",
   "transfer-encoding",
   "upgrade",
+  "content-encoding",
+  "etag",
 ])
 
 function writeJson(res: ServerResponse, status: number, body: { error: string }) {
@@ -23,7 +25,7 @@ function writeJson(res: ServerResponse, status: number, body: { error: string })
 function forwardedHeaders(req: IncomingMessage) {
   const headers = new Headers()
   for (const [key, value] of Object.entries(req.headers)) {
-    if (HOP_BY_HOP_HEADERS.has(key.toLowerCase()) || value === undefined) continue
+    if (HOP_BY_HOP_HEADERS.has(key.toLowerCase()) || key.toLowerCase() === "accept-encoding" || value === undefined) continue
     if (Array.isArray(value)) value.forEach((item) => headers.append(key, item))
     else headers.set(key, value)
   }

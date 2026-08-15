@@ -12,6 +12,8 @@ const HOP_BY_HOP = new Set([
   "trailer",
   "transfer-encoding",
   "upgrade",
+  "content-encoding",
+  "etag",
 ])
 
 type RequestWithUrl = IncomingMessage & { method?: string; url?: string }
@@ -45,8 +47,8 @@ export default async function handler(req: RequestWithUrl, res: ServerResponse) 
 
     const headers = new Headers()
     for (const [key, value] of Object.entries(req.headers)) {
-      if (HOP_BY_HOP.has(key) || value === undefined) continue
-      headers.set(key, Array.isArray(value) ? value.join(", ") : value)
+    if (HOP_BY_HOP.has(key) || key.toLowerCase() === "accept-encoding" || value === undefined) continue
+    headers.set(key, Array.isArray(value) ? value.join(", ") : value)
     }
 
     const method = req.method || "GET"
