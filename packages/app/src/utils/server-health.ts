@@ -1,7 +1,6 @@
 import { usePlatform } from "@/context/platform"
 import { ServerConnection } from "@/context/server"
-import { authTokenFromCredentials, createSdkForServer, getEffectiveServerUrl } from "./server"
-import { ClientError, OpenCode } from "@opencode-ai/client"
+import { authTokenFromCredentials, getEffectiveServerUrl } from "./server"
 import { Accessor, createEffect, onCleanup } from "solid-js"
 import { createStore, reconcile } from "solid-js/store"
 
@@ -71,11 +70,8 @@ function wait(ms: number, signal?: AbortSignal) {
 
 function retryable(error: unknown, signal?: AbortSignal) {
   if (signal?.aborted) return false
-  if (error instanceof ClientError) {
-    const status = (error as { status?: number }).status
-    if (status === 401 || status === 403) return false
-    if (status !== undefined && status >= 400 && status < 500) return false
-  }
+  const status = error && typeof error === "object" && "status" in error ? (error as { status?: number }).status : undefined
+  if (typeof status === "number" && status >= 400 && status < 500) return false
   return true
 }
 
@@ -96,7 +92,7 @@ export function checkServerHealth(
   const retryCount = opts?.retryCount ?? defaultRetryCount
   const retryDelayMs = opts?.retryDelayMs ?? defaultRetryDelayMs
   const next = (count: number, error: unknown): Promise<ServerHealth> => {
-    if (count >= retryCount || !retryable(error, signal)) return Promise.resolve({ healthy: false })
+    if (count >= retryCount || !retryable(error, signal)) return Promise.resolve({ healthy: false, unreachable: true })
     return wait(retryDelayMs * (count + 1), signal)
       .then(() => attempt(count + 1))
       .catch(() => ({ healthy: false }))
@@ -149,51 +145,20 @@ export function checkServerHealth(
       return null
     }
 
-    // OpenCode versions expose health through different compatible routes.
-    // Probe each route with the same credentials before falling back to SDK calls.
-    for (const path of ["health", "global/health", "api/health"]) {
-      try {
-        const healthUrl = new URL(path, effectiveUrl.endsWith("/") ? effectiveUrl : `${effectiveUrl}/`)
-        const res = await fetch(healthUrl.toString(), { headers: authHeaders, signal }).catch(() => null)
-        const result = await processRes(res)
-        if (result) return result
-      } catch {}
-      if (signal.aborted) return { healthy: false, unreachable: true }
-    }
+    // Use one canonical probe. The SDK call below is the compatibility
+    // fallback, so do not fan out to several expected-404 endpoints.
+    try {
+      const healthUrl = new URL("health", effectiveUrl.endsWith("/") ? effectiveUrl : `${effectiveUrl}/`)
+      const res = await fetch(healthUrl.toString(), { headers: authHeaders, signal }).catch(() => null)
+      const result = await processRes(res)
+      if (result) return result
+    } catch {}
+    if (signal.aborted) return { healthy: false, unreachable: true }
 
-    const current = await OpenCode.make({
-      baseUrl: effectiveUrl,
-      fetch,
-      headers: authHeaders,
-    })
-      .health.get({ signal })
-      .then((x) =>
-        typeof x.healthy === "boolean"
-          ? { data: { healthy: x.healthy, version: x.version } }
-          : { error: new Error("Invalid health response") },
-      )
-      .catch((error) => ({ error }))
-    if ("data" in current && current.data) {
-      if (current.data.healthy === true) return current.data
-      sawInvalidOpenCodeResponse = true
-    }
     if (signal?.aborted) return { healthy: false, unreachable: true }
-
-    const sdk = createSdkForServer({ server, fetch, signal })
-    return sdk
-      .global.health()
-      .then((x) => {
-        if (x.error) return next(count, x.error)
-        if (x.data?.healthy !== true) return { healthy: false, invalidEndpoint: true }
-        return { healthy: true, version: x.data.version }
-      })
-      .catch((error) => next(count, error))
-      .then((result) => {
-        if (result.healthy) return result
-        if (result.requiresAuth || result.authFailed) return result
-        if (sawInvalidOpenCodeResponse || sawHttpResponse) return { ...result, invalidEndpoint: true }
-        return { ...result, unreachable: true }
-      })
+    const result = { healthy: false as const }
+    if (sawInvalidOpenCodeResponse || sawHttpResponse) return { ...result, invalidEndpoint: true }
+    return next(count, new Error("Health endpoint unreachable"))
   }
   return attempt(0).finally(() => clear?.())
 }

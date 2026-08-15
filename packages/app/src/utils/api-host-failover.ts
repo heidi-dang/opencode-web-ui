@@ -62,7 +62,7 @@ export class ApiHostFailoverManager {
 
   public async checkHealth(): Promise<boolean> {
     try {
-      const healthUrl = new URL("/api/health", this.currentHost).toString();
+      const healthUrl = new URL("/health", this.currentHost).toString();
       const res = await this.customFetch(healthUrl, { method: "GET" });
       if (res.ok) {
         this.recordSuccess();

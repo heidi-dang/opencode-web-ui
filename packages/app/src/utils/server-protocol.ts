@@ -34,14 +34,8 @@ export async function detectServerProtocol(
   const projects = await probe(server, fetch, "/project").catch(() => undefined)
   if (Array.isArray(projects)) return "v2"
 
-  const legacy = await probe(server, fetch, "/global/health").catch(() => undefined)
-  if (legacy && "healthy" in legacy && legacy.healthy === true) return "v1"
-
   const health = await probe(server, fetch, "/health").catch(() => undefined)
+  if (health && "pid" in health && typeof health.pid === "number") return "v2"
   if (health && "healthy" in health && health.healthy === true) return "v1"
-
-  const current = await probe(server, fetch, "/api/health").catch(() => undefined)
-  if (current && "pid" in current && typeof current.pid === "number") return "v2"
-  if (current && "healthy" in current && current.healthy === true) return "v1"
   return "unknown"
 }

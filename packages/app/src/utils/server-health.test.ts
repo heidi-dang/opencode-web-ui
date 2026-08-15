@@ -69,31 +69,16 @@ describe("checkServerHealth", () => {
     expect(request?.pathname).toBe("/health")
   })
 
-  test("falls back to the compatible global health endpoint", async () => {
+  test("rejects an unavailable canonical health endpoint", async () => {
     const paths: string[] = []
     const fetch = (async (input: URL | RequestInfo, _init?: any) => {
       const url = input instanceof URL ? input : new URL(input instanceof Request ? input.url : input)
       paths.push(url.pathname)
-      if (url.pathname === "/health") return new Response(undefined, { status: 404 })
-      return Response.json({ healthy: true, version: "1.18.4" })
+      return new Response(undefined, { status: 404 })
     }) as unknown as typeof globalThis.fetch
 
-    expect(await checkServerHealth(server, fetch)).toEqual({ healthy: true, version: "1.18.4" })
-    expect(paths).toEqual(["/health", "/global/health"])
-  })
-
-  test("falls back when the current health response is malformed", async () => {
-    const paths: string[] = []
-    const fetch = (async (input: URL | RequestInfo, _init?: any) => {
-      const url = input instanceof URL ? input : new URL(input instanceof Request ? input.url : input)
-      paths.push(url.pathname)
-      if (url.pathname === "/health") return new Response("null", { status: 500 })
-      if (url.pathname === "/global/health") return new Response("null", { status: 500 })
-      return Response.json({ healthy: true, version: "1.18.4" })
-    }) as unknown as typeof globalThis.fetch
-
-    expect(await checkServerHealth(server, fetch)).toEqual({ healthy: true, version: "1.18.4" })
-    expect(paths).toEqual(["/health", "/global/health", "/api/health"])
+    expect(await checkServerHealth(server, fetch, { retryCount: 0 })).toEqual({ healthy: false, invalidEndpoint: true })
+    expect(paths).toEqual(["/health"])
   })
 
   test("allows slow servers thirty seconds by default", async () => {
@@ -221,7 +206,7 @@ describe("checkServerHealth", () => {
       retryDelayMs: 1,
     })
 
-    expect(count).toBe(15)
+    expect(count).toBe(3)
     expect(result).toEqual({ healthy: false, unreachable: true })
   })
 })
