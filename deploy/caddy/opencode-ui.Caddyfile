@@ -1,6 +1,5 @@
-# Copy to /etc/caddy/opencode-ui.Caddyfile and replace <frontend-domain>
-# and <web-root> before deploying.
-<frontend-domain> {
+# Copy to /etc/caddy/opencode-ui.Caddyfile
+ai.tnaprovider.com.au {
 	encode zstd gzip
 
 	header {
@@ -12,13 +11,13 @@
 
 	# Primary OpenCode backend.
 	handle_path /opencode-server/* {
-		reverse_proxy 127.0.0.1:4096 {
+		reverse_proxy 100.103.50.19:4096 {
 			flush_interval -1
 		}
 	}
 
 	handle_path /api/* {
-		reverse_proxy 127.0.0.1:4096 {
+		reverse_proxy 100.103.50.19:4096 {
 			flush_interval -1
 		}
 	}
@@ -26,7 +25,7 @@
 	# Same-origin proxy for configured HTTP servers. Keep this allowlist explicit.
 	# Includes the requested remote server 139.180.175.60:4096.
 	handle /direct/* {
-		@allowed path_regexp allowed ^/direct/(139\.180\.175\.60|127\.0\.0\.1|localhost)/([0-9]+)(/.*)?$
+		@allowed path_regexp allowed ^/direct/(139\.180\.175\.60|100\.103\.50\.19|100\.111\.125\.40|100\.124\.192\.60|127\.0\.0\.1|localhost)/([0-9]+)(/.*)?$
 		handle @allowed {
 			uri strip_prefix /direct/{re.allowed.1}/{re.allowed.2}
 			reverse_proxy {re.allowed.1}:{re.allowed.2} {
@@ -49,14 +48,14 @@
 
 	@immutable path /assets/*
 	handle @immutable {
-		root * <web-root>
+		root * /var/www/opencode-web-ui/current
 		header Cache-Control "public, max-age=31536000, immutable"
 		try_files {path} =404
 		file_server
 	}
 
 	handle {
-		root * <web-root>
+		root * /var/www/opencode-web-ui/current
 		header Cache-Control "no-cache"
 		try_files {path} /index.html
 		file_server
