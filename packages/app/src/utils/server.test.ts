@@ -83,6 +83,30 @@ describe("getEffectiveServerUrl", () => {
   })
 })
 
+test("normalizes duplicate directory query values before requests", async () => {
+  let captured = ""
+  const fetcher = Object.assign(
+    async (input: RequestInfo | URL) => {
+      captured = input instanceof Request ? input.url : String(input)
+      return new Response(undefined, { status: 204 })
+    },
+    { preconnect: globalThis.fetch.preconnect },
+  )
+  const client = createSdkForServer({
+    server: { url: "http://localhost:4096" },
+    fetch: fetcher,
+    directory: ["/home/heidi/flowdeck?limit=55", "/home/heidi/flowdeck"] as unknown as string,
+    throwOnError: true,
+  })
+
+  await client.session.list({ directory: ["/home/heidi/flowdeck?limit=55", "/home/heidi/flowdeck"] as unknown as string })
+
+  expect(new URL(captured, "http://localhost").searchParams.getAll("directory")).toEqual([
+    "/home/heidi/flowdeck?limit=55",
+    "/home/heidi/flowdeck",
+  ])
+})
+
 test("proxy path rewrites materialize Request bodies for WebKit uploads", async () => {
   let capturedInput: RequestInfo | URL | undefined
   let capturedInit: RequestInit | undefined

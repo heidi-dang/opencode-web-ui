@@ -63,10 +63,31 @@ export function getEffectiveServerUrl(url: string): string {
 
 function createBasePathFetch(fetcher: typeof globalThis.fetch, base: URL): typeof globalThis.fetch {
   const basePath = base.pathname.replace(/\/+$/, "")
+  const normalizeQuery = (url: URL) => {
+    for (const key of ["directory", "order"]) {
+      const values = url.searchParams.getAll(key)
+      if (values.length === 0) continue
+      const clean = values.find((value) => !value.includes("?")) ?? values[values.length - 1]
+      url.searchParams.delete(key)
+      url.searchParams.set(key, clean)
+    }
+  }
   const rewrite = (input: RequestInfo | URL) => {
     if (!basePath) return
     const raw = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url
     const url = new URL(raw, base)
+    if (url.searchParams.has("directory")) {
+      const directory = url.searchParams.get("directory")
+      if (directory?.includes("[")) {
+        const matches = [...directory.matchAll(/\"([^\"]+)\"/g)].map((match) => match[1])
+        const clean = matches.find((value) => !value.includes("?")) ?? matches[0]
+        if (clean) {
+          url.searchParams.delete("directory")
+          url.searchParams.set("directory", clean)
+        }
+      }
+    }
+    normalizeQuery(url)
     if (url.origin !== base.origin) return
     if (url.pathname === basePath || url.pathname.startsWith(`${basePath}/`)) return
     url.pathname = `${basePath}${url.pathname === "/" ? "" : url.pathname}`
