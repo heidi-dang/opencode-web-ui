@@ -339,21 +339,22 @@ export function createDirectorySearch(args: { sdk: ServerSDK; base: () => string
   }
 
   const listFiles = async (directory: string) => {
+    const protocol = await args.sdk.protocol
+    if (protocol === "unknown") throw new Error("Unable to determine the OpenCode API protocol")
     const result =
-      (await args.sdk.protocol) === "v1"
+      protocol === "v1"
         ? await args.sdk.client.file.list({ path: directory })
         : await args.sdk.api.file.list({ location: { directory } })
     const data = result?.data
-    return Array.isArray(data) ? data : []
+    if (!Array.isArray(data)) throw new Error("OpenCode returned an invalid directory response")
+    return data
   }
 
   const directories = async (directory: string) => {
     const key = trimPickerPath(directory)
     const existing = cache.get(key)
     if (existing) return existing
-    const request = listFiles(key)
-      .catch(() => [])
-      .then((nodes) =>
+    const request = listFiles(key).then((nodes) =>
         nodes
           .filter((node) => node.type === "directory")
           .map((node) => {
@@ -381,10 +382,14 @@ export function createDirectorySearch(args: { sdk: ServerSDK; base: () => string
     const pathInput = raw.startsWith("~") || !!pickerRoot(raw) || raw.includes("/")
     const query = normalizePickerDrive(input.path)
     if (!pathInput) {
-      const results = await args.sdk.api.file
-        .find({ location: { directory: input.directory }, query, type: "directory", limit: 50 })
-        .then((result) => (Array.isArray(result?.data) ? result.data : []).map((entry) => entry.path))
-        .catch(() => [])
+      const result = await args.sdk.api.file.find({
+        location: { directory: input.directory },
+        query,
+        type: "directory",
+        limit: 50,
+      })
+      if (!Array.isArray(result?.data)) throw new Error("OpenCode returned an invalid directory search response")
+      const results = result.data.map((entry) => entry.path)
       if (!active()) return []
       if (results.length) {
         return results.map((path) => joinPickerPath(input.directory, path)).slice(0, 50)

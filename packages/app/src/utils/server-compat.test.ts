@@ -66,6 +66,11 @@ describe("createCompatibleApi", () => {
   })
   */
 
+  test("rejects unknown protocol instead of entering the V1 compatibility layer", async () => {
+    const { api } = setup(Promise.resolve("unknown" as never))
+    await expect(api.session.list()).rejects.toThrow("Unable to determine the OpenCode API protocol")
+  })
+
   test("converts current prompts to the V1 prompt contract", async () => {
     const { api, requests } = setup("v1")
     await api.session.prompt({

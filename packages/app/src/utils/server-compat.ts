@@ -86,7 +86,11 @@ function sessionInfo(session: Session): SessionInfo {
 export function createCompatibleApi(input: CompatibleInput): CompatibleApi {
   const v1 = createV1Api(input)
   return lazyApi(
-    input.protocol.then((protocol) => (protocol === "v1" ? v1 : input.current)),
+    input.protocol.then((protocol) => {
+      if (protocol === "v1") return v1
+      if (protocol === "v2") return input.current
+      throw new Error("Unable to determine the OpenCode API protocol")
+    }),
     input.current,
   )
 }
