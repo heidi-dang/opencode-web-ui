@@ -454,7 +454,7 @@ function ConnectionGate(props: ParentProps<{ disableHealthCheck?: boolean; start
         ),
   )
   const checking = createMemo(
-    () => checkMode() === "blocking" && ["unresolved", "pending"].includes(startupHealthCheck.state),
+    () => !props.disableHealthCheck && checkMode() === "blocking" && ["unresolved", "pending"].includes(startupHealthCheck.state),
   )
   const [startup] = createResource(async () => {
     if (!props.startup) return true
@@ -472,7 +472,7 @@ function ConnectionGate(props: ParentProps<{ disableHealthCheck?: boolean; start
     <>
       <Show when={!checking()}>
         <Show
-          when={startupHealthCheck.latest}
+          when={props.disableHealthCheck || startupHealthCheck.latest === true}
           fallback={
             <ConnectionError
               onRetry={() => {
