@@ -3,14 +3,14 @@ import { OpenCode, type OpenCodeClient } from "@opencode-ai/client/promise"
 import type { ServerConnection } from "@/context/server"
 import { decode64 } from "@/utils/base64"
 
-const browserProxyTarget = "http://139.180.175.60:4096"
+const browserProxyTarget = import.meta.env.VITE_OPENCODE_REMOTE_TARGET?.replace(/\/$/, "")
 
 export function serverTransportUrl(url: string) {
-  if (typeof window === "undefined") return url
+  if (typeof window === "undefined" || !browserProxyTarget) return url
   try {
     const parsed = new URL(url)
     if (parsed.origin !== browserProxyTarget) return url
-    return `${window.location.origin}/__opencode_remote__${parsed.pathname === "/" ? "" : parsed.pathname}`
+    return `${window.location.origin}/__opencode_remote__${parsed.pathname === "/" ? "" : parsed.pathname}${parsed.search}`
   } catch {
     return url
   }
@@ -59,7 +59,7 @@ export function createApiForServer(input: {
   fetch?: typeof globalThis.fetch
 }): OpenCodeClient {
   return OpenCode.make({
-    baseUrl: input.server.url,
+    baseUrl: serverTransportUrl(input.server.url),
     fetch: input.fetch,
     headers: input.server.password
       ? {
