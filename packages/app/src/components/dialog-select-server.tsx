@@ -84,10 +84,14 @@ function useServerPreview() {
   const looksComplete = (value: string) => {
     const normalized = normalizeServerUrl(value)
     if (!normalized) return false
-    const host = normalized.replace(/^https?:\/\//, "").split("/")[0]
-    if (!host) return false
-    if (host.includes("localhost") || host.startsWith("127.0.0.1")) return true
-    return host.includes(".") || host.includes(":")
+    try {
+      const parsed = new URL(normalized)
+      if (!['http:', 'https:'].includes(parsed.protocol) || !parsed.hostname) return false
+      if (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1") return true
+      return parsed.hostname.includes(".") || parsed.hostname.includes(":")
+    } catch {
+      return false
+    }
   }
 
   const previewStatus = async (
