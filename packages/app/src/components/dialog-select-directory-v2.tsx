@@ -130,7 +130,7 @@ export function DialogSelectDirectoryV2(props: DialogSelectDirectoryV2Props) {
         const request = sdk.protocol.then((protocol) =>
           protocol === "v1"
             ? sdk.client.file.list({ path: absolute }).then((result) => result.data ?? [])
-            : sdk.api.file.list({ location: { directory: absolute } }).then((result) => result.data),
+            : sdk.api.file.list({ path: ".", location: { directory: absolute } }).then((result) => result.data),
         )
         return request.then((result) =>
             result.map((entry) => ({
