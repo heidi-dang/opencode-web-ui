@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http"
-import { proxyOpenCodeRequest } from "../src/server/opencode-proxy"
+import { proxyOpenCodeRequest } from "./_lib/opencode-proxy"
 
 type RequestWithUrl = IncomingMessage & { method?: string; url?: string }
 
