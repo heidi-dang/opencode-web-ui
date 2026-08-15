@@ -58,12 +58,11 @@ describe("checkServerHealth", () => {
       const url = input instanceof URL ? input : new URL(input instanceof Request ? input.url : input)
       paths.push(url.pathname)
       if (url.pathname === "/health") return new Response(undefined, { status: 404 })
-      if (url.pathname === "/global/health") return new Response(undefined, { status: 404 })
       return Response.json({ healthy: true, version: "1.18.4" })
     }) as unknown as typeof globalThis.fetch
 
     expect(await checkServerHealth(server, fetch)).toEqual({ healthy: true, version: "1.18.4" })
-    expect(paths).toEqual(["/health", "/global/health", "/api/health"])
+    expect(paths).toEqual(["/health", "/api/health"])
   })
 
   test("falls back when the current health response is malformed", async () => {
@@ -77,7 +76,7 @@ describe("checkServerHealth", () => {
     }) as unknown as typeof globalThis.fetch
 
     expect(await checkServerHealth(server, fetch)).toEqual({ healthy: true, version: "1.18.4" })
-    expect(paths).toEqual(["/health", "/global/health", "/api/health"])
+    expect(paths).toEqual(["/health", "/api/health"])
   })
 
   test("allows slow servers thirty seconds by default", async () => {
@@ -205,7 +204,7 @@ describe("checkServerHealth", () => {
       retryDelayMs: 1,
     })
 
-    expect(count).toBe(15)
+    expect(count).toBe(9)
     expect(result).toEqual({ healthy: false, unreachable: true })
   })
 })

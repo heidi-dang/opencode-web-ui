@@ -270,7 +270,6 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
     timer = setTimeout(flush, Math.max(0, FLUSH_FRAME_MS - elapsed))
   }
 
-  let streamErrorLogged = false
   const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
   let attempt: AbortController | undefined
   let run: Promise<void> | undefined
@@ -300,7 +299,6 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
               : eventApi.event.subscribe({ signal: attempt.signal })
           let yielded = Date.now()
           for await (const event of events) {
-            streamErrorLogged = false
             reconnectFailures = 0
             const legacy = "payload" in event
             if (legacy && event.payload.type === "sync") continue
@@ -317,14 +315,9 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
             await wait(0)
           }
         } catch (error) {
-          if (!isStreamClosed(error, attempt?.signal) && !streamErrorLogged) {
-            streamErrorLogged = true
-            console.error("[global-sdk] event stream failed", {
-              url: server.http.url,
-              fetch: eventFetch ? "platform" : "webview",
-              error,
-            })
-          }
+          // Connection failures are handled by the reconnect loop and the
+          // consuming UI. Avoid logging the same expected outage repeatedly.
+          if (isStreamClosed(error, attempt?.signal)) continue
         } finally {
           abort.signal.removeEventListener("abort", onAbort)
           attempt = undefined

@@ -146,16 +146,14 @@ export function checkServerHealth(
       return null
     }
 
-    // Direct / Proxy Probe for raw status check
+    // Probe the canonical health endpoint once. The SDK below handles the
+    // compatibility route when this endpoint is not available, avoiding a
+    // burst of predictable 404 requests on every refresh.
     try {
-      const probePaths = ["/health", "/global/health", "/api/health"]
-      for (const path of probePaths) {
-        try {
-          const res = await fetch(new URL(path.replace(/^\/+/, ""), effectiveUrl.endsWith("/") ? effectiveUrl : effectiveUrl + "/").toString(), { headers: authHeaders, signal }).catch(() => null)
-          const result = await processRes(res)
-          if (result) return result
-        } catch {}
-      }
+      const healthUrl = new URL("health", effectiveUrl.endsWith("/") ? effectiveUrl : `${effectiveUrl}/`)
+      const res = await fetch(healthUrl.toString(), { headers: authHeaders, signal }).catch(() => null)
+      const result = await processRes(res)
+      if (result) return result
     } catch {}
 
     const current = await OpenCode.make({
