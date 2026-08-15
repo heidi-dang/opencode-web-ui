@@ -1,6 +1,6 @@
 {
   "rewrites": [
-    { "source": "/api/opencode/:path*", "destination": "/api?path=/:path*" }
+    { "source": "/api/opencode/:path*", "destination": "/api?__proxy_route=/:path*" }
   ],
   "functions": {
     "api/**/*.ts": {
