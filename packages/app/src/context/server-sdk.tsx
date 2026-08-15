@@ -11,7 +11,7 @@ import { ServerConnection, useServer } from "./server"
 import { createRefCountMap } from "@/utils/refcount"
 import { useGlobal } from "./global"
 import { ServerScope } from "@/utils/server-scope"
-import { detectServerProtocol, type DetectedServerProtocol, type ServerProtocol } from "@/utils/server-protocol"
+import { detectServerProtocol, type ServerProtocol } from "@/utils/server-protocol"
 import { createCompatibleApi, type CompatibleApi } from "@/utils/server-compat"
 
 const isAbortError = (error: unknown) =>
@@ -214,10 +214,7 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
     if (value === "unknown") throw new Error("Unable to determine the OpenCode API protocol")
     return value
   })
-  const [protocolKind] = createResource(
-    () => detectedProtocol,
-    (value): DetectedServerProtocol | undefined => value,
-  )
+  const [protocolKind] = createResource(() => protocol)
   const emitter = createGlobalEmitter<{
     [key: string]: ServerEvent
   }>()

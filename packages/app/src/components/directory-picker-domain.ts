@@ -339,12 +339,11 @@ export function createDirectorySearch(args: { sdk: ServerSDK; base: () => string
   }
 
   const listFiles = async (directory: string) => {
-    const protocol = await args.sdk.protocol
-    if (protocol === "unknown") throw new Error("Unable to determine the OpenCode API protocol")
-    const result =
-      protocol === "v1"
-        ? await args.sdk.client.file.list({ path: directory })
-        : await args.sdk.api.file.list({ location: { directory } })
+    await args.sdk.protocol
+    const result = await args.sdk.api.file.list({
+      path: ".",
+      location: { directory },
+    })
     const data = result?.data
     if (!Array.isArray(data)) throw new Error("OpenCode returned an invalid directory response")
     return data

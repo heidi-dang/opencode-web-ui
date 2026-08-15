@@ -16,8 +16,8 @@ async function probe(server: ServerConnection.HttpBase, fetch: typeof globalThis
     headers: headers(server),
     signal: AbortSignal.timeout(5_000),
   })
-  if (!response.ok || !response.headers.get("content-type")?.includes("application/json")) return
-  const value: unknown = await response.json()
+  if (!response.ok) return
+  const value: unknown = await response.json().catch(() => undefined)
   if (!value || typeof value !== "object") return
   return value
 }

@@ -10,8 +10,8 @@ const mockFetch = (run: (input: string | URL | Request) => Promise<Response>) =>
 describe("detectServerProtocol", () => {
   test("prefers the native API when both API generations exist", async () => {
     const fetcher = mockFetch((input) => {
-      const path = new URL(input instanceof Request ? input.url : input).pathname
-      if (path === "/global/health") return Promise.resolve(json({ healthy: true, version: "1.18.4" }))
+      const path = input instanceof Request ? input.url : String(input)
+      if (path.includes("/global/health")) return Promise.resolve(json({ healthy: true, version: "1.18.4" }))
       return Promise.resolve(json({ healthy: true, version: "2.0.0", pid: 123 }))
     })
 
@@ -20,8 +20,8 @@ describe("detectServerProtocol", () => {
 
   test("recognizes V2 health by its process identifier", async () => {
     const fetcher = mockFetch((input) => {
-      const path = new URL(input instanceof Request ? input.url : input).pathname
-      if (path === "/global/health") return Promise.resolve(json({}, 404))
+      const path = input instanceof Request ? input.url : String(input)
+      if (path.includes("/global/health")) return Promise.resolve(json({}, 404))
       return Promise.resolve(json({ healthy: true, version: "2.0.0", pid: 123 }))
     })
 
@@ -30,8 +30,8 @@ describe("detectServerProtocol", () => {
 
   test("recognizes the legacy health response only after native probing fails", async () => {
     const fetcher = mockFetch((input) => {
-      const path = new URL(input instanceof Request ? input.url : input).pathname
-      if (path === "/global/health") return Promise.resolve(json({}, 404))
+      const path = input instanceof Request ? input.url : String(input)
+      if (path.includes("/global/health")) return Promise.resolve(json({}, 404))
       return Promise.resolve(json({ healthy: true }))
     })
 

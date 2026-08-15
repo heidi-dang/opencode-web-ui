@@ -363,8 +363,8 @@ function createV1Api(input: CompatibleInput): CompatibleApi {
     },
     file: {
       ...input.current.file,
-      async list(value?: Parameters<ServerApi["file"]["list"]>[0]) {
-        const result = await legacy(value?.location).file.list({ path: value?.path ?? "" })
+  async list(value?: Parameters<ServerApi["file"]["list"]>[0]) {
+      const result = await legacy(value?.location).file.list({ path: value?.path ?? "." })
         return located(result.data ?? [], value?.location)
       },
       async find(value: Parameters<ServerApi["file"]["find"]>[0]) {

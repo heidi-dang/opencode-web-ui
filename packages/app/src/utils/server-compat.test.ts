@@ -5,6 +5,7 @@ import { createCompatibleApi } from "./server-compat"
 function setup(
   protocol: "v1" | "v2" | Promise<"v1" | "v2">,
   responses?: { vcs?: { branch: string; default_branch: string } },
+  legacyFactory?: (directory?: string) => ReturnType<typeof createSdkForServer>,
 ) {
   const requests: Request[] = []
   const fetcher = Object.assign(
@@ -46,7 +47,7 @@ function setup(
   const api = createCompatibleApi({
     protocol: typeof protocol === "string" ? Promise.resolve(protocol) : protocol,
     current: createApiForServer({ server, fetch: fetcher }),
-    legacy: (directory) => createSdkForServer({ server, fetch: fetcher, directory, throwOnError: true }),
+    legacy: legacyFactory ?? ((directory) => createSdkForServer({ server, fetch: fetcher, directory, throwOnError: true })),
     directory: "/repo",
   })
   return { api, requests }
@@ -65,6 +66,20 @@ describe("createCompatibleApi", () => {
     expect(await requests[0]!.json()).toMatchObject({ time: { archived: expect.any(Number) } })
   })
   */
+
+  test("scopes legacy directory listing to the instance directory", async () => {
+    const calls: Array<{ directory?: string; path?: string }> = []
+    const { api } = setup("v1", undefined, (directory) => ({
+      file: {
+        list: async (input: { path?: string }) => {
+          calls.push({ directory, path: input.path })
+          return { data: [] }
+        },
+      },
+    }) as unknown as ReturnType<typeof createSdkForServer>)
+    await api.file.list({ path: ".", location: { directory: "/home/heidi" } })
+    expect(calls).toEqual([{ directory: "/home/heidi", path: "." }])
+  })
 
   test("rejects unknown protocol instead of entering the V1 compatibility layer", async () => {
     const { api } = setup(Promise.resolve("unknown" as never))
