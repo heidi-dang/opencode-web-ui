@@ -162,13 +162,6 @@
   letter-spacing: var(--v2-tracking-body, -0.04px);
 }
 
-@font-face {
-  font-family: "Inter";
-  src: url("/assets/Inter.woff2") format("woff2");
-  font-weight: 100 900;
-  font-style: normal;
-  font-display: swap;
-}
 
 @media (display-mode: standalone) {
   /* WebKit excludes safe-area insets from dvh in installed apps. */

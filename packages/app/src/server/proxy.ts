@@ -54,7 +54,7 @@ export async function handleOpenCodeProxy(
     return true
   }
 
-  const subPath = reqUrl.pathname.replace(/^\/api\/opencode/, "") || "/"
+  const subPath = reqUrl.pathname.replace(/^\/api\/opencode(?:\/api\/opencode)?/, "") || "/"
   const upstreamUrl = new URL(subPath, targetOrigin.origin.endsWith("/") ? targetOrigin.origin : `${targetOrigin.origin}/`)
   reqUrl.searchParams.forEach((value, key) => {
     if (key !== "target") upstreamUrl.searchParams.append(key, value)
