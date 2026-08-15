@@ -453,11 +453,6 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
               sessionMeta.set(key, { limit })
             })
             .catch((err) => {
-              console.error("Failed to load sessions", {
-                directory,
-                error: err,
-                status: err && typeof err === "object" && "status" in err ? (err as { status?: unknown }).status : undefined,
-              })
               const project = getFilename(directory)
               showToast({
                 variant: "error",

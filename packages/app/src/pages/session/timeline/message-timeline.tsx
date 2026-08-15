@@ -660,16 +660,16 @@ export function MessageTimeline(props: {
 
   const shareMutation = useMutation(() => ({
     mutationFn: (id: string) => serverSDK().client.session.share({ sessionID: id }),
-    onError: (err) => {
-      console.error("Failed to share session", err)
-    },
+  onError: (err) => {
+    showToast({ title: language.t("common.requestFailed"), description: errorMessage(err) })
+  },
   }))
 
   const unshareMutation = useMutation(() => ({
     mutationFn: (id: string) => serverSDK().client.session.unshare({ sessionID: id }),
-    onError: (err) => {
-      console.error("Failed to unshare session", err)
-    },
+  onError: (err) => {
+    showToast({ title: language.t("common.requestFailed"), description: errorMessage(err) })
+  },
   }))
 
   const titleMutation = useMutation(() => ({

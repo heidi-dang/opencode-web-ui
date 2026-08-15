@@ -96,13 +96,11 @@ export async function replayOfflineMutations(customFetch = fetch): Promise<void>
           if (res.status >= 400 && res.status < 500) {
             await clearOfflineMutation(mut.id);
           } else {
-            console.warn(`[offline-queue] mutation replay failed with status ${res.status}, halting queue replay.`);
-            break;
+            break
           }
         }
-      } catch (error) {
-        console.error("[offline-queue] mutation replay error", error);
-        break; // Stop replay on network connection errors
+      } catch {
+        break // Stop replay on network connection errors
       }
     }
   } finally {
@@ -113,6 +111,6 @@ export async function replayOfflineMutations(customFetch = fetch): Promise<void>
 // Setup automated reconnection event listener in browser environments
 if (typeof window !== "undefined") {
   window.addEventListener("online", () => {
-    replayOfflineMutations().catch((err) => console.error("[offline-queue] auto-replay error", err));
+    void replayOfflineMutations()
   });
 }

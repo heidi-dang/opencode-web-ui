@@ -42,6 +42,7 @@ const validatedUrl = serverUrl ? validateProxyUrl(serverUrl) : null
 const proxyTarget = validatedUrl
   ? validatedUrl
   : `http://127.0.0.1:${process.env.VITE_OPENCODE_SERVER_PORT || "4096"}`
+const hasRemoteServer = Boolean(validatedUrl)
 
 const hopByHopHeaders = [
   "keep-alive", "transfer-encoding", "te", "connection",
@@ -62,30 +63,35 @@ export default defineConfig({
     allowedHosts: [],
     port: 3000,
     proxy: {
-      "/opencode-server": {
-        target: proxyTarget,
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/opencode-server/, ""),
-        configure: (proxy) => {
-          proxy.on("proxyReq", (proxyReq, req) => {
-            for (const header of hopByHopHeaders) {
-              proxyReq.removeHeader(header)
-            }
-          })
-          proxy.on("proxyReqWs", (proxyReq, req) => {
-            for (const header of hopByHopHeaders) {
-              proxyReq.removeHeader(header)
-            }
-          })
-          proxy.on("error", (err, req, res) => {
-            if (res && !res.headersSent) {
-              res.statusCode = 502
-              res.end()
-            }
-          })
-        },
-      },
-    },
+      ...(hasRemoteServer
+        ? {
+            "/opencode-server": {
+              target: proxyTarget,
+              changeOrigin: true,
+              rewrite: (path) => path.replace(/^\/opencode-server/, ""),
+              configure: (proxy) => {
+                proxy.on("proxyReq", (proxyReq) => {
+                  for (const header of hopByHopHeaders) {
+                    proxyReq.removeHeader(header)
+                  }
+                })
+                proxy.on("proxyReqWs", (proxyReq) => {
+                  for (const header of hopByHopHeaders) {
+                    proxyReq.removeHeader(header)
+                  }
+                })
+                proxy.on("error", (_err, _req, res) => {
+                  // The browser surfaces the 502 through the app's connection state;
+                  // do not re-emit expected remote-server outages into the Vite log.
+                  if (res && !res.headersSent) {
+                    res.statusCode = 502
+                    res.end()
+                  }
+                })
+              },
+            },
+          }
+        : {}),
   },
   build: {
     target: "esnext",

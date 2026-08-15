@@ -84,11 +84,9 @@ export function validateAndRestorePersistedState<T>(
     if (validator(parsed)) {
       return parsed;
     }
-    console.warn(`[state-validation] Stored schema for ${storageKey} failed validation, falling back to default.`);
     localStorage.removeItem(storageKey);
     return fallback;
-  } catch (err) {
-    console.error(`[state-validation] Failed to parse stored state for ${storageKey}`, err);
+  } catch {
     return fallback;
   }
 }
@@ -98,7 +96,6 @@ export function validateAndRestorePersistedState<T>(
  */
 export function checkRecursionCap(depth: number, maxDepth: number = 20): boolean {
   if (depth > maxDepth) {
-    console.warn(`[recursion-guard] Maximum recursion depth of ${maxDepth} exceeded.`);
     return false;
   }
   return true;
@@ -189,9 +186,6 @@ export class FiniteStateMachineGuard<S extends string> {
   public transitionTo(nextState: S): boolean {
     const validTargets = this.allowedTransitions[this.currentState] ?? [];
     if (!validTargets.includes(nextState)) {
-      console.warn(
-        `[fsm-guard] Invalid transition attempted from '${this.currentState}' to '${nextState}'. Allowed: [${validTargets.join(", ")}]`
-      );
       return false;
     }
     this.currentState = nextState;
@@ -214,13 +208,11 @@ export function safeExtractEventData<E extends { target?: unknown; currentTarget
  * 378. Re-render Count Threshold Guard (Dev Mode)
  */
 export class RenderCountGuard {
-  private componentName: string;
   private renderCount = 0;
   private lastResetTime = Date.now();
   private maxRendersPerSec: number;
 
-  constructor(componentName: string, maxRendersPerSec: number = 50) {
-    this.componentName = componentName;
+  constructor(_componentName: string, maxRendersPerSec: number = 50) {
     this.maxRendersPerSec = maxRendersPerSec;
   }
 
@@ -232,9 +224,7 @@ export class RenderCountGuard {
     }
     this.renderCount++;
     if (this.renderCount > this.maxRendersPerSec) {
-      console.warn(
-        `[render-guard] Component '${this.componentName}' rendered ${this.renderCount} times in 1 second, exceeding limit of ${this.maxRendersPerSec}. Check for infinite loops.`
-      );
+      return
     }
   }
 }

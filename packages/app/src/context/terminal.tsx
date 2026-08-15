@@ -268,7 +268,6 @@ function createWorkspaceTerminalSession(
         const currentIndex = store.all.findIndex((item) => item.id === pty.id)
         if (currentIndex >= 0) setStore("all", currentIndex, previous)
       }
-      console.error("Failed to update terminal", error)
     })
   }
 
@@ -286,10 +285,7 @@ function createWorkspaceTerminalSession(
           title: pty.title,
         })
       ).data
-    })().catch((error: unknown) => {
-      console.error("Failed to clone terminal", error)
-      return undefined
-    })
+    })().catch(() => undefined)
     if (!data?.id) return
 
     const active = store.active === pty.id
@@ -351,9 +347,8 @@ function createWorkspaceTerminalSession(
             }
           })
         })
-        .catch((error: unknown) => {
+        .catch(() => {
           if (focusRequest !== undefined) cancelFocus(focusRequest)
-          console.error("Failed to create terminal", error)
         })
     },
     update(pty: Partial<LocalPTY> & { id: string }) {
@@ -437,9 +432,7 @@ function createWorkspaceTerminalSession(
         (await sdk.protocol) === "v1"
           ? sdk.client.pty.remove({ ptyID: id })
           : sdk.api.pty.remove({ ptyID: id, location })
-      await removePromise.catch((error: unknown) => {
-        console.error("Failed to close terminal", error)
-      })
+      await removePromise.catch(() => {})
     },
     move(id: string, to: number) {
       const index = store.all.findIndex((f) => f.id === id)

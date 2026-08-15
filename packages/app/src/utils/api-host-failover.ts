@@ -57,7 +57,7 @@ export class ApiHostFailoverManager {
       }
     }
     this.consecutiveFailures = 0;
-    console.warn(`[api-host-failover] Switched active API host to ${this.currentHost}`);
+    ;
   }
 
   public async checkHealth(): Promise<boolean> {

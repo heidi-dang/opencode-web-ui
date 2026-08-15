@@ -19,10 +19,8 @@ if (typeof window !== "undefined") {
   })
 
   window.addEventListener("unhandledrejection", (event) => {
-    // Prevent default console crash logging for caught/handled rejection events
-    if (import.meta.env.DEV) {
-      console.warn("Unhandled promise rejection captured gracefully:", event.reason)
-    }
+    // Expected connection failures are handled by the app's error states.
+    event.preventDefault()
   })
 
   // Register service worker for offline-capable PWA (production only).
@@ -41,7 +39,6 @@ if (typeof window !== "undefined") {
                 caches.keys().then((keys) => {
                   Promise.all(keys.map((key) => caches.delete(key))).then(() => {
                     localStorage.setItem("opencode.sw.version", currentVersion)
-                    console.log("[SW] Cache invalidated and updated to", currentVersion)
                   })
                 })
               } else {
