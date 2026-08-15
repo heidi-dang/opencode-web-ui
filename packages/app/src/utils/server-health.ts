@@ -1,6 +1,6 @@
 import { usePlatform } from "@/context/platform"
 import { ServerConnection } from "@/context/server"
-import { authTokenFromCredentials, createSdkForServer } from "./server"
+import { authTokenFromCredentials, createSdkForServer, fetchForServer } from "./server"
 import { ClientError, OpenCode } from "@opencode-ai/client"
 import { Accessor, createEffect, onCleanup } from "solid-js"
 import { createStore, reconcile } from "solid-js/store"
@@ -15,8 +15,8 @@ interface CheckServerHealthOptions {
 }
 
 const defaultTimeoutMs = 30_000
-const defaultRetryCount = 2
-const defaultRetryDelayMs = 100
+const defaultRetryCount = 1
+const defaultRetryDelayMs = 500
 const cacheMs = 750
 const healthCache = new Map<
   string,
@@ -87,7 +87,7 @@ export async function checkServerHealth(
   const attempt = async (count: number): Promise<ServerHealth> => {
     const current = await OpenCode.make({
       baseUrl: server.url,
-      fetch,
+      fetch: fetchForServer(server, fetch),
       headers: server.password
         ? {
             Authorization: `Basic ${authTokenFromCredentials({ username: server.username, password: server.password })}`,
@@ -112,7 +112,7 @@ export async function checkServerHealth(
   return attempt(0).finally(() => timeout?.clear?.())
 }
 
-const pollMs = 10_000
+const pollMs = 30_000
 
 export function useCheckServerHealth() {
   const platform = usePlatform()

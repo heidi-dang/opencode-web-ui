@@ -506,7 +506,7 @@ function ConnectionError(props: { onRetry?: () => void; onServerSelected?: (key:
   const serverToken = "\u0000server\u0000"
   const unreachable = createMemo(() => language.t("app.server.unreachable", { server: serverToken }).split(serverToken))
 
-  const timer = setInterval(() => props.onRetry?.(), 1000)
+  const timer = setInterval(() => props.onRetry?.(), 10_000)
   onCleanup(() => clearInterval(timer))
 
   return (

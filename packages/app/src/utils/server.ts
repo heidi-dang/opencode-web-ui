@@ -18,6 +18,21 @@ export function authFromToken(token: string | null) {
   }
 }
 
+export function fetchForServer(server: ServerConnection.HttpBase, fetcher: typeof globalThis.fetch = globalThis.fetch) {
+  return ((input: RequestInfo | URL, init?: RequestInit) => {
+    if (typeof window === "undefined") return fetcher(input, init)
+    const requestUrl = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url)
+    const serverUrl = new URL(server.url)
+    if (requestUrl.origin !== serverUrl.origin) return fetcher(input, init)
+
+    const proxyUrl = new URL(`${window.location.origin}/__opencode_remote__${requestUrl.pathname}`)
+    proxyUrl.search = requestUrl.search
+    proxyUrl.searchParams.set("target", serverUrl.origin)
+    const request = input instanceof Request && !init ? new Request(proxyUrl, input) : undefined
+    return fetcher(request ?? proxyUrl, init)
+  }) as typeof globalThis.fetch
+}
+
 export function createSdkForServer({
   server,
   ...config
@@ -38,6 +53,7 @@ export function createSdkForServer({
       ...auth,
     },
     baseUrl: server.url,
+    fetch: fetchForServer(server, config.fetch),
   })
 }
 
@@ -47,7 +63,7 @@ export function createApiForServer(input: {
 }): OpenCodeClient {
   return OpenCode.make({
     baseUrl: input.server.url,
-    fetch: input.fetch,
+    fetch: fetchForServer(input.server, input.fetch),
     headers: input.server.password
       ? {
           Authorization: `Basic ${authTokenFromCredentials({
