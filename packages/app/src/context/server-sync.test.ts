@@ -142,7 +142,7 @@ describe("loadRootSessions", () => {
       expect.objectContaining({ id: "session-1", directory: "dir", slug: "session-1", version: "" }),
     ])
     expect(result.limited).toBe(true)
-    expect(calls).toEqual([{ directory: "dir", parentID: null, limit: 10, order: "desc" }])
+    expect(calls).toEqual([{ directory: "dir", parentID: null, limit: 10 }])
   })
 
   test("propagates list failures", () => {
