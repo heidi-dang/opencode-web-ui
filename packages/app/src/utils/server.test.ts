@@ -102,7 +102,6 @@ test("normalizes duplicate directory query values before requests", async () => 
   await client.session.list({ directory: ["/home/heidi/flowdeck?limit=55", "/home/heidi/flowdeck"] as unknown as string })
 
   expect(new URL(captured, "http://localhost").searchParams.getAll("directory")).toEqual([
-    "/home/heidi/flowdeck?limit=55",
     "/home/heidi/flowdeck",
   ])
 })

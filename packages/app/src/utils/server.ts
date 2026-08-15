@@ -123,6 +123,25 @@ function createBasePathFetch(fetcher: typeof globalThis.fetch, base: URL): typeo
   )
 }
 
+function scalarDirectory(value: unknown): string | undefined {
+  if (typeof value === "string") {
+    const parsed = value.match(/^\["([^"]+)"(?:,"([^"]+)")?\]$/)
+    if (parsed) return parsed[2] && !parsed[2].includes("?") ? parsed[2] : parsed[1]
+    return value
+  }
+  if (Array.isArray(value)) {
+    const clean = value.find((item) => typeof item === "string" && !item.includes("?")) ?? value[0]
+    return scalarDirectory(clean)
+  }
+  return undefined
+}
+
+function normalizeDirectoryQuery<T extends Record<string, unknown> | undefined>(value: T): T {
+  if (!value || !("directory" in value)) return value
+  const directory = scalarDirectory(value.directory)
+  return { ...value, directory } as T
+}
+
 export function createSdkForServer({
   server,
   ...config
@@ -140,7 +159,7 @@ export function createSdkForServer({
   const parsed = new URL(resolved, typeof location === "object" ? location.href : "http://localhost")
   const customFetch = createBasePathFetch(config.fetch ?? globalThis.fetch, parsed)
 
-  return createOpencodeClient({
+  const client = createOpencodeClient({
     ...config,
     headers: {
       ...(config.headers instanceof Headers ? Object.fromEntries(config.headers.entries()) : config.headers),
@@ -149,6 +168,10 @@ export function createSdkForServer({
     baseUrl: parsed.origin,
     fetch: customFetch,
   })
+
+  const originalSessionList = client.session.list.bind(client.session)
+  client.session.list = ((value?: any, options?: any) => originalSessionList(normalizeDirectoryQuery(value), options)) as typeof client.session.list
+  return client
 }
 
 export function createApiForServer(input: {
