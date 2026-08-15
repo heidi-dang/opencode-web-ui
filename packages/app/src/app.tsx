@@ -1,7 +1,7 @@
 import "@/index.css"
 import * as Sentry from "@sentry/solid"
 import { I18nProvider } from "@opencode-ai/ui/context"
-import { DialogProvider } from "@opencode-ai/ui/context/dialog"
+import { DialogProvider, useDialog } from "@opencode-ai/ui/context/dialog"
 import { FileComponentProvider } from "@opencode-ai/ui/context/file"
 import { File } from "@opencode-ai/session-ui/file"
 import { Font } from "@opencode-ai/ui/font"
@@ -612,11 +612,27 @@ export function AppInterface(props: {
   )
 }
 
-function Routes(props: { serverScoped?: JSX.Element }) {
-  const settings = useSettings()
+  function ServerSetupPrompt() {
+    const server = useServer()
+    const dialog = useDialog()
+    let opened = false
 
-  return (
-    <>
+    createEffect(() => {
+      if (!server.ready() || server.list.length > 0 || opened) return
+      opened = true
+      void import("@/components/dialog-select-server").then(({ DialogSelectServer }) => {
+        void dialog.show(() => <DialogSelectServer />)
+      })
+    })
+    return null
+  }
+
+  function Routes(props: { serverScoped?: JSX.Element }) {
+    const settings = useSettings()
+    return (
+      <>
+        <Route path="*" component={ServerSetupPrompt} />
+
       <Route
         component={(routeProps) => (
           <LegacyServerLayout serverScoped={props.serverScoped}>{routeProps.children}</LegacyServerLayout>

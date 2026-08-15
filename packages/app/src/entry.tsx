@@ -8,7 +8,6 @@ import { type Platform, PlatformProvider } from "@/context/platform"
 import { createBrowserDraftStore } from "@/utils/draft-store"
 import { dict as en } from "@/i18n/en"
 import { dict as zh } from "@/i18n/zh"
-import { authFromToken } from "@/utils/server"
 import pkg from "../package.json"
 import { ServerConnection } from "./context/server"
 
@@ -52,7 +51,17 @@ const setStorage = (key: string, value: string | null) => {
   }
 }
 
-const readDefaultServerUrl = () => getStorage(DEFAULT_SERVER_URL_KEY)
+const readDefaultServerUrl = () => {
+  const value = getStorage(DEFAULT_SERVER_URL_KEY)
+  if (!value) return null
+  try {
+    const hostname = new URL(value).hostname
+    if (hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1") return null
+  } catch {
+    return null
+  }
+  return value
+}
 const writeDefaultServerUrl = (url: string | null) => setStorage(DEFAULT_SERVER_URL_KEY, url)
 
 const notify: Platform["notify"] = async (title, description, onClick) => {
@@ -96,18 +105,7 @@ if (!(root instanceof HTMLElement) && import.meta.env.DEV) {
   throw new Error(getRootNotFoundError())
 }
 
-const getCurrentUrl = () => {
-  if (location.hostname.includes("opencode.ai")) return "http://localhost:4096"
-  if (import.meta.env.DEV)
-    return `http://${import.meta.env.VITE_OPENCODE_SERVER_HOST ?? "localhost"}:${import.meta.env.VITE_OPENCODE_SERVER_PORT ?? "4096"}`
-  return location.origin
-}
-
-const getDefaultUrl = () => {
-  const lsDefault = readDefaultServerUrl()
-  if (lsDefault) return lsDefault
-  return getCurrentUrl()
-}
+const getDefaultUrl = () => readDefaultServerUrl() ?? ""
 
 const clearAuthToken = () => {
   const params = new URLSearchParams(location.search)
@@ -151,24 +149,13 @@ if (import.meta.env.VITE_SENTRY_DSN) {
 
 if (root instanceof HTMLElement) {
   void loadInitialLocale().then((locale) => {
-    const auth = authFromToken(new URLSearchParams(location.search).get("auth_token"))
     clearAuthToken()
-    const server: ServerConnection.Http = {
-      type: "http",
-      authToken: !!auth,
-      http: {
-        url: getCurrentUrl(),
-        ...auth,
-      },
-    }
     render(
       () => (
         <PlatformProvider value={platform}>
           <AppBaseProviders locale={locale}>
             <AppInterface
               defaultServer={ServerConnection.Key.make(getDefaultUrl())}
-              canonicalLocalServer={ServerConnection.key(server)}
-              servers={[server]}
               disableHealthCheck
             />
           </AppBaseProviders>

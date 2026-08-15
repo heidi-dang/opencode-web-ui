@@ -262,7 +262,7 @@ export const { use: useServer, provider: ServerProvider } = createSimpleContext(
   }) => {
     const [store, setStore, _, ready] = persisted(
       {
-        ...Persist.global("server", ["server.v3"]),
+        ...Persist.global("server.v4"),
         migrate: (value) => migrateCanonicalLocalServerState(value, props.canonicalLocalServer),
       },
       createStore({
@@ -313,7 +313,7 @@ export const { use: useServer, provider: ServerProvider } = createSimpleContext(
     }
 
     const isReady = Object.assign(
-      createMemo(() => ready() && !!state.active),
+      createMemo(() => ready()),
       { promise: ready.promise },
     )
 
