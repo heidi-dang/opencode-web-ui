@@ -122,10 +122,9 @@ export const createDirSyncContext = (
         serverSync.session.evict(sessionID)
       },
       fetch: async (count = 10) => {
-      const [store, setStore] = current()
-      const limit = Math.max(1, typeof store.limit === "number" && Number.isFinite(store.limit) ? Math.floor(store.limit) : 1) + Math.max(0, count)
-      setStore("limit", limit)
-      const response = await serverSDK.api.session.list({ directory, limit, order: "desc" })
+        const [store, setStore] = current()
+        setStore("limit", (value) => value + count)
+        const response = await serverSDK.api.session.list({ directory, limit: store.limit, order: "desc" })
         const sessions = response.data
           .map(normalizeSessionInfo)
           .sort((a, b) => cmp(a.id, b.id))

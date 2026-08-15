@@ -104,7 +104,10 @@ export function ReviewPanelV2(props: ReviewPanelV2Props) {
     sdk()
       .client.file.read({ path })
       .then((x) => x.data)
-      .catch(() => undefined)
+      .catch((error) => {
+        console.debug("[session-review-v2] failed to read file", { path, error })
+        return undefined
+      })
 
   return (
     <SessionReviewV2

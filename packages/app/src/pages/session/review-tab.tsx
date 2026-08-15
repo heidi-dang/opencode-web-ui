@@ -57,7 +57,10 @@ export function SessionReviewTab(props: SessionReviewTabProps) {
     return sdk()
       .client.file.read({ path })
       .then((x) => x.data)
-      .catch(() => undefined)
+      .catch((error) => {
+        console.debug("[session-review] failed to read file", { path, error })
+        return undefined
+      })
   }
 
   const handleInteraction = () => {

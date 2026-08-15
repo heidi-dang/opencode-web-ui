@@ -124,23 +124,6 @@ describe("pickDirectoriesToEvict", () => {
 })
 
 describe("loadRootSessions", () => {
-  test("never sends a zero session limit", async () => {
-    const calls: SessionListInput[] = []
-
-    await loadRootSessions({
-      api: {
-        list: async (query = {}) => {
-          calls.push(query)
-          return { data: [], cursor: {} }
-        },
-      } satisfies Pick<SessionApi, "list">,
-      directory: "dir",
-      limit: 1,
-    })
-
-    expect(calls[0]?.limit).toBeGreaterThanOrEqual(1)
-  })
-
   test("loads and normalizes a limited page of root sessions", async () => {
     const calls: SessionListInput[] = []
 

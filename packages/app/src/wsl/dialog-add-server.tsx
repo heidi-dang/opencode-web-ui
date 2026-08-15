@@ -348,11 +348,7 @@ function useWslAddServerController(props: DialogWslServerProps) {
       if (props.onAdded) {
         await props.onAdded(distro)
       } else {
-        // Keep the WSL picker open so users can add every installed distro
-        // without reopening the dialog after each successful request.
-        setStore("selectedDistro", null)
-        probes.resetProbeFailure()
-        await api.refreshDistros()
+        dialog.close()
       }
     } catch (err) {
       requestError(language, err)
@@ -458,6 +454,7 @@ function DialogWslSetup(props: {
 }
 
 function requestError(language: ReturnType<typeof useLanguage>, err: unknown) {
+  console.error("WSL servers request failed", err instanceof Error ? (err.stack ?? err.message) : String(err))
   showToast({
     variant: "error",
     title: language.t("common.requestFailed"),

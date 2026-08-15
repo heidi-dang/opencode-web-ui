@@ -9,6 +9,7 @@ import { useLanguage } from "./language"
 import { usePlatform } from "./platform"
 import { ServerConnection, useServer } from "./server"
 import { createRefCountMap } from "@/utils/refcount"
+import { useGlobal } from "./global"
 import { ServerScope } from "@/utils/server-scope"
 import { detectServerProtocol, type ServerProtocol } from "@/utils/server-protocol"
 import { createCompatibleApi, type CompatibleApi } from "@/utils/server-compat"
@@ -269,6 +270,7 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
     timer = setTimeout(flush, Math.max(0, FLUSH_FRAME_MS - elapsed))
   }
 
+  let streamErrorLogged = false
   const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
   let attempt: AbortController | undefined
   let run: Promise<void> | undefined
@@ -298,6 +300,7 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
               : eventApi.event.subscribe({ signal: attempt.signal })
           let yielded = Date.now()
           for await (const event of events) {
+            streamErrorLogged = false
             reconnectFailures = 0
             const legacy = "payload" in event
             if (legacy && event.payload.type === "sync") continue
@@ -314,9 +317,14 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
             await wait(0)
           }
         } catch (error) {
-          // Connection failures are handled by the reconnect loop and the
-          // consuming UI. Avoid logging the same expected outage repeatedly.
-          if (isStreamClosed(error, attempt?.signal)) continue
+          if (!isStreamClosed(error, attempt?.signal) && !streamErrorLogged) {
+            streamErrorLogged = true
+            console.error("[global-sdk] event stream failed", {
+              url: server.http.url,
+              fetch: eventFetch ? "platform" : "webview",
+              error,
+            })
+          }
         } finally {
           abort.signal.removeEventListener("abort", onAbort)
           attempt = undefined
@@ -411,23 +419,14 @@ export const { use: useServerSDK, provider: ServerSDKProvider } = createSimpleCo
   // Returns an accessor so the resolved server can change reactively (e.g. a
   // /new-session draft retargeting its server) without re-instantiating the subtree.
   init: (props: { server?: Accessor<ServerConnection.Any | undefined> }) => {
+    const global = useGlobal()
     const language = useLanguage()
     const server = useServer()
-    const contexts = new Map<ServerConnection.Key, ServerSDK>()
-
-    onCleanup(() => {
-      contexts.clear()
-    })
 
     return createMemo<ServerSDK>(() => {
       const conn = props.server?.() ?? server.current
       if (!conn) throw new Error(language.t("error.serverSDK.noServerAvailable"))
-      const key = ServerConnection.key(conn)
-      const existing = contexts.get(key)
-      if (existing) return existing
-      const sdk = createServerSdkContext(conn, server.scope(key))
-      contexts.set(key, sdk)
-      return sdk
+      return global.ensureServerCtx(conn).sdk
     })
   },
 })

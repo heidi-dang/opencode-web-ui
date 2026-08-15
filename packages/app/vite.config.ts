@@ -1,6 +1,5 @@
 import { sentryVitePlugin } from "@sentry/vite-plugin"
 import { defineConfig } from "vite"
-import httpProxy from "http-proxy"
 import desktopPlugin from "./vite"
 
 const sentry =
@@ -43,7 +42,6 @@ const validatedUrl = serverUrl ? validateProxyUrl(serverUrl) : null
 const proxyTarget = validatedUrl
   ? validatedUrl
   : `http://127.0.0.1:${process.env.VITE_OPENCODE_SERVER_PORT || "4096"}`
-const hasRemoteServer = true
 
 const hopByHopHeaders = [
   "keep-alive", "transfer-encoding", "te", "connection",
@@ -52,85 +50,41 @@ const hopByHopHeaders = [
 
 const MAX_REQUEST_BODY_BYTES = 10 * 1024 * 1024
 
-const directProxy = httpProxy.createProxyServer({ changeOrigin: true })
-
-directProxy.on("proxyReq", (proxyReq, req) => {
-  const path = req.url?.replace(/^\/direct\/[^/]+\/\d+/, "") || "/"
-  proxyReq.path = path
-  for (const header of hopByHopHeaders) proxyReq.removeHeader(header)
-})
-directProxy.on("proxyReqWs", (proxyReq, req) => {
-  proxyReq.path = req.url?.replace(/^\/direct\/[^/]+\/\d+/, "") || "/"
-  for (const header of hopByHopHeaders) proxyReq.removeHeader(header)
-})
-directProxy.on("error", (_err, _req, res) => {
-  if (res && !res.headersSent) {
-    res.statusCode = 502
-    res.end()
-  }
-})
-
-const directProxyPlugin = {
-  name: "opencode-direct-proxy",
-  configureServer(server) {
-    server.middlewares.use((req, res, next) => {
-      const match = req.url?.match(/^\/direct\/([^/]+)\/(\d+)(\/.*)?/)
-      if (!match) return next()
-      const port = Number(match[2])
-      if (!Number.isInteger(port) || port < 1 || port > 65535) return next()
-      directProxy.web(req, res, { target: `http://${match[1]}:${port}` })
-    })
-    server.httpServer?.on("upgrade", (req, socket, head) => {
-      const match = req.url?.match(/^\/direct\/([^/]+)\/(\d+)(\/.*)?/)
-      if (!match) return
-      const port = Number(match[2])
-      if (!Number.isInteger(port) || port < 1 || port > 65535) return
-      directProxy.ws(req, socket, head, { target: `ws://${match[1]}:${port}` })
-    })
-  },
-}
-
 const buildId = process.env.VITE_SENTRY_RELEASE || process.env.GITHUB_SHA || Date.now().toString(36)
 
 export default defineConfig({
   define: {
     __BUILD_ID__: JSON.stringify(buildId),
   },
-  plugins: [directProxyPlugin, desktopPlugin, sentry].filter(Boolean),
+  plugins: [desktopPlugin, sentry].filter(Boolean),
   server: {
     host: "127.0.0.1",
     allowedHosts: [],
     port: 3000,
     proxy: {
-      ...(hasRemoteServer
-        ? {
-            "/opencode-server": {
-              target: proxyTarget,
-              changeOrigin: true,
-              rewrite: (path) => path.replace(/^\/opencode-server/, ""),
-              configure: (proxy) => {
-                proxy.on("proxyReq", (proxyReq) => {
-                  for (const header of hopByHopHeaders) {
-                    proxyReq.removeHeader(header)
-                  }
-                })
-                proxy.on("proxyReqWs", (proxyReq) => {
-                  for (const header of hopByHopHeaders) {
-                    proxyReq.removeHeader(header)
-                  }
-                })
-                proxy.on("error", (_err, _req, res) => {
-                  // The browser surfaces the 502 through the app's connection state;
-                  // do not re-emit expected remote-server outages into the Vite log.
-                  if (res && !res.headersSent) {
-                    res.statusCode = 502
-                    res.end()
-                  }
-                })
-              },
-            },
-          }
-        : {}),
+      "/opencode-server": {
+        target: proxyTarget,
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/opencode-server/, ""),
+        configure: (proxy) => {
+          proxy.on("proxyReq", (proxyReq, req) => {
+            for (const header of hopByHopHeaders) {
+              proxyReq.removeHeader(header)
+            }
+          })
+          proxy.on("proxyReqWs", (proxyReq, req) => {
+            for (const header of hopByHopHeaders) {
+              proxyReq.removeHeader(header)
+            }
+          })
+          proxy.on("error", (err, req, res) => {
+            if (res && !res.headersSent) {
+              res.statusCode = 502
+              res.end()
+            }
+          })
+        },
+      },
     },
   },
   build: {

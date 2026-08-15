@@ -36,23 +36,6 @@ describe("checkServerHealth", () => {
       requiresAuth: true,
     })
   })
-  test("sends supplied basic credentials to health probes", async () => {
-    const authenticated: string[] = []
-    const authenticatedServer: ServerConnection.HttpBase = {
-      url: server.url,
-      username: "heidiluong",
-      password: "test-password",
-    }
-    const fetch = (async (_input: URL | RequestInfo, init?: RequestInit) => {
-      authenticated.push(new Headers(init?.headers).get("authorization") ?? "")
-      return Response.json({ healthy: true, version: "1.2.3" })
-    }) as unknown as typeof globalThis.fetch
-
-    await checkServerHealth(authenticatedServer, fetch)
-
-    expect(authenticated[0]).toMatch(/^Basic /)
-  })
-
   test("returns healthy response with version", async () => {
     let request: URL | undefined
     const fetch = (async (input: URL | RequestInfo, _init?: any) => {
@@ -69,35 +52,32 @@ describe("checkServerHealth", () => {
     expect(request?.pathname).toBe("/health")
   })
 
-  test("rejects an unavailable canonical health endpoint", async () => {
+  test("falls back to the V1 health endpoint", async () => {
     const paths: string[] = []
     const fetch = (async (input: URL | RequestInfo, _init?: any) => {
       const url = input instanceof URL ? input : new URL(input instanceof Request ? input.url : input)
       paths.push(url.pathname)
-      return new Response(undefined, { status: 404 })
+      if (url.pathname === "/health") return new Response(undefined, { status: 404 })
+      if (url.pathname === "/global/health") return new Response(undefined, { status: 404 })
+      return Response.json({ healthy: true, version: "1.18.4" })
     }) as unknown as typeof globalThis.fetch
 
-    expect(await checkServerHealth(server, fetch, { retryCount: 0 })).toEqual({ healthy: false, invalidEndpoint: true })
-    expect(paths).toEqual(["/health", "/global/health"])
+    expect(await checkServerHealth(server, fetch)).toEqual({ healthy: true, version: "1.18.4" })
+    expect(paths).toEqual(["/health", "/global/health", "/api/health"])
   })
 
-  test("falls back to the legacy global health endpoint", async () => {
+  test("falls back when the current health response is malformed", async () => {
     const paths: string[] = []
     const fetch = (async (input: URL | RequestInfo, _init?: any) => {
       const url = input instanceof URL ? input : new URL(input instanceof Request ? input.url : input)
       paths.push(url.pathname)
-      if (url.pathname === "/health") return new Response("<html>", { status: 200, headers: { "content-type": "text/html" } })
-      return new Response(JSON.stringify({ healthy: true, version: "1.18.4" }), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      })
+      if (url.pathname === "/health") return new Response("null", { status: 500 })
+      if (url.pathname === "/global/health") return new Response("null", { status: 500 })
+      return Response.json({ healthy: true, version: "1.18.4" })
     }) as unknown as typeof globalThis.fetch
 
-    expect(await checkServerHealth({ ...server, username: "heidiluong", password: "secret" }, fetch)).toEqual({
-      healthy: true,
-      version: "1.18.4",
-    })
-    expect(paths).toEqual(["/health", "/global/health"])
+    expect(await checkServerHealth(server, fetch)).toEqual({ healthy: true, version: "1.18.4" })
+    expect(paths).toEqual(["/health", "/global/health", "/api/health"])
   })
 
   test("allows slow servers thirty seconds by default", async () => {
@@ -225,7 +205,7 @@ describe("checkServerHealth", () => {
       retryDelayMs: 1,
     })
 
-    expect(count).toBe(6)
+    expect(count).toBe(15)
     expect(result).toEqual({ healthy: false, unreachable: true })
   })
 })

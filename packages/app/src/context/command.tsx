@@ -262,6 +262,7 @@ export const { use: useCommand, provider: CommandProvider } = createSimpleContex
       registrations: [] as CommandRegistration[],
       suspendCount: 0,
     })
+    const warnedDuplicates = new Set<string>()
 
     type CommandCatalog = Record<string, CommandCatalogItem>
     const [catalog, setCatalog, _, catalogReady] = persisted(
@@ -283,6 +284,10 @@ export const { use: useCommand, provider: CommandProvider } = createSimpleContex
       for (const reg of store.registrations) {
         for (const opt of reg.options()) {
           if (seen.has(opt.id)) {
+            if (import.meta.env.DEV && !warnedDuplicates.has(opt.id) && opt.id !== "command.palette") {
+              warnedDuplicates.add(opt.id)
+              console.warn(`[command] duplicate command id "${opt.id}" registered; keeping first entry`)
+            }
             continue
           }
           seen.add(opt.id)

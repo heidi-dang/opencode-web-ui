@@ -465,7 +465,9 @@ function ConnectionGate(props: ParentProps<{ disableHealthCheck?: boolean; start
   )
   const [startup] = createResource(async () => {
     if (!props.startup) return true
-  await props.startup.catch(() => undefined)
+    await props.startup.catch((error) => {
+      console.error("[startup] startup gate failed", error)
+    })
     return true
   })
   const startupChecking = createMemo(

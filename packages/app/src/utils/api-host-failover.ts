@@ -57,12 +57,12 @@ export class ApiHostFailoverManager {
       }
     }
     this.consecutiveFailures = 0;
-    ;
+    console.warn(`[api-host-failover] Switched active API host to ${this.currentHost}`);
   }
 
   public async checkHealth(): Promise<boolean> {
     try {
-      const healthUrl = new URL("/health", this.currentHost).toString();
+      const healthUrl = new URL("/api/health", this.currentHost).toString();
       const res = await this.customFetch(healthUrl, { method: "GET" });
       if (res.ok) {
         this.recordSuccess();
