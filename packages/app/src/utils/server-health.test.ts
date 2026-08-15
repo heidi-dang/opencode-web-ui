@@ -36,6 +36,23 @@ describe("checkServerHealth", () => {
       requiresAuth: true,
     })
   })
+  test("sends supplied basic credentials to health probes", async () => {
+    const authenticated: string[] = []
+    const authenticatedServer: ServerConnection.HttpBase = {
+      url: server.url,
+      username: "heidiluong",
+      password: "test-password",
+    }
+    const fetch = (async (_input: URL | RequestInfo, init?: RequestInit) => {
+      authenticated.push(new Headers(init?.headers).get("authorization") ?? "")
+      return Response.json({ healthy: true, version: "1.2.3" })
+    }) as unknown as typeof globalThis.fetch
+
+    await checkServerHealth(authenticatedServer, fetch)
+
+    expect(authenticated[0]).toMatch(/^Basic /)
+  })
+
   test("returns healthy response with version", async () => {
     let request: URL | undefined
     const fetch = (async (input: URL | RequestInfo, _init?: any) => {
@@ -52,7 +69,7 @@ describe("checkServerHealth", () => {
     expect(request?.pathname).toBe("/health")
   })
 
-  test("falls back to the V1 health endpoint", async () => {
+  test("falls back to the compatible global health endpoint", async () => {
     const paths: string[] = []
     const fetch = (async (input: URL | RequestInfo, _init?: any) => {
       const url = input instanceof URL ? input : new URL(input instanceof Request ? input.url : input)
@@ -62,7 +79,7 @@ describe("checkServerHealth", () => {
     }) as unknown as typeof globalThis.fetch
 
     expect(await checkServerHealth(server, fetch)).toEqual({ healthy: true, version: "1.18.4" })
-    expect(paths).toEqual(["/health", "/api/health"])
+    expect(paths).toEqual(["/health", "/global/health"])
   })
 
   test("falls back when the current health response is malformed", async () => {
@@ -76,7 +93,7 @@ describe("checkServerHealth", () => {
     }) as unknown as typeof globalThis.fetch
 
     expect(await checkServerHealth(server, fetch)).toEqual({ healthy: true, version: "1.18.4" })
-    expect(paths).toEqual(["/health", "/api/health"])
+    expect(paths).toEqual(["/health", "/global/health", "/api/health"])
   })
 
   test("allows slow servers thirty seconds by default", async () => {
@@ -204,7 +221,7 @@ describe("checkServerHealth", () => {
       retryDelayMs: 1,
     })
 
-    expect(count).toBe(9)
+    expect(count).toBe(15)
     expect(result).toEqual({ healthy: false, unreachable: true })
   })
 })

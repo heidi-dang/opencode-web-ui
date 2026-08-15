@@ -103,9 +103,12 @@ export function checkServerHealth(
   }
   const attempt = async (count: number): Promise<ServerHealth> => {
     const effectiveUrl = getEffectiveServerUrl(server.url)
-    const authHeaders = server.password
-      ? { Authorization: `Basic ${authTokenFromCredentials({ username: server.username, password: server.password })}` }
-      : undefined
+    const authHeaders: HeadersInit = {
+      Accept: "application/json",
+      ...(server.password
+        ? { Authorization: `Basic ${authTokenFromCredentials({ username: server.username, password: server.password })}` }
+        : {}),
+    }
 
     let sawHttpResponse = false
     let sawInvalidOpenCodeResponse = false
@@ -146,15 +149,17 @@ export function checkServerHealth(
       return null
     }
 
-    // Probe the canonical health endpoint once. The SDK below handles the
-    // compatibility route when this endpoint is not available, avoiding a
-    // burst of predictable 404 requests on every refresh.
-    try {
-      const healthUrl = new URL("health", effectiveUrl.endsWith("/") ? effectiveUrl : `${effectiveUrl}/`)
-      const res = await fetch(healthUrl.toString(), { headers: authHeaders, signal }).catch(() => null)
-      const result = await processRes(res)
-      if (result) return result
-    } catch {}
+    // OpenCode versions expose health through different compatible routes.
+    // Probe each route with the same credentials before falling back to SDK calls.
+    for (const path of ["health", "global/health", "api/health"]) {
+      try {
+        const healthUrl = new URL(path, effectiveUrl.endsWith("/") ? effectiveUrl : `${effectiveUrl}/`)
+        const res = await fetch(healthUrl.toString(), { headers: authHeaders, signal }).catch(() => null)
+        const result = await processRes(res)
+        if (result) return result
+      } catch {}
+      if (signal.aborted) return { healthy: false, unreachable: true }
+    }
 
     const current = await OpenCode.make({
       baseUrl: effectiveUrl,
