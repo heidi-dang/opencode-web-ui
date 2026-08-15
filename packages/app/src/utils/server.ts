@@ -34,8 +34,11 @@ export function getProxyEndpoint(serverUrl: string, path = "", queryParams?: Rec
 export function fetchForServer(server: ServerConnection.HttpBase, fetcher: typeof globalThis.fetch = globalThis.fetch) {
   return ((input: RequestInfo | URL, init?: RequestInit) => {
     if (typeof window === "undefined") return fetcher(input, init)
-    const requestUrl = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url)
     const serverUrl = new URL(server.url)
+    const requestUrl = new URL(
+      typeof input === "string" ? input : input instanceof URL ? input.href : input.url,
+      serverUrl,
+    )
     if (requestUrl.origin !== serverUrl.origin) return fetcher(input, init)
 
     const proxyUrl = getProxyEndpoint(server.url, requestUrl.pathname, Object.fromEntries(requestUrl.searchParams))
