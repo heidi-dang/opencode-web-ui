@@ -176,7 +176,7 @@ function createV1Api(input: CompatibleInput): CompatibleApi {
             {
               roots: value.parentID === null ? true : undefined,
               search: value.search,
-              limit: value.limit,
+              limit: value.limit === undefined ? undefined : Math.max(1, Math.floor(value.limit)),
             },
             options,
           )
@@ -388,7 +388,7 @@ function createV1Api(input: CompatibleInput): CompatibleApi {
         const result = await legacy(value.location).find.files({
           query: value.query,
           dirs: value.type === undefined ? undefined : value.type === "directory" ? "true" : "false",
-          limit: value.limit,
+          limit: value.limit === undefined ? undefined : Math.max(1, Math.floor(value.limit)),
         })
         return located(
           (result.data ?? []).map((path) => ({ path, type: value.type ?? "file" })),

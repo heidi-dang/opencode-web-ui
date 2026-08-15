@@ -39,6 +39,20 @@ describe("normalizeSessionInfo", () => {
 })
 
 describe("listAllSessions", () => {
+  test("normalizes zero limits to one", async () => {
+    const limits: number[] = []
+    await listAllSessions(
+      {
+        list: async (query = {}) => {
+          limits.push(query.limit ?? -1)
+          return { data: [], cursor: {} }
+        },
+      },
+      { directory: "dir", limit: 0 },
+    )
+    expect(limits).toEqual([1])
+  })
+
   test("loads every page in server order and retains the query", async () => {
     const calls: SessionListInput[] = []
     const pages = new Map<string | undefined, { data: SessionInfo[]; cursor: { next?: string } }>([

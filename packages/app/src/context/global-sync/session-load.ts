@@ -16,12 +16,13 @@ function parseSessionData(data: unknown): Session[] {
 }
 
 export async function loadRootSessions(input: { api: Pick<SessionApi, "list">; directory: string; limit: number }) {
+  const limit = Math.max(1, typeof input.limit === "number" && Number.isFinite(input.limit) ? Math.floor(input.limit) : 1)
   let result
   try {
     result = await input.api.list({
       directory: input.directory,
       parentID: null,
-      limit: input.limit,
+      limit,
       order: "desc",
     })
   } catch (firstError) {
@@ -29,26 +30,27 @@ export async function loadRootSessions(input: { api: Pick<SessionApi, "list">; d
     // once with the older equivalent query, but preserve the error if both
     // contracts fail so the UI never presents failure as an empty list.
     try {
-      result = await input.api.list({ directory: input.directory, limit: input.limit, order: "desc" })
+      result = await input.api.list({ directory: input.directory, limit, order: "desc" })
     } catch {
       throw firstError
     }
   }
   return {
     data: parseSessionData(result.data),
-    limit: input.limit,
+    limit,
     limited: true,
   } as const
 }
 
 export async function loadRootSessionsV1(input: { client: OpencodeClient; directory: string; limit: number }) {
+  const limit = Math.max(1, typeof input.limit === "number" && Number.isFinite(input.limit) ? Math.floor(input.limit) : 1)
   let result;
   try {
-    result = await input.client.session.list({ directory: input.directory, roots: true, limit: input.limit })
+    result = await input.client.session.list({ directory: input.directory, roots: true, limit })
   } catch {
     result = await input.client.session.list({ directory: input.directory, roots: true })
   }
-  return { data: parseSessionData(result.data), limit: input.limit, limited: true } as const
+  return { data: parseSessionData(result.data), limit, limited: true } as const
 }
 
 export function estimateRootSessionTotal(input: { count: number; limit: number; limited: boolean }) {

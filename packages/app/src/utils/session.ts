@@ -27,8 +27,9 @@ export function normalizeSessionInfo(input: SessionInfo | Session): Session {
 }
 
 export async function listAllSessions(api: Pick<SessionApi, "list">, input: Omit<SessionListInput, "cursor">) {
+  const limit = Math.max(1, typeof input.limit === "number" && Number.isFinite(input.limit) ? Math.floor(input.limit) : 100)
   const load = async (cursor?: string): Promise<Session[]> => {
-    const result = await api.list({ ...input, limit: input.limit ?? 100, cursor })
+    const result = await api.list({ ...input, limit, cursor })
     const sessions = result.data.map(normalizeSessionInfo)
     if (result.data.length === 0 || !result.cursor.next) return sessions
     return [...sessions, ...(await load(result.cursor.next))]
