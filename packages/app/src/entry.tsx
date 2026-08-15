@@ -196,7 +196,7 @@ if (root instanceof HTMLElement) {
         {
           type: "http",
           displayName: "heidi · OpenCode 1.18.16",
-          http: { url: "http://34.116.114.133:4096" },
+          http: { url: "https://ai.tnaprovider.com.au/opencode-server" },
         },
       ]
     : []
@@ -208,7 +208,6 @@ if (root instanceof HTMLElement) {
             defaultServer={ServerConnection.Key.make(getDefaultUrl())}
             canonicalLocalServer={ServerConnection.key(server)}
             servers={[server, ...devServers]}
-            disableHealthCheck
           />
         </AppBaseProviders>
       </PlatformProvider>
