@@ -26,6 +26,7 @@ export default defineConfig({
   server: { port: 3001 },
   build: {
     target: "esnext",
+    chunkSizeWarningLimit: 1000,
   },
   worker: {
     format: "es",
