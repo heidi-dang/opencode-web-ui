@@ -567,9 +567,10 @@ export function AppInterface(props: {
   // The visual new layout lives in the router root so it remains mounted across
   // route changes. Draft and session routes override only their server-bound data
   // providers beneath it.
-  const ServerShell = (shellProps: ParentProps) => (
+    const ServerShell = (shellProps: ParentProps) => (
     <QueryProvider>
       <SharedProviders>
+        <ServerSetupPrompt />
         {props.children}
         {shellProps.children}
       </SharedProviders>
@@ -631,8 +632,6 @@ export function AppInterface(props: {
     const settings = useSettings()
     return (
       <>
-        <Route path="*" component={ServerSetupPrompt} />
-
       <Route
         component={(routeProps) => (
           <LegacyServerLayout serverScoped={props.serverScoped}>{routeProps.children}</LegacyServerLayout>
