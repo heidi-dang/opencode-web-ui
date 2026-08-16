@@ -33,7 +33,17 @@ export default async function handler(req: RequestWithUrl, res: ServerResponse) 
     const response = await fetch(upstream, { method, headers, body, duplex: body ? "half" : undefined } as RequestInit & { duplex?: "half" })
     res.statusCode = response.status
     response.headers.forEach((value, key) => { if (!HOP_BY_HOP.has(key.toLowerCase())) res.setHeader(key, value) })
-    res.end(Buffer.from(await response.arrayBuffer()))
+    if (!response.body) {
+      res.end()
+      return
+    }
+    const reader = response.body.getReader()
+    while (true) {
+      const chunk = await reader.read()
+      if (chunk.done) break
+      res.write(Buffer.from(chunk.value))
+    }
+    res.end()
   } catch (error) {
     console.error("[OpenCode Proxy Error]", error instanceof Error ? error.stack : error)
     if (!res.headersSent) json(res, 502, "Proxy upstream connection failed")
