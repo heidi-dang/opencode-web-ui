@@ -123,6 +123,7 @@ export function applyDirectoryEvent(input: {
   const event = input.event
   const activitySessionID = meaningfulActivitySessionID(event)
   if (activitySessionID) {
+    if (!input.store.session_activity) input.setStore("session_activity", {})
     input.setStore("session_activity", activitySessionID, { lastMeaningfulEventAt: Date.now() })
   }
   if (input.sessionContent === false && SESSION_CONTENT_EVENTS.has(event.type)) return
