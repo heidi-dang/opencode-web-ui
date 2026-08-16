@@ -20,7 +20,7 @@ function validateTarget(value: string) {
     throw new Error("Invalid target server URL")
   }
 
-  const configured = (process.env.OPENCODE_ALLOWED_SERVERS ?? "")
+  const configured = (process.env.OPENCODE_ALLOWED_SERVERS ?? "http://139.180.175.60:4096")
     .split(",")
     .map((item) => item.trim().replace(/\/$/, ""))
     .filter(Boolean)
@@ -58,7 +58,17 @@ export async function proxyOpenCodeRequest(req: IncomingMessage & { method?: str
     const response = await fetch(upstream, { method, headers, body, duplex: body ? "half" : undefined } as RequestInit & { duplex?: "half" })
     res.statusCode = response.status
     response.headers.forEach((value, key) => { if (!HOP_BY_HOP.has(key.toLowerCase())) res.setHeader(key, value) })
-    res.end(Buffer.from(await response.arrayBuffer()))
+    if (!response.body) {
+      res.end()
+      return true
+    }
+    const reader = response.body.getReader()
+    while (true) {
+      const chunk = await reader.read()
+      if (chunk.done) break
+      res.write(Buffer.from(chunk.value))
+    }
+    res.end()
     return true
   } catch (error) {
     console.error("[OpenCode Proxy Error]", error instanceof Error ? error.stack : error)
