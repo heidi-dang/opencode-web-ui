@@ -1,7 +1,6 @@
 import { createEffect, createMemo, createSignal, on, onCleanup, Show } from "solid-js"
 import { useSync } from "@/context/sync"
 import { useParams } from "@solidjs/router"
-import { useSettings } from "@/context/settings"
 import { NumberTicker } from "@/components/ui/number-ticker"
 import { useLanguage } from "@/context/language"
 import { createMediaQuery } from "@solid-primitives/media"
@@ -54,13 +53,10 @@ interface StreamingStatusBarProps {
 export function StreamingStatusBar(props: StreamingStatusBarProps) {
   const sync = useSync()
   const params = useParams<{ id: string }>()
-  const settings = useSettings()
-
-  const isV2 = createMemo(() => settings.general.newLayoutDesigns())
   const isWorking = createMemo(() => sync().data.session_working(params.id ?? ""))
 
   return (
-    <Show when={isV2() && isWorking()}>
+    <Show when={isWorking()}>
       <StreamingStatusBarInner activityHint={props.activityHint ?? "thinking"} />
     </Show>
   )
