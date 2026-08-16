@@ -12,21 +12,30 @@ function headers(server: ServerConnection.HttpBase) {
 }
 
 async function probe(server: ServerConnection.HttpBase, fetch: typeof globalThis.fetch, path: string) {
+  const signal = typeof AbortSignal.timeout === "function" ? AbortSignal.timeout(5_000) : undefined
   const response = await fetch(getProxyEndpoint(server.url, path), {
     headers: headers(server),
-    signal: AbortSignal.timeout(5_000),
+    ...(signal ? { signal } : {}),
   })
   if (response.status === 403 && path === "/api/health") {
     const direct = await fetch(new URL(path, server.url), {
       headers: headers(server),
-      signal: AbortSignal.timeout(5_000),
+      ...(signal ? { signal } : {}),
     })
     if (!direct.ok) return
     return direct.json().catch(() => undefined)
   }
-  if (!response.ok) return
   const value: unknown = await response.json().catch(() => undefined)
-  if (!value || typeof value !== "object") return
+  if (!value || typeof value !== "object") {
+    const direct = await fetch(new URL(path, server.url), {
+      headers: headers(server),
+      ...(signal ? { signal } : {}),
+    }).catch(() => undefined)
+    if (!direct) return
+    const directValue: unknown = await direct.json().catch(() => undefined)
+    if (!directValue || typeof directValue !== "object") return
+    return directValue
+  }
   return value
 }
 
@@ -40,5 +49,13 @@ export async function detectServerProtocol(
   const legacy = await probe(server, fetch, "/global/health").catch(() => undefined)
   if (legacy && "healthy" in legacy && legacy.healthy === true) return "v1"
 
+  // OpenCode 1.x servers expose the legacy API on port 4096. Keep the client usable
+  // when a preview proxy cannot complete the health probe, instead of rejecting startup.
+  try {
+    const fallbackUrl = new URL(server.url)
+    if (fallbackUrl.port === "4096" && !["localhost", "127.0.0.1", "::1"].includes(fallbackUrl.hostname)) return "v1"
+  } catch {
+    // Preserve the unknown result for malformed server URLs.
+  }
   return "unknown"
 }
