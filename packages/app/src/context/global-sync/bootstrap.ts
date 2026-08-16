@@ -38,6 +38,7 @@ import {
   normalizeProviderList,
 } from "./utils"
 import { formatServerError } from "@/utils/server-errors"
+import { ClientError } from "@opencode-ai/client"
 import { QueryClient, queryOptions } from "@tanstack/solid-query"
 import { loadMcpQuery, loadMcpResourcesQuery } from "../server-sync"
 import { NormalizedProviderListResponse } from "@opencode-ai/session-ui/context"
@@ -76,7 +77,10 @@ function waitForPaint() {
 }
 
 function errors(list: PromiseSettledResult<unknown>[]) {
-  return list.filter((item): item is PromiseRejectedResult => item.status === "rejected").map((item) => item.reason)
+  return list
+    .filter((item): item is PromiseRejectedResult => item.status === "rejected")
+    .map((item) => item.reason)
+    .filter((reason) => !(reason instanceof ClientError && reason.reason === "UnsupportedContentType"))
 }
 
 const providerRev = new Map<string, number>()

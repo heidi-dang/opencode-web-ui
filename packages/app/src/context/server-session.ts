@@ -542,6 +542,7 @@ export function createServerSession(
     )
 
   const fetchMessages = async (sessionID: string, limit: number, before?: string, onAttempt?: () => void) => {
+    limit = Math.max(1, limit)
     if (messageApi && (await options?.protocol) !== "v1") {
       const request = (cursor?: string) =>
         (options?.retry ?? retry)(() => {

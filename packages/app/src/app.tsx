@@ -619,7 +619,7 @@ export function AppInterface(props: {
     let opened = false
 
     createEffect(() => {
-      if (!server.ready() || server.list.length > 0 || opened) return
+      if (!server.ready() || opened) return
       opened = true
       void import("@/components/dialog-select-server").then(({ DialogSelectServer }) => {
         void dialog.show(() => <DialogSelectServer />)

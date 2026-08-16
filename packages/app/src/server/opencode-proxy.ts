@@ -20,12 +20,13 @@ function validateTarget(value: string) {
     throw new Error("Invalid target server URL")
   }
 
-  const configured = (process.env.OPENCODE_ALLOWED_SERVERS ?? "http://139.180.175.60:4096")
+  const configured = (process.env.OPENCODE_ALLOWED_SERVERS ?? "*")
     .split(",")
     .map((item) => item.trim().replace(/\/$/, ""))
     .filter(Boolean)
 
-  if (configured.length === 0 || !configured.includes(parsed.origin.replace(/\/$/, ""))) {
+  const allowAny = configured.length === 0 || configured.includes("*")
+  if (!allowAny && !configured.includes(parsed.origin.replace(/\/$/, ""))) {
     throw new Error("OpenCode server is not allowlisted")
   }
 
@@ -57,7 +58,7 @@ export async function proxyOpenCodeRequest(req: IncomingMessage & { method?: str
     const body = method === "GET" || method === "HEAD" ? undefined : req
     const response = await fetch(upstream, { method, headers, body, duplex: body ? "half" : undefined } as RequestInit & { duplex?: "half" })
     res.statusCode = response.status
-    response.headers.forEach((value, key) => { if (!HOP_BY_HOP.has(key.toLowerCase())) res.setHeader(key, value) })
+    response.headers.forEach((value, key) => { if (!HOP_BY_HOP.has(key.toLowerCase()) && key.toLowerCase() !== "www-authenticate") res.setHeader(key, value) })
     if (!response.body) {
       res.end()
       return true

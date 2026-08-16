@@ -44,7 +44,7 @@ export async function detectServerProtocol(
   fetch: typeof globalThis.fetch,
 ): Promise<DetectedServerProtocol> {
   const current = await probe(server, fetch, "/api/health").catch(() => undefined)
-  if (current && (("pid" in current && typeof current.pid === "number") || ("healthy" in current && current.healthy === true))) return "v2"
+  if (current && "pid" in current && typeof current.pid === "number") return "v2"
 
   const legacy = await probe(server, fetch, "/global/health").catch(() => undefined)
   if (legacy && "healthy" in legacy && legacy.healthy === true) return "v1"

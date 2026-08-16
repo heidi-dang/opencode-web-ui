@@ -1,10 +1,12 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http"
 
 const port = Number(process.env.OPENCODE_PROXY_PORT ?? 8787)
-const allowed = (process.env.OPENCODE_ALLOWED_SERVERS ?? "")
+const allowed = (process.env.OPENCODE_ALLOWED_SERVERS ?? "*")
   .split(",")
   .map((value) => value.trim().replace(/\/$/, ""))
   .filter(Boolean)
+
+const allowAny = allowed.length === 0 || allowed.includes("*")
 
 const hopByHop = new Set(["connection", "content-encoding", "content-length", "etag", "host", "keep-alive", "transfer-encoding", "upgrade"])
 
@@ -22,7 +24,7 @@ function validateTarget(value: string) {
     throw new Error("Invalid target server URL")
   }
   if (!["http:", "https:"].includes(target.protocol) || target.username || target.password) throw new Error("Invalid target server URL")
-  if (allowed.length === 0 || !allowed.includes(target.origin.replace(/\/$/, ""))) throw new Error("OpenCode server is not allowlisted")
+  if (!allowAny && !allowed.includes(target.origin.replace(/\/$/, ""))) throw new Error("OpenCode server is not allowlisted")
   return target
 }
 
@@ -48,7 +50,7 @@ async function proxy(req: IncomingMessage, res: ServerResponse) {
     const response = await fetch(upstream, { method, headers, body, duplex: body ? "half" : undefined } as RequestInit & { duplex?: "half" })
     res.statusCode = response.status
     response.headers.forEach((value, key) => {
-      if (!hopByHop.has(key.toLowerCase())) res.setHeader(key, value)
+      if (!hopByHop.has(key.toLowerCase()) && key.toLowerCase() !== "www-authenticate") res.setHeader(key, value)
     })
     if (!response.body) return res.end()
     const reader = response.body.getReader()

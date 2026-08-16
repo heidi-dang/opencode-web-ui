@@ -20,11 +20,25 @@ const HEALTH_POLL_INTERVAL_MS = 10_000
 const RECENTLY_CLOSED_HISTORY_LIMIT = 16
 export const RECENTLY_CLOSED_DISPLAY_LIMIT = 5
 
+// Tailscale node IPs (and other bare IPs) are entered without a port; OpenCode
+// backends default to port 4096. Apply that default so adding a server by IP works.
+const IPV4_RE = /^(\d{1,3}\.){3}\d{1,3}$/
+
 export function normalizeServerUrl(input: string) {
   const trimmed = input.trim()
   if (!trimmed) return
   const withProtocol = /^https?:\/\//.test(trimmed) ? trimmed : `http://${trimmed}`
-  return withProtocol.replace(/\/+$/, "")
+  const clean = withProtocol.replace(/\/+$/, "")
+  try {
+    const parsed = new URL(clean)
+    if (!parsed.port && IPV4_RE.test(parsed.hostname)) {
+      parsed.port = "4096"
+      return parsed.toString().replace(/\/+$/, "")
+    }
+  } catch {
+    // Keep the original value if the URL cannot be parsed.
+  }
+  return clean
 }
 
 export function serverName(conn?: ServerConnection.Any, ignoreDisplayName = false) {
