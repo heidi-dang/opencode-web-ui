@@ -8,7 +8,9 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     const target = incoming.searchParams.get("target")
     if (!target) { res.statusCode = 400; res.end(JSON.stringify({ error: "Missing target server parameter" })); return }
     const origin = new URL(target)
+    const allowed = (process.env.OPENCODE_ALLOWED_SERVERS ?? "").split(",").map((value) => value.trim().replace(/\/$/, "")).filter(Boolean)
     if (!["http:", "https:"].includes(origin.protocol) || origin.username || origin.password) { res.statusCode = 400; res.end(JSON.stringify({ error: "Invalid target server URL" })); return }
+    if (!allowed.includes(origin.origin.replace(/\/$/, ""))) { res.statusCode = 403; res.end(JSON.stringify({ error: "OpenCode server is not allowlisted" })); return }
     incoming.searchParams.delete("target")
     const upstream = new URL("/file", origin.origin)
     incoming.searchParams.forEach((value, key) => upstream.searchParams.set(key, value))

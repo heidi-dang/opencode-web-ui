@@ -8,14 +8,42 @@ function json(res: ServerResponse, status: number, error: string) {
   res.end(JSON.stringify({ error }))
 }
 
+function validateTarget(value: string) {
+  let parsed: URL
+  try {
+    parsed = new URL(value)
+  } catch {
+    throw new Error("Invalid target server URL")
+  }
+
+  if (!["http:", "https:"].includes(parsed.protocol) || parsed.username || parsed.password) {
+    throw new Error("Invalid target server URL")
+  }
+
+  const configured = (process.env.OPENCODE_ALLOWED_SERVERS ?? "")
+    .split(",")
+    .map((item) => item.trim().replace(/\/$/, ""))
+    .filter(Boolean)
+
+  if (configured.length === 0 || !configured.includes(parsed.origin.replace(/\/$/, ""))) {
+    throw new Error("OpenCode server is not allowlisted")
+  }
+
+  return parsed
+}
+
 export async function proxyOpenCodeRequest(req: IncomingMessage & { method?: string; url?: string }, res: ServerResponse): Promise<boolean> {
   try {
     const incoming = new URL(req.url || "/", `http://${req.headers?.host || "localhost"}`)
     const route = incoming.searchParams.get("__proxy_route") || incoming.pathname.replace(/^\/api\/opencode(?:\/api\/opencode)?/, "") || "/"
     const target = incoming.searchParams.get("target")
     if (!target) return json(res, 400, "Missing target server parameter") as never
-    const origin = new URL(target)
-    if (!["http:", "https:"].includes(origin.protocol) || origin.username || origin.password) return json(res, 400, "Invalid target server URL") as never
+    let origin: URL
+    try {
+      origin = validateTarget(target)
+    } catch (error) {
+      return json(res, 403, error instanceof Error ? error.message : "OpenCode server is not allowlisted") as never
+    }
     incoming.searchParams.delete("target")
     incoming.searchParams.delete("__proxy_route")
     const upstream = new URL(route, `${origin.origin}/`)
