@@ -1,0 +1,17 @@
+[Unit]
+Description=OpenCode Web UI Bun proxy
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/srv/opencode-web-ui
+EnvironmentFile=/etc/opencode-web-ui/opencode.env
+ExecStart=/usr/local/bin/bun run scripts/opencode-proxy.ts
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

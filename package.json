@@ -7,6 +7,7 @@
   "packageManager": "bun@1.3.14",
   "scripts": {
     "dev": "bun --cwd packages/app dev",
+    "proxy": "bun run scripts/opencode-proxy.ts",
     "build": "bun run --cwd packages/app build",
     "serve": "bun --cwd packages/app serve",
     "preview": "bun --cwd packages/app serve",

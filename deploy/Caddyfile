@@ -1,0 +1,13 @@
+opencode.example.com {
+  encode gzip
+
+  handle /api/opencode/* {
+    reverse_proxy 127.0.0.1:8787
+  }
+
+  handle {
+    root * /srv/opencode-web-ui/packages/app/dist
+    try_files {path} /index.html
+    file_server
+  }
+}
