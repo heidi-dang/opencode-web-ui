@@ -21,13 +21,12 @@ export function authFromToken(token: string | null) {
 export function getProxyEndpoint(serverUrl: string, path = "", queryParams?: Record<string, string>, serverId?: string) {
   const cleanPath = path.startsWith("/") ? path : `/${path}`
   const target = new URL(serverUrl)
-  const targetOrigin = target.origin
   const basePath = target.pathname.replace(/\/$/, "")
   const browserOrigin = typeof window !== "undefined" ? window.location.origin : ""
   if (!browserOrigin || browserOrigin === "null" || !/^https?:$/.test(new URL(browserOrigin).protocol)) {
-    return new URL(`${basePath}${cleanPath}`, `${targetOrigin}/`).toString()
+    return new URL(`${basePath}${cleanPath}`, `${target.origin}/`).toString()
   }
-  const url = new URL(`/api/opencode${cleanPath.replace(/^\/api\/opencode/, "")}`, browserOrigin)
+  const url = new URL(`/api/opencode${basePath}${cleanPath.replace(/^\/api\/opencode/, "")}`, browserOrigin)
   if (!serverId) throw new Error("SERVER_REGISTRATION_REQUIRED")
   url.searchParams.set("serverId", serverId)
   for (const [key, value] of Object.entries(queryParams ?? {})) url.searchParams.set(key, value)

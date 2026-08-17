@@ -21,7 +21,7 @@ describe("getProxyEndpoint", () => {
     const previous = globalThis.window
     Object.defineProperty(globalThis, "window", { configurable: true, value: { location: { origin: "http://localhost:3000" } } })
     try {
-      expect(getProxyEndpoint("https://tail.example/opencode", "/global/health", undefined, "srv_test")).toContain("serverId=srv_test")
+      expect(getProxyEndpoint("https://tail.example/opencode", "/global/health", undefined, "srv_test")).toBe("/api/opencode/opencode/global/health?serverId=srv_test")
       expect(() => getProxyEndpoint("https://tail.example/opencode", "/global/health")).toThrow("SERVER_REGISTRATION_REQUIRED")
     } finally {
       Object.defineProperty(globalThis, "window", { configurable: true, value: previous })

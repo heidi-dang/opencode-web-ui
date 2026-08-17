@@ -192,6 +192,7 @@ export async function bootstrapGlobal(input: {
     })
     throw failures[0]
   }
+  input.setGlobalStore("ready", true)
 }
 
 function groupBySession<T extends { id: string; sessionID: string }>(input: T[]) {
