@@ -54,9 +54,16 @@ export function ServerRow(props: ServerRowProps) {
   const tooltipValue = () => (
     <span class="flex items-center gap-2">
       <span>{serverName(props.conn, true)}</span>
-      <Show when={props.status?.version}>
-        <span class="text-text-invert-weak">v{props.status?.version}</span>
-      </Show>
+        <Show when={props.status?.version}>
+          <span class="text-text-invert-weak">v{props.status?.version}</span>
+        </Show>
+        <Show when={props.status?.protocol}>
+          <span class="text-text-invert-weak">{props.status?.protocol}</span>
+        </Show>
+        <Show when={props.status?.latencyMs !== undefined}>
+          <span class="text-text-invert-weak">{props.status?.latencyMs}ms</span>
+        </Show>
+
     </span>
   )
 

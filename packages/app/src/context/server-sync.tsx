@@ -455,8 +455,8 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
                 title: language.t("toast.session.listFailed.title", { project }),
                 description: formatServerError(err, language.t),
               })
-            })
-            .then(() => null),
+              throw err
+            }),
       })
       .then(() => {})
 

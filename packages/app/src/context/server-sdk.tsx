@@ -12,6 +12,7 @@ import { createRefCountMap } from "@/utils/refcount"
 import { useGlobal } from "./global"
 import { ServerScope } from "@/utils/server-scope"
 import { detectServerProtocol, type ServerProtocol } from "@/utils/server-protocol"
+import { createConnectionManager } from "@/utils/connection-manager"
 import { createCompatibleApi, type CompatibleApi } from "@/utils/server-compat"
 
 const isAbortError = (error: unknown) =>
@@ -170,6 +171,10 @@ type ServerSDKBase = {
   scope: ServerScope
   protocol: Promise<ServerProtocol>
   protocolKind: Accessor<ServerProtocol | undefined>
+  connection: {
+    get snapshot(): ReturnType<typeof createConnectionManager>["snapshot"]
+    reconnect: () => Promise<ServerProtocol>
+  }
   url: string
   client: ReturnType<typeof createSdkForServer>
   api: CompatibleApi
@@ -209,11 +214,14 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
     fetch: eventFetch,
     server: transportServer.http,
   })
-  const detectedProtocol = detectServerProtocol(transportServer.http, platform.fetch ?? globalThis.fetch)
-  const protocol = detectedProtocol.then((value): ServerProtocol => {
-    if (value === "unknown") throw new Error("Unable to determine the OpenCode API protocol")
-    return value
+  const manager = createConnectionManager({
+    probe: async () => {
+      const value = await detectServerProtocol(transportServer.http, platform.fetch ?? globalThis.fetch)
+      if (value === "unknown") throw new Error("Unable to determine the OpenCode API protocol")
+      return value
+    },
   })
+  let protocol = manager.connect()
   const [protocolKind] = createResource(() => protocol)
   const emitter = createGlobalEmitter<{
     [key: string]: ServerEvent
@@ -277,7 +285,7 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
         }
         abort.signal.addEventListener("abort", onAbort)
         try {
-          const kind = await protocol
+          const kind = await manager.connect()
           const events =
             kind === "v1"
               ? (await eventSdk.global.event({ signal: attempt.signal })).stream
@@ -286,6 +294,7 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
                 : (() => {
                     throw new Error("Unable to determine the OpenCode event protocol")
                   })()
+          manager.markStreamReady()
           let yielded = Date.now()
           for await (const event of events) {
             streamErrorLogged = false
@@ -300,6 +309,7 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
             await wait(0)
           }
         } catch (error) {
+          if (!isStreamClosed(error, attempt?.signal)) manager.markStreamFailure(error)
           if (!isStreamClosed(error, attempt?.signal) && !streamErrorLogged) {
             streamErrorLogged = true
             console.error("[global-sdk] event stream failed", {
@@ -314,7 +324,8 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
         }
 
         if (abort.signal.aborted || !started || generation !== active) return
-        await wait(RECONNECT_DELAY_MS)
+        await wait(manager.retryDelay() || RECONNECT_DELAY_MS)
+        if (manager.isCircuitOpen()) manager.reset()
       }
     })().finally(() => {
       if (run !== current) return
@@ -362,6 +373,16 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
     scope,
     protocol,
     protocolKind,
+    connection: {
+      get snapshot() {
+        return manager.snapshot
+      },
+      reconnect() {
+        manager.reset()
+        protocol = manager.connect()
+        return protocol
+      },
+    },
     url: transportServer.http.url,
     client: sdk,
     api,

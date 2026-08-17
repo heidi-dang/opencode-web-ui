@@ -111,7 +111,19 @@ export const SettingsServersV2: Component = () => {
                         <span class="settings-v2-servers-name">{serverName(item)}</span>
                         <span class="settings-v2-servers-meta">
                           <Show when={health()?.version}>v{health()?.version}</Show>
-                          <Show when={health()?.version && item.type === "http"}> • </Show>
+                          <Show when={health()?.protocol}>
+                            <Show when={health()?.version}> • </Show>
+                            {health()?.protocol}
+                          </Show>
+                          <Show when={health()?.latencyMs !== undefined}>
+                            <Show when={health()?.version || health()?.protocol}> • </Show>
+                            {health()?.latencyMs}ms
+                          </Show>
+                          <Show when={health()?.tailscale?.reason === "tailnet-host"}>
+                            <Show when={health()?.version || health()?.protocol || health()?.latencyMs !== undefined}> • </Show>
+                            Tailscale {health()?.tailscale?.path.toLowerCase()}
+                          </Show>
+                          <Show when={(health()?.version || health()?.protocol || health()?.latencyMs !== undefined || health()?.tailscale) && item.type === "http"}> • </Show>
                           <Show
                             when={item.type === "http" && item.http.username}
                             fallback={<Show when={item.type === "http"}>{language.t("server.row.noUsername")}</Show>}

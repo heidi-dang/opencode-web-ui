@@ -1,11 +1,11 @@
 import { usePlatform } from "@/context/platform"
 import { ServerConnection } from "@/context/server"
-import { authTokenFromCredentials, createSdkForServer, fetchForServer } from "./server"
-import { ClientError, OpenCode } from "@opencode-ai/client"
+import { authTokenFromCredentials, fetchForServer } from "./server"
+import { classifyTailscaleServer, type TailscaleDiagnostics } from "./tailscale"
 import { Accessor, createEffect, onCleanup } from "solid-js"
 import { createStore, reconcile } from "solid-js/store"
 
-export type ServerHealth = { healthy: boolean; version?: string }
+export type ServerHealth = { healthy: boolean; version?: string; protocol?: "v1" | "v2"; latencyMs?: number; tailscale?: TailscaleDiagnostics }
 
 interface CheckServerHealthOptions {
   timeoutMs?: number
@@ -62,7 +62,6 @@ function wait(ms: number, signal?: AbortSignal) {
 
 function retryable(error: unknown, signal?: AbortSignal) {
   if (signal?.aborted) return false
-  if (error instanceof ClientError) return error.reason === "Transport"
   if (!(error instanceof Error)) return false
   if (error.name === "AbortError" || error.name === "TimeoutError") return false
   if (error instanceof TypeError) return true
@@ -74,6 +73,7 @@ export async function checkServerHealth(
   fetch: typeof globalThis.fetch,
   opts?: CheckServerHealthOptions,
 ): Promise<ServerHealth> {
+  const startedAt = Date.now()
   const timeout = opts?.signal ? undefined : timeoutSignal(opts?.timeoutMs ?? defaultTimeoutMs)
   const signal = opts?.signal ?? timeout?.signal
   const retryCount = opts?.retryCount ?? defaultRetryCount
@@ -84,30 +84,32 @@ export async function checkServerHealth(
       .then(() => attempt(count + 1))
       .catch(() => ({ healthy: false }))
   }
+  const request = fetchForServer(server, fetch)
+  const tailscale = classifyTailscaleServer(server.url)
+  const headers = server.password
+    ? { Authorization: `Basic ${authTokenFromCredentials({ username: server.username, password: server.password })}` }
+    : undefined
   const attempt = async (count: number): Promise<ServerHealth> => {
-    const current = await OpenCode.make({
-      baseUrl: server.url,
-      fetch: fetchForServer(server, fetch),
-      headers: server.password
-        ? {
-            Authorization: `Basic ${authTokenFromCredentials({ username: server.username, password: server.password })}`,
-          }
-        : undefined,
-    })
-      .health.get({ signal })
-      .then((x) =>
-        typeof x.healthy === "boolean"
-          ? { data: { healthy: x.healthy, version: x.version } }
-          : { error: new Error("Invalid health response") },
-      )
-      .catch((error) => ({ error }))
-    if ("data" in current && current.data) return current.data
-    if (signal?.aborted) return { healthy: false }
-
-    return createSdkForServer({ server, fetch, signal })
-      .global.health()
-      .then((x) => (x.error ? next(count, x.error) : { healthy: x.data?.healthy === true, version: x.data?.version }))
-      .catch((error) => next(count, error))
+    const probe = async (path: string) => {
+      const base = server.url.endsWith("/") ? server.url : `${server.url}/`
+      const response = await request(new URL(path.replace(/^\//, ""), base), { signal, headers })
+      if (response.status < 200 || response.status >= 300) throw new Error(`Health probe returned ${response.status}`)
+      const data = (await response.json()) as { healthy?: boolean; version?: string }
+      if (typeof data.healthy !== "boolean") throw new Error("Invalid health response")
+      return { healthy: data.healthy, version: data.version }
+    }
+    try {
+      const current = await probe("/api/health")
+      return { ...current, protocol: "v2", latencyMs: Date.now() - startedAt, tailscale }
+    } catch (error) {
+      if (signal?.aborted) return { healthy: false }
+      try {
+        const legacy = await probe("/global/health")
+        return { ...legacy, protocol: "v1", latencyMs: Date.now() - startedAt, tailscale }
+      } catch (legacyError) {
+        return next(count, legacyError)
+      }
+    }
   }
   return attempt(0).finally(() => timeout?.clear?.())
 }

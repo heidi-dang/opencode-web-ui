@@ -156,6 +156,7 @@ export const { use: useModels, provider: ModelsProvider } = createSimpleContext(
     )
     return {
       ready,
+      providerReady: providers.ready,
       list,
       find,
       visible,
