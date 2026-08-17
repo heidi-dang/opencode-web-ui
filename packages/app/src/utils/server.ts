@@ -20,13 +20,15 @@ export function authFromToken(token: string | null) {
 
 export function getProxyEndpoint(serverUrl: string, path = "", queryParams?: Record<string, string>) {
   const cleanPath = path.startsWith("/") ? path : `/${path}`
-  const targetOrigin = new URL(serverUrl).origin
+  const target = new URL(serverUrl)
+  const targetOrigin = target.origin
+  const basePath = target.pathname.replace(/\/$/, "")
   const browserOrigin = typeof window !== "undefined" ? window.location.origin : ""
   if (!/^https?:$/.test(new URL(browserOrigin || "http://localhost").protocol)) {
-    return new URL(cleanPath, `${targetOrigin}/`).toString()
+    return new URL(`${basePath}${cleanPath}`, `${targetOrigin}/`).toString()
   }
   const url = new URL(`/api/opencode${cleanPath.replace(/^\/api\/opencode/, "")}`, browserOrigin)
-  url.searchParams.set("target", targetOrigin)
+  url.searchParams.set("target", targetOrigin + basePath)
   for (const [key, value] of Object.entries(queryParams ?? {})) url.searchParams.set(key, value)
   return url.pathname + url.search
 }

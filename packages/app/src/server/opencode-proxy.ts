@@ -43,11 +43,13 @@ export async function proxyOpenCodeRequest(req: IncomingMessage & { method?: str
     try {
       origin = validateTarget(target)
     } catch (error) {
-      return json(res, 403, error instanceof Error ? error.message : "OpenCode server is not allowlisted") as never
+      const message = error instanceof Error ? error.message : "OpenCode server is not allowlisted"
+      return json(res, message === "Invalid target server URL" ? 400 : 403, message) as never
     }
     incoming.searchParams.delete("target")
     incoming.searchParams.delete("__proxy_route")
-    const upstream = new URL(route, `${origin.origin}/`)
+    const basePath = origin.pathname.replace(/\/$/, "")
+    const upstream = new URL(`${basePath}${route}`, `${origin.origin}/`)
     incoming.searchParams.forEach((value, key) => upstream.searchParams.append(key, value))
     const method = req.method || "GET"
     const headers = new Headers()

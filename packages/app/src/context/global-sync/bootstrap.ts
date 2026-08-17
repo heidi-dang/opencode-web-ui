@@ -167,13 +167,17 @@ export async function bootstrapGlobal(input: {
         .fetchQuery(loadProjectsQuery(input.scope, input.serverAPI.project))
         .then((data) => input.setGlobalStore("project", data)),
   ]
-  await runAll(slow)
-  // showErrors({
-  //   errors: errors(),
-  //   title: input.requestFailedTitle,
-  //   translate: input.translate,
-  //   formatMoreCount: input.formatMoreCount,
-  // })
+  const results = await runAll(slow)
+  const failures = errors(results)
+  if (failures.length > 0) {
+    showErrors({
+      errors: failures,
+      title: input.requestFailedTitle,
+      translate: input.translate,
+      formatMoreCount: input.formatMoreCount,
+    })
+    throw failures[0]
+  }
 }
 
 function groupBySession<T extends { id: string; sessionID: string }>(input: T[]) {

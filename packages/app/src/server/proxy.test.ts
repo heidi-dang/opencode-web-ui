@@ -91,6 +91,26 @@ describe("Universal OpenCode Proxy", () => {
     }
   })
 
+  test("preserves a reverse-proxy base path on the upstream target", async () => {
+    const originalFetch = globalThis.fetch
+    const fetchMock = mock(async (url: URL | RequestInfo) => {
+      expect(String(url)).toBe("https://api.example.test/opencode/global/health")
+      return Response.json({ healthy: true })
+    })
+    globalThis.fetch = fetchMock as unknown as typeof fetch
+    try {
+      const res = response()
+      await handleOpenCodeProxy(
+        request("/api/opencode/global/health?target=https%3A%2F%2Fapi.example.test%2Fopencode") as any,
+        res as any,
+      )
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(res.statusCode).toBe(200)
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
   test("maps upstream failures to a safe 502 response", async () => {
     const originalFetch = globalThis.fetch
     globalThis.fetch = mock(async () => { throw new Error("secret internal detail") }) as unknown as typeof fetch
