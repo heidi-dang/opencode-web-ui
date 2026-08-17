@@ -155,6 +155,20 @@ export async function bootstrapGlobal(input: {
   setGlobalStore: SetStoreFunction<GlobalStore>
   queryClient: QueryClient
 }) {
+  if (input.protocol) {
+    try {
+      await input.protocol
+    } catch (error) {
+      showErrors({
+        errors: [error],
+        title: input.requestFailedTitle,
+        translate: input.translate,
+        formatMoreCount: input.formatMoreCount,
+      })
+      throw error
+    }
+  }
+
   const slow = [
     () => input.queryClient.fetchQuery(loadGlobalConfigQuery(input.scope, input.serverSDK, input.protocol)),
     () =>
