@@ -1,5 +1,6 @@
 import { describe, expect, mock, test } from "bun:test"
 import { handleOpenCodeProxy } from "./proxy"
+import { resetRegistryForTests } from "./server-registry"
 
 function response() {
   return {
@@ -23,7 +24,12 @@ function request(url: string, init: Record<string, unknown> = {}) {
 }
 
 describe("Universal OpenCode Proxy", () => {
-  process.env.OPENCODE_ALLOWED_SERVERS = "https://api.example.test,https://api.example.test/opencode"
+  process.env.OPENCODE_SERVERS_STORE = "/tmp/opencode-proxy-test-registry.json"
+  process.env.OPENCODE_SERVERS_CONFIG = JSON.stringify([
+    { id: "srv-api", baseUrl: "https://api.example.test" },
+    { id: "srv-base", baseUrl: "https://api.example.test/opencode" },
+  ])
+  resetRegistryForTests()
 
   test("rejects requests missing the target query parameter", async () => {
     const res = response()
@@ -58,7 +64,7 @@ describe("Universal OpenCode Proxy", () => {
     try {
       const res = response()
       await handleOpenCodeProxy(
-        request("/api/opencode/global/health?serverId=https%3A%2F%2Fapi.example.test&directory=%2Frepo&project=one", {
+        request("/api/opencode/global/health?serverId=srv-api&directory=%2Frepo&project=one", {
           headers: { host: "localhost:3000", authorization: "Bearer secret", connection: "keep-alive" },
         }) as any,
         res as any,
@@ -83,7 +89,7 @@ describe("Universal OpenCode Proxy", () => {
     try {
       const res = response()
       await handleOpenCodeProxy(
-        request("/api?__proxy_route=%2Ffile&serverId=https%3A%2F%2Fapi.example.test&path=.&directory=%2Fhome%2Fheidi") as any,
+        request("/api?__proxy_route=%2Ffile&serverId=srv-api&path=.&directory=%2Fhome%2Fheidi") as any,
         res as any,
       )
       expect(fetchMock).toHaveBeenCalledTimes(1)
@@ -103,7 +109,7 @@ describe("Universal OpenCode Proxy", () => {
     try {
       const res = response()
       await handleOpenCodeProxy(
-        request("/api/opencode/global/health?serverId=https%3A%2F%2Fapi.example.test%2Fopencode") as any,
+        request("/api/opencode/global/health?serverId=srv-base") as any,
         res as any,
       )
       expect(fetchMock).toHaveBeenCalledTimes(1)
@@ -118,7 +124,7 @@ describe("Universal OpenCode Proxy", () => {
     globalThis.fetch = mock(async () => { throw new Error("secret internal detail") }) as unknown as typeof fetch
     try {
       const res = response()
-      await handleOpenCodeProxy(request("/api/opencode/health?serverId=https%3A%2F%2Fapi.example.test") as any, res as any)
+      await handleOpenCodeProxy(request("/api/opencode/health?serverId=srv-api") as any, res as any)
       expect(res.statusCode).toBe(502)
       expect(res.end).toHaveBeenCalledWith(expect.not.stringContaining("secret internal detail"))
     } finally {

@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "servers": [
+    {
+      "id": "srv_23f491bc7860aa3956aa32a1",
+      "name": "tail.example",
+      "baseUrl": "https://tail.example/opencode",
+      "password": "secret",
+      "enabled": true,
+      "managed": "runtime",
+      "state": "REGISTERED",
+      "updatedAt": "2026-08-17T11:53:16.257Z"
+    }
+  ]
+}

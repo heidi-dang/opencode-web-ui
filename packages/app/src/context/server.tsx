@@ -1,5 +1,5 @@
 import { createSimpleContext } from "@opencode-ai/ui/context"
-import { type Accessor, batch, createMemo } from "solid-js"
+import { type Accessor, batch, createEffect, createMemo } from "solid-js"
 import { createStore, type SetStoreFunction, type Store } from "solid-js/store"
 import { Persist, persisted } from "@/utils/persist"
 import { pathKey } from "@/utils/path-key"
@@ -196,6 +196,7 @@ export namespace ServerConnection {
   type Base = { displayName?: string; label?: string }
 
   export type HttpBase = {
+    id?: string
     url: string
     username?: string
     password?: string
@@ -238,7 +239,7 @@ export namespace ServerConnection {
   export const key = (conn: Any): Key => {
     switch (conn.type) {
       case "http":
-        return Key.make(conn.http.url)
+        return Key.make(conn.http.id ?? conn.http.url)
       case "sidecar": {
         if (conn.variant === "wsl") return Key.make(`wsl:${conn.distro}`)
         return Key.make("sidecar")
@@ -291,6 +292,32 @@ export const { use: useServer, provider: ServerProvider } = createSimpleContext(
 
     const allServers = createMemo((): Array<ServerConnection.Any> => {
       return resolveServerList({ stored: store.list, props: props.servers })
+    })
+
+    createEffect(() => {
+      if (typeof window === "undefined" || !ready()) return
+      const toHttp = (value: StoredServer): ServerConnection.HttpBase => {
+        if (typeof value === "string") return { url: value }
+        const candidate = value as ServerConnection.Http | ServerConnection.HttpBase
+        return "http" in candidate ? candidate.http : candidate
+      }
+      const legacy = store.list.filter((value) => !toHttp(value).id)
+      if (!legacy.length) return
+      void Promise.all(legacy.map(async (value, index) => {
+        const http = toHttp(value)
+
+        try {
+          const response = await fetch("/api/opencode/servers", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ baseUrl: http.url, username: http.username, password: http.password }),
+          })
+          const payload = await response.json()
+          if (response.ok && payload.server?.id) setStore("list", index, { type: "http", http: { ...http, id: payload.server.id, password: undefined } })
+        } catch {
+          // Keep the legacy record visible so migration can be retried later.
+        }
+      }))
     })
 
     const [state, setState] = createStore({

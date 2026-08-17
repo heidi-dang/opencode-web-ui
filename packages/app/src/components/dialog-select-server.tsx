@@ -263,19 +263,23 @@ export function useServerManagementController(options: { onSelect?: () => void; 
       if (store.addServer.name.trim()) conn.displayName = store.addServer.name.trim()
       if (store.addServer.password) conn.http.password = store.addServer.password
       if (store.addServer.password && store.addServer.username) conn.http.username = store.addServer.username
-      const result = await checkServerHealth(conn.http)
-      if (!result.healthy) {
-        setStore("addServer", { error: language.t("dialog.server.add.error") })
+      const response = await fetch("/api/opencode/servers", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          name: conn.displayName,
+          baseUrl: conn.http.url,
+          username: conn.http.username,
+          password: conn.http.password,
+        }),
+      })
+      const payload = await response.json()
+      if (!response.ok || !payload.server?.id) {
+        setStore("addServer", { error: payload.error || language.t("dialog.server.add.error") })
         return
       }
-      if (
-        !settings.general.newLayoutDesigns() &&
-        (await detectServerProtocol(conn.http, platform.fetch ?? globalThis.fetch)) === "v2"
-      ) {
-        setStore("addServer", { error: language.t("dialog.server.add.error") })
-        return
-      }
-
+      conn.http.id = payload.server.id
+      conn.http.password = undefined
       resetAdd()
       if (options.navigateOnAdd === false) {
         server.add(conn)
