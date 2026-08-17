@@ -18,7 +18,7 @@ export function authFromToken(token: string | null) {
   }
 }
 
-export function getProxyEndpoint(serverUrl: string, path = "", queryParams?: Record<string, string>) {
+export function getProxyEndpoint(serverUrl: string, path = "", queryParams?: Record<string, string>, serverId?: string) {
   const cleanPath = path.startsWith("/") ? path : `/${path}`
   const target = new URL(serverUrl)
   const targetOrigin = target.origin
@@ -28,7 +28,8 @@ export function getProxyEndpoint(serverUrl: string, path = "", queryParams?: Rec
     return new URL(`${basePath}${cleanPath}`, `${targetOrigin}/`).toString()
   }
   const url = new URL(`/api/opencode${cleanPath.replace(/^\/api\/opencode/, "")}`, browserOrigin)
-  url.searchParams.set("serverId", targetOrigin + basePath)
+  if (!serverId) throw new Error("SERVER_REGISTRATION_REQUIRED")
+  url.searchParams.set("serverId", serverId)
   for (const [key, value] of Object.entries(queryParams ?? {})) url.searchParams.set(key, value)
   return url.pathname + url.search
 }
@@ -43,7 +44,7 @@ export function fetchForServer(server: ServerConnection.HttpBase, fetcher: typeo
     )
     if (requestUrl.origin !== serverUrl.origin) return fetcher(input, init)
 
-    const proxyUrl = getProxyEndpoint(server.url, requestUrl.pathname, Object.fromEntries(requestUrl.searchParams))
+    const proxyUrl = getProxyEndpoint(server.url, requestUrl.pathname, Object.fromEntries(requestUrl.searchParams), server.id)
     const request = input instanceof Request && !init ? new Request(proxyUrl, input) : undefined
     return fetcher(request ?? proxyUrl, init)
   }) as typeof globalThis.fetch
