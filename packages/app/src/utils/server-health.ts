@@ -5,7 +5,7 @@ import { ClientError, OpenCode } from "@opencode-ai/client"
 import { Accessor, createEffect, onCleanup } from "solid-js"
 import { createStore, reconcile } from "solid-js/store"
 
-export type ServerHealth = { healthy: boolean; version?: string }
+export type ServerHealth = { healthy: boolean; version?: string; protocol?: "v1" | "v2"; latencyMs?: number }
 
 interface CheckServerHealthOptions {
   timeoutMs?: number
@@ -109,7 +109,12 @@ export async function checkServerHealth(
       .then((x) => (x.error ? next(count, x.error) : { healthy: x.data?.healthy === true, version: x.data?.version }))
       .catch((error) => next(count, error))
   }
-  return attempt(0).finally(() => timeout?.clear?.())
+  return attempt(0)
+    .then(async (result) => {
+      if (!result.healthy) return { ...result, latencyMs: Date.now() - startedAt }
+      return { ...result, latencyMs: Date.now() - startedAt }
+    })
+    .finally(() => timeout?.clear?.())
 }
 
 const pollMs = 30_000

@@ -25,7 +25,7 @@ describe("checkServerHealth", () => {
 
     const result = await checkServerHealth(server, fetch)
 
-    expect(result).toEqual({ healthy: true, version: "1.2.3" })
+    expect(result).toMatchObject({ healthy: true, version: "1.2.3", protocol: "v2" })
     expect(request?.pathname).toBe("/api/health")
   })
 
@@ -38,7 +38,7 @@ describe("checkServerHealth", () => {
       return Response.json({ healthy: true, version: "1.18.4" })
     }) as unknown as typeof globalThis.fetch
 
-    expect(await checkServerHealth(server, fetch)).toEqual({ healthy: true, version: "1.18.4" })
+    expect(await checkServerHealth(server, fetch)).toMatchObject({ healthy: true, version: "1.18.4", protocol: "v1" })
     expect(paths).toEqual(["/api/health", "/global/health"])
   })
 
@@ -51,7 +51,7 @@ describe("checkServerHealth", () => {
       return Response.json({ healthy: true, version: "1.18.4" })
     }) as unknown as typeof globalThis.fetch
 
-    expect(await checkServerHealth(server, fetch)).toEqual({ healthy: true, version: "1.18.4" })
+    expect(await checkServerHealth(server, fetch)).toMatchObject({ healthy: true, version: "1.18.4", protocol: "v1" })
     expect(paths).toEqual(["/api/health", "/global/health"])
   })
 
@@ -157,7 +157,7 @@ describe("checkServerHealth", () => {
     })
 
     expect(count).toBe(3)
-    expect(result).toEqual({ healthy: true, version: "1.2.3" })
+    expect(result).toMatchObject({ healthy: true, version: "1.2.3", protocol: "v2" })
   })
 
   test("returns unhealthy when retries are exhausted", async () => {
