@@ -28,7 +28,7 @@ export function getProxyEndpoint(serverUrl: string, path = "", queryParams?: Rec
     return new URL(`${basePath}${cleanPath}`, `${targetOrigin}/`).toString()
   }
   const url = new URL(`/api/opencode${cleanPath.replace(/^\/api\/opencode/, "")}`, browserOrigin)
-  url.searchParams.set("target", targetOrigin + basePath)
+  url.searchParams.set("serverId", targetOrigin + basePath)
   for (const [key, value] of Object.entries(queryParams ?? {})) url.searchParams.set(key, value)
   return url.pathname + url.search
 }
