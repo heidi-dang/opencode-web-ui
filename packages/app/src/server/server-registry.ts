@@ -52,7 +52,6 @@ function configServers(): RegisteredServer[] {
     if (!item || typeof item !== "object") throw new Error("INVALID_SERVER_REGISTRY_CONFIG")
     const value = item as Record<string, unknown>
     if (typeof value.id !== "string" || typeof value.baseUrl !== "string") throw new Error("INVALID_SERVER_REGISTRY_CONFIG")
-    if (typeof value.id !== "string" || typeof value.baseUrl !== "string") throw new Error("INVALID_SERVER_REGISTRY_CONFIG")
     return fromConfig({
       id: value.id,
       baseUrl: value.baseUrl,
