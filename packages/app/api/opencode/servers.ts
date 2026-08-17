@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next"
-import { listServers, publicServer, registerServer, updateServerHealth } from "@/server/server-registry"
+import { listServers, probeRegisteredServer, publicServer, registerServer, updateServerHealth } from "@/server/server-registry"
 
 async function body(req: NextApiRequest) {
   if (typeof req.body === "object" && req.body) return req.body
@@ -20,23 +20,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       password: typeof input.password === "string" ? input.password : undefined,
       enabled: input.enabled !== false,
     })
-    let state: "READY" | "UNHEALTHY" = "UNHEALTHY"
-    let protocol: "v1" | "v2" | undefined
-    try {
-      const target = new URL(server.baseUrl)
-      const response = await fetch(new URL(`${target.pathname.replace(/\/$/, "")}/global/health`, target.origin), {
-        headers: server.password ? { Authorization: `Basic ${Buffer.from(`${server.username || "opencode"}:${server.password}`).toString("base64")}` } : undefined,
-        signal: AbortSignal.timeout(5000),
-      })
-      if (response.ok) {
-        state = "READY"
-        protocol = response.headers.get("x-opencode-version") ? "v2" : "v1"
-      }
-    } catch {
-      // Registration remains durable so the user can retry from the server fleet.
-    }
-    const updated = await updateServerHealth(server.id, { state, protocol })
-    return res.status(201).json({ server: publicServer(updated || server), reachability: state === "READY" ? "SERVER_READY" : "SERVER_REGISTERED_BUT_UNREACHABLE" })
+    const probe = await probeRegisteredServer(server)
+    const updated = await updateServerHealth(server.id, { state: probe.state, protocol: probe.protocol })
+    return res.status(201).json({
+      server: publicServer(updated || server),
+      reachability: probe.reachable ? (probe.healthy ? "SERVER_READY" : "SERVER_HEALTH_FAILED") : "SERVER_REGISTERED_BUT_UNREACHABLE",
+      probe: { ...probe },
+    })
   } catch (error) {
     const message = error instanceof Error ? error.message : "REGISTRATION_FAILED"
     const status = ["UNSUPPORTED_URL_SCHEME", "UNSAFE_SERVER_URL", "INVALID_SERVER_URL", "DUPLICATE_SERVER_URL"].includes(message) ? 400 : 500

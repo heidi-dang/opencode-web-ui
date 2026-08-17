@@ -94,13 +94,13 @@ export async function checkServerHealth(
       const base = server.url.endsWith("/") ? server.url : `${server.url}/`
       const response = await request(new URL(path.replace(/^\//, ""), base), { signal, headers })
       if (response.status < 200 || response.status >= 300) throw new Error(`Health probe returned ${response.status}`)
-      const data = (await response.json()) as { healthy?: boolean; version?: string }
+      const data = (await response.json()) as { healthy?: boolean; version?: string; pid?: number }
       if (typeof data.healthy !== "boolean") throw new Error("Invalid health response")
-      return { healthy: data.healthy, version: data.version }
+      return { healthy: data.healthy, version: data.version, pid: data.pid }
     }
     try {
       const current = await probe("/api/health")
-      return { ...current, protocol: "v2", latencyMs: Date.now() - startedAt, tailscale }
+      return { healthy: current.healthy, version: current.version, protocol: "v2", latencyMs: Date.now() - startedAt, tailscale }
     } catch (error) {
       if (signal?.aborted) return { healthy: false }
       try {

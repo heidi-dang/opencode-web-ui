@@ -1,5 +1,5 @@
 import type { ServerConnection } from "@/context/server"
-import { authTokenFromCredentials, getProxyEndpoint } from "./server"
+import { authTokenFromCredentials, fetchForServer } from "./server"
 
 export type ServerProtocol = "v1" | "v2"
 export type DetectedServerProtocol = ServerProtocol | "unknown"
@@ -23,36 +23,15 @@ function headers(server: ServerConnection.HttpBase) {
 
 async function probe(server: ServerConnection.HttpBase, fetch: typeof globalThis.fetch, path: string) {
   const signal = typeof AbortSignal.timeout === "function" ? AbortSignal.timeout(5_000) : undefined
-  const endpoint = (() => {
-    try {
-      return getProxyEndpoint(server.url, path)
-    } catch {
-      return new URL(path.replace(/^\//, ""), server.url.endsWith("/") ? server.url : `${server.url}/`).toString()
-    }
-  })()
-  const response = await fetch(endpoint, {
+  const request = fetchForServer(server, fetch)
+  const base = server.url.endsWith("/") ? server.url : `${server.url}/`
+  const response = await request(new URL(path.replace(/^\//, ""), base), {
     headers: headers(server),
     ...(signal ? { signal } : {}),
   })
-  if (response.status === 403 && path === "/api/health") {
-    const direct = await fetch(new URL(path.replace(/^\//, ""), server.url.endsWith("/") ? server.url : `${server.url}/`), {
-      headers: headers(server),
-      ...(signal ? { signal } : {}),
-    })
-    if (!direct.ok) return
-    return direct.json().catch(() => undefined)
-  }
-  const value: unknown = await response.json().catch(() => undefined)
-  if (!value || typeof value !== "object") {
-    const direct = await fetch(new URL(path.replace(/^\//, ""), server.url.endsWith("/") ? server.url : `${server.url}/`), {
-      headers: headers(server),
-      ...(signal ? { signal } : {}),
-    }).catch(() => undefined)
-    if (!direct) return
-    const directValue: unknown = await direct.json().catch(() => undefined)
-    if (!directValue || typeof directValue !== "object") return
-    return directValue
-  }
+  if (!response.ok) throw new Error(`Protocol probe returned ${response.status}`)
+  const value: unknown = await response.json()
+  if (!value || typeof value !== "object") throw new Error("Protocol probe returned malformed JSON")
   return value
 }
 
@@ -61,11 +40,10 @@ export async function detectServerProtocol(
   fetch: typeof globalThis.fetch,
 ): Promise<DetectedServerProtocol> {
   const current = await probe(server, fetch, "/api/health").catch(() => undefined)
-  if (current && "pid" in current && typeof current.pid === "number") return "v2"
+  if (current && "healthy" in current && current.healthy === true) return "v2"
 
   const legacy = await probe(server, fetch, "/global/health").catch(() => undefined)
   if (legacy && "healthy" in legacy && legacy.healthy === true) return "v1"
-  if (current && "healthy" in current && current.healthy === true) return "v1"
 
   return "unknown"
 }

@@ -157,6 +157,54 @@ export async function deleteServer(id: string) {
   return true
 }
 
+export type ServerProbeResult = {
+  reachable: boolean
+  healthy: boolean
+  protocol?: ServerProtocol
+  state: "READY" | "UNHEALTHY"
+  latencyMs: number
+  error?: string
+}
+
+export async function probeRegisteredServer(server: RegisteredServer, timeoutMs = 5000): Promise<ServerProbeResult> {
+  const started = Date.now()
+  const base = new URL(server.baseUrl)
+  const headers = server.password
+    ? { Authorization: `Basic ${Buffer.from(`${server.username || "opencode"}:${server.password}`).toString("base64")}` }
+    : undefined
+  const probe = async (path: string) => {
+    const response = await fetch(new URL(`${base.pathname.replace(/\/$/, "")}${path}`, base.origin), {
+      headers,
+      signal: AbortSignal.timeout(timeoutMs),
+    })
+    if (!response.ok) throw new Error(`HTTP_${response.status}`)
+    const value = (await response.json()) as { healthy?: unknown; pid?: unknown }
+    if (typeof value.healthy !== "boolean") throw new Error("INVALID_HEALTH_RESPONSE")
+    return value
+  }
+
+  try {
+    const current = await probe("/api/health")
+    if (!current.healthy) return { reachable: true, healthy: false, state: "UNHEALTHY", latencyMs: Date.now() - started, error: "OPENCODE_HEALTH_FAILED" }
+    return { reachable: true, healthy: true, protocol: "v2", state: "READY", latencyMs: Date.now() - started }
+  } catch {
+    try {
+      const legacy = await probe("/global/health")
+      if (!legacy.healthy) return { reachable: true, healthy: false, state: "UNHEALTHY", latencyMs: Date.now() - started, error: "OPENCODE_HEALTH_FAILED" }
+      return { reachable: true, healthy: true, protocol: "v1", state: "READY", latencyMs: Date.now() - started }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "GATEWAY_CANNOT_REACH_SERVER"
+      return {
+        reachable: !message.startsWith("HTTP_") && message !== "INVALID_HEALTH_RESPONSE",
+        healthy: false,
+        state: "UNHEALTHY",
+        latencyMs: Date.now() - started,
+        error: message === "INVALID_HEALTH_RESPONSE" ? "PROTOCOL_UNKNOWN" : message.startsWith("HTTP_") ? "OPENCODE_HEALTH_FAILED" : "GATEWAY_CANNOT_REACH_SERVER",
+      }
+    }
+  }
+}
+
 export async function updateServerHealth(id: string, health: Pick<RegisteredServer, "state" | "protocol">) {
   const registry = await load()
   const index = registry.servers.findIndex((server) => server.id === id)

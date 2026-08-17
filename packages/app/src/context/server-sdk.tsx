@@ -313,9 +313,9 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
           if (!isStreamClosed(error, attempt?.signal) && !streamErrorLogged) {
             streamErrorLogged = true
             console.error("[global-sdk] event stream failed", {
-              url: transportServer.http.url,
+              serverId: transportServer.http.id,
               fetch: eventFetch ? "platform" : "webview",
-              error,
+              error: error instanceof Error ? error.message : "unknown stream error",
             })
           }
         } finally {
