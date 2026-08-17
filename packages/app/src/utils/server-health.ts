@@ -1,10 +1,11 @@
 import { usePlatform } from "@/context/platform"
 import { ServerConnection } from "@/context/server"
 import { authTokenFromCredentials, fetchForServer } from "./server"
+import { classifyTailscaleServer, type TailscaleDiagnostics } from "./tailscale"
 import { Accessor, createEffect, onCleanup } from "solid-js"
 import { createStore, reconcile } from "solid-js/store"
 
-export type ServerHealth = { healthy: boolean; version?: string; protocol?: "v1" | "v2"; latencyMs?: number }
+export type ServerHealth = { healthy: boolean; version?: string; protocol?: "v1" | "v2"; latencyMs?: number; tailscale?: TailscaleDiagnostics }
 
 interface CheckServerHealthOptions {
   timeoutMs?: number
@@ -84,6 +85,7 @@ export async function checkServerHealth(
       .catch(() => ({ healthy: false }))
   }
   const request = fetchForServer(server, fetch)
+  const tailscale = classifyTailscaleServer(server.url)
   const headers = server.password
     ? { Authorization: `Basic ${authTokenFromCredentials({ username: server.username, password: server.password })}` }
     : undefined
@@ -98,12 +100,12 @@ export async function checkServerHealth(
     }
     try {
       const current = await probe("/api/health")
-      return { ...current, protocol: "v2", latencyMs: Date.now() - startedAt }
+      return { ...current, protocol: "v2", latencyMs: Date.now() - startedAt, tailscale }
     } catch (error) {
       if (signal?.aborted) return { healthy: false }
       try {
         const legacy = await probe("/global/health")
-        return { ...legacy, protocol: "v1", latencyMs: Date.now() - startedAt }
+        return { ...legacy, protocol: "v1", latencyMs: Date.now() - startedAt, tailscale }
       } catch (legacyError) {
         return next(count, legacyError)
       }

@@ -119,7 +119,11 @@ export const SettingsServersV2: Component = () => {
                             <Show when={health()?.version || health()?.protocol}> • </Show>
                             {health()?.latencyMs}ms
                           </Show>
-                          <Show when={(health()?.version || health()?.protocol || health()?.latencyMs !== undefined) && item.type === "http"}> • </Show>
+                          <Show when={health()?.tailscale?.reason === "tailnet-host"}>
+                            <Show when={health()?.version || health()?.protocol || health()?.latencyMs !== undefined}> • </Show>
+                            Tailscale {health()?.tailscale?.path.toLowerCase()}
+                          </Show>
+                          <Show when={(health()?.version || health()?.protocol || health()?.latencyMs !== undefined || health()?.tailscale) && item.type === "http"}> • </Show>
                           <Show
                             when={item.type === "http" && item.http.username}
                             fallback={<Show when={item.type === "http"}>{language.t("server.row.noUsername")}</Show>}

@@ -28,6 +28,21 @@ describe("ConnectionManager", () => {
     expect(manager.snapshot.failures).toBe(0)
   })
 
+  test("opens and half-opens the circuit after the cooldown", async () => {
+    let probes = 0
+    const manager = new ConnectionManager(async () => {
+      probes++
+      if (probes === 1) throw new Error("offline")
+      return "v2"
+    }, { maxFailures: 1, cooldownMs: 1, random: () => 0.5 })
+
+    await expect(manager.connect()).rejects.toThrow("offline")
+    expect(manager.circuitState()).toBe("OPEN")
+    await new Promise((resolve) => setTimeout(resolve, 2))
+    expect(await manager.connect()).toBe("v2")
+    expect(manager.circuitState()).toBe("CLOSED")
+  })
+
   test("uses bounded jittered exponential retry delays", () => {
     const manager = new ConnectionManager(async () => "v2", { baseDelayMs: 100, maxDelayMs: 250, random: () => 0.5 })
     expect(manager.retryDelay()).toBe(100)

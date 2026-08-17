@@ -8,6 +8,8 @@ export type ConnectionState =
   | "RECONNECTING"
   | "UNHEALTHY"
 
+export type CircuitState = "CLOSED" | "OPEN" | "HALF_OPEN"
+
 export type ConnectionSnapshot = {
   state: ConnectionState
   protocol?: "v1" | "v2"
@@ -15,6 +17,8 @@ export type ConnectionSnapshot = {
   latencyMs?: number
   lastError?: unknown
   changedAt: number
+  circuit: CircuitState
+  nextProbeAt?: number
 }
 
 type ManagerOptions = {
@@ -22,13 +26,14 @@ type ManagerOptions = {
   maxFailures?: number
   baseDelayMs?: number
   maxDelayMs?: number
+  cooldownMs?: number
   random?: () => number
   onChange?: (snapshot: ConnectionSnapshot) => void
 }
 
 export class ConnectionManager {
-  private readonly options: Required<Pick<ManagerOptions, "maxFailures" | "baseDelayMs" | "maxDelayMs" | "random">>
-  private snapshotValue: ConnectionSnapshot = { state: "CONNECTING", failures: 0, changedAt: Date.now() }
+  private readonly options: Required<Pick<ManagerOptions, "maxFailures" | "baseDelayMs" | "maxDelayMs" | "cooldownMs" | "random">>
+  private snapshotValue: ConnectionSnapshot = { state: "CONNECTING", failures: 0, circuit: "CLOSED", changedAt: Date.now() }
   private protocolValue?: "v1" | "v2"
   private connecting?: Promise<"v1" | "v2">
 
@@ -37,6 +42,7 @@ export class ConnectionManager {
       maxFailures: options.maxFailures ?? 3,
       baseDelayMs: options.baseDelayMs ?? 250,
       maxDelayMs: options.maxDelayMs ?? 10_000,
+      cooldownMs: options.cooldownMs ?? 5_000,
       random: options.random ?? Math.random,
     }
     this.onChange = options.onChange
@@ -53,6 +59,11 @@ export class ConnectionManager {
   }
 
   async connect() {
+    if (this.snapshotValue.circuit === "OPEN") {
+      const nextProbeAt = this.snapshotValue.nextProbeAt ?? 0
+      if (Date.now() < nextProbeAt) throw new Error("Connection circuit is open")
+      this.setState("RECONNECTING", { circuit: "HALF_OPEN", nextProbeAt: undefined })
+    }
     if (this.protocolValue) return this.protocolValue
     if (this.connecting) return this.connecting
     this.setState("CONNECTING")
@@ -60,7 +71,8 @@ export class ConnectionManager {
     this.connecting = this.probe()
       .then((protocol) => {
         this.protocolValue = protocol
-        this.setState("PROTOCOL_READY", { protocol, failures: 0, latencyMs: Date.now() - startedAt })
+        this.setState("HEALTHY", { protocol, failures: 0, circuit: "CLOSED", nextProbeAt: undefined, latencyMs: Date.now() - startedAt })
+        this.setState("PROTOCOL_READY", { protocol })
         return protocol
       })
       .catch((error) => {
@@ -91,7 +103,7 @@ export class ConnectionManager {
 
   reset() {
     this.protocolValue = undefined
-    this.setState("CONNECTING", { failures: 0, lastError: undefined })
+    this.setState("CONNECTING", { failures: 0, circuit: "CLOSED", nextProbeAt: undefined, lastError: undefined })
   }
 
   retryDelay() {
@@ -100,14 +112,21 @@ export class ConnectionManager {
   }
 
   isCircuitOpen() {
-    return this.snapshotValue.failures >= this.options.maxFailures
+    return this.snapshotValue.circuit === "OPEN"
+  }
+
+  circuitState() {
+    return this.snapshotValue.circuit
   }
 
   private recordFailure(error: unknown) {
     const failures = this.snapshotValue.failures + 1
-    this.setState(failures >= this.options.maxFailures ? "UNHEALTHY" : "RECONNECTING", {
+    const open = failures >= this.options.maxFailures
+    this.setState(open ? "UNHEALTHY" : "RECONNECTING", {
       failures,
       lastError: error,
+      circuit: open ? "OPEN" : this.snapshotValue.circuit,
+      nextProbeAt: open ? Date.now() + this.options.cooldownMs : this.snapshotValue.nextProbeAt,
     })
   }
 
