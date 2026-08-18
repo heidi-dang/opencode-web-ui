@@ -1,8 +1,6 @@
 import { sentryVitePlugin } from "@sentry/vite-plugin"
 import { defineConfig } from "vite"
 import desktopPlugin from "./vite"
-import { handleOpenCodeProxy } from "./src/server/proxy"
-
 const sentry =
   process.env.SENTRY_AUTH_TOKEN && process.env.SENTRY_ORG && process.env.SENTRY_PROJECT
     ? sentryVitePlugin({
@@ -22,9 +20,9 @@ const sentry =
 
 const universalServerProxy = {
   name: "opencode-universal-proxy",
-  configureServer(server: { middlewares: { use: (handler: (req: any, res: any, next: () => void) => void) => void } }) {
+  configureServer(server: { middlewares: { use: (handler: (req: any, res: any, next: () => void) => void) => void }; ssrLoadModule: (id: string) => Promise<{ handleOpenCodeProxy: (req: any, res: any, next: () => void) => void }> }) {
     server.middlewares.use((req, res, next) => {
-      void handleOpenCodeProxy(req, res, next)
+      void server.ssrLoadModule("/src/server/proxy.ts").then(({ handleOpenCodeProxy }) => handleOpenCodeProxy(req, res, next))
     })
   },
 }
