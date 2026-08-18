@@ -90,7 +90,11 @@ export async function proxyOpenCodeRequest(req: IncomingMessage & { method?: str
       body,
       signal: upstreamAbort.signal,
       duplex: body ? "half" : undefined,
+      redirect: "manual",
     } as unknown as RequestInit & { duplex?: "half" })
+    if (response.status >= 300 && response.status < 400) {
+      throw new Error("UPSTREAM_REDIRECT_NOT_ALLOWED")
+    }
     res.statusCode = response.status
     response.headers.forEach((value, key) => { if (!HOP_BY_HOP.has(key.toLowerCase()) && key.toLowerCase() !== "www-authenticate") res.setHeader(key, value) })
     if (!response.body) {
