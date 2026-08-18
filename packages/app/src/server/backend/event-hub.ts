@@ -17,8 +17,11 @@ export class EventHub {
       if (sub.disconnected) continue
       if (sub.queue.length >= sub.options.maxPending) {
         if (sub.options.overflow === "coalesce-deltas" && event.type === "MESSAGE_DELTA" && sub.queue.at(-1)?.type === "MESSAGE_DELTA") sub.queue[sub.queue.length - 1] = event
-        else if (isCriticalEvent(event)) this.disconnect(sub, "critical-event-overflow")
-        else { sub.dropped++; sub.queue.shift(); sub.queue.push(event) }
+        else if (isCriticalEvent(event)) {
+          const evictIndex = sub.queue.findIndex((queued) => !isCriticalEvent(queued))
+          if (evictIndex >= 0) { sub.dropped++; sub.queue.splice(evictIndex, 1); sub.queue.push(event) }
+          else this.disconnect(sub, "critical-event-overflow")
+        } else { sub.dropped++; sub.queue.shift(); sub.queue.push(event) }
       } else sub.queue.push(event)
       this.scheduleDrain(sub)
     }
