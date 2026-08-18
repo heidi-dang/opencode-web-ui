@@ -29,6 +29,7 @@ export type BackendDescriptor = {
 
 export type BackendHealth = {
   backendId: string
+  protocol?: string
   reachable: boolean
   authenticated: boolean
   healthy: boolean
