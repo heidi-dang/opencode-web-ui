@@ -369,7 +369,7 @@ export function useServerManagementController(options: { onSelect?: () => void; 
           setStore("editServer", { error: payload.error || language.t("dialog.server.add.error") })
           return
         }
-        const healthResponse = await fetch(`/api/opencode/servers/${encodeURIComponent(input.original.http.id)}/health`)
+        const healthResponse = await fetch(`/api/opencode/servers/${encodeURIComponent(input.original.http.id)}/health`, { method: "POST" })
         const health = await healthResponse.json()
         const ready = healthResponse.ok && health.state === "READY" && health.protocol
         if (!ready) {
