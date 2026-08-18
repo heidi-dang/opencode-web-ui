@@ -244,13 +244,12 @@ describe("SessionRunCoordinator", () => {
     ),
   )
 
-  it.effect("runs a wake registered during interruption cleanup", () =>
+  it.effect("ignores a wake registered during interruption cleanup", () =>
     Effect.scoped(
       Effect.gen(function* () {
         const firstStarted = yield* Deferred.make<void>()
         const cleanupStarted = yield* Deferred.make<void>()
         const cleanupGate = yield* Deferred.make<void>()
-        const secondStarted = yield* Deferred.make<void>()
         let runs = 0
         const coordinator = yield* SessionRunCoordinator.make({
           drain: () =>
@@ -263,7 +262,7 @@ describe("SessionRunCoordinator", () => {
                         Deferred.succeed(cleanupStarted, undefined).pipe(Effect.andThen(Deferred.await(cleanupGate))),
                       ),
                     )
-                  : Deferred.succeed(secondStarted, undefined),
+                  : Effect.void,
               ),
             ),
         })
@@ -275,9 +274,9 @@ describe("SessionRunCoordinator", () => {
         yield* coordinator.wake("session")
         yield* Deferred.succeed(cleanupGate, undefined)
         yield* Fiber.join(interrupt)
-        yield* Deferred.await(secondStarted)
+        yield* Effect.yieldNow
 
-        expect(runs).toBe(2)
+        expect(runs).toBe(1)
       }),
     ),
   )

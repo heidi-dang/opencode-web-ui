@@ -283,25 +283,6 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
       .join("")
     return text.trim().length === 0 && imageAttachments().length === 0 && commentCount() === 0
   })
-  const stopping = createMemo(() => working() && blank())
-  const tip = () => {
-    if (stopping()) {
-      return (
-        <div class="flex items-center gap-2">
-          <span>{language.t("prompt.action.stop")}</span>
-          <span class="text-icon-base text-12-medium text-[10px]!">{language.t("common.key.esc")}</span>
-        </div>
-      )
-    }
-
-    return (
-      <div class="flex items-center gap-2">
-        <span>{language.t("prompt.action.send")}</span>
-        <Icon name="enter" size="small" class="text-icon-base" />
-      </div>
-    )
-  }
-
   const contextItems = createMemo(() => {
     const items = prompt.context.items()
     if (store.mode !== "shell") return items
@@ -1198,7 +1179,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
     return permission.isAutoAccepting(id, sdk().directory)
   })
 
-  const { abort, handleSubmit } =
+  const submission =
     props.submission ??
     createPromptSubmit({
       prompt,
@@ -1228,6 +1209,26 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
       onSubmit: props.onSubmit,
       model: props.controls.model.selection,
     })
+  const { abort, handleSubmit } = submission
+  const interrupting = () => submission.interrupting?.() === true
+  const stopping = createMemo(() => (working() && blank()) || interrupting())
+  const tip = () => {
+    if (stopping()) {
+      return (
+        <div class="flex items-center gap-2">
+          <span>{language.t("prompt.action.stop")}</span>
+          <span class="text-icon-base text-12-medium text-[10px]!">{language.t("common.key.esc")}</span>
+        </div>
+      )
+    }
+
+    return (
+      <div class="flex items-center gap-2">
+        <span>{language.t("prompt.action.send")}</span>
+        <Icon name="enter" size="small" class="text-icon-base" />
+      </div>
+    )
+  }
 
   const handleKeyDown = (event: KeyboardEvent) => {
     if ((event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === "u") {
@@ -1579,7 +1580,7 @@ export const PromptInput: Component<PromptInputProps> = (props) => {
                 <IconButton
                   data-action="prompt-submit"
                   type="submit"
-                  disabled={!working() && blank()}
+                  disabled={interrupting() || (!working() && blank())}
                   tabIndex={store.mode === "normal" ? undefined : -1}
                   icon={stopping() ? "stop" : store.mode === "shell" ? "arrow-undo-down" : "arrow-up"}
                   variant="primary"

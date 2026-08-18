@@ -10,8 +10,10 @@ import { usePrompt } from "@/context/prompt"
 import { useSDK } from "@/context/sdk"
 import { useSettings } from "@/context/settings"
 import { useSync } from "@/context/sync"
+import { useServerSync } from "@/context/server-sync"
 import { useTerminal } from "@/context/terminal"
 import { showToast } from "@/utils/toast"
+import { formatServerError } from "@/utils/server-errors"
 import { downloadSessionExport, fetchSessionExport, sessionExportFilename } from "@/utils/session-export"
 import { findLast } from "@opencode-ai/core/util/array"
 import { createSessionTabs } from "@/pages/session/helpers"
@@ -20,6 +22,7 @@ import { Message, Part, UserMessage } from "@opencode-ai/sdk/v2"
 import { useSessionLayout } from "@/pages/session/session-layout"
 import { createSessionOwnership } from "./session-ownership"
 import { useLocal } from "@/context/local"
+import { interruptSession } from "@/components/prompt-input/submit"
 
 export type SessionCommandContext = {
   navigateMessageByOffset: (offset: number) => void
@@ -46,6 +49,7 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
   const sdk = useSDK()
   const settings = useSettings()
   const sync = useSync()
+  const serverSync = useServerSync()
   const terminal = useTerminal()
   const layout = useLayout()
   const local = useLocal()
@@ -345,7 +349,20 @@ export const useSessionCommands = (actions: SessionCommandContext) => {
     const parts = sync().data.part[message.id]
 
     if (sync().data.session_working(sessionID)) {
-      await session.interrupt({ sessionID }).catch(() => {})
+      try {
+        await interruptSession({
+          sessionID,
+          interrupt: () => session.interrupt({ sessionID }),
+          resync: () => serverSync().session.resync(sessionID),
+        })
+      } catch (error) {
+        showToast({
+          variant: "error",
+          title: language.t("prompt.action.stop"),
+          description: formatServerError(error, language.t, language.t("common.requestFailed")),
+        })
+        return
+      }
     }
 
     await runCommand({

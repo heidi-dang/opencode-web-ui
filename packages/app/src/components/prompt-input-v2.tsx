@@ -127,7 +127,6 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
       .join("")
     return text.trim().length === 0 && attachments().length === 0 && commentCount() === 0
   })
-  const stopping = createMemo(() => working() && blank())
   const placeholder = createMemo(() =>
     promptPlaceholder({
       mode: mode(),
@@ -220,6 +219,7 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
     onSubmit: props.onSubmit,
     model: props.controls.model.selection,
   })
+  const stopping = createMemo(() => (working() && blank()) || submission.interrupting?.() === true)
 
   const referenceDescription = (reference: ReferenceInfo) =>
     reference.source.type === "git" ? reference.source.repository : reference.source.path
@@ -402,6 +402,7 @@ export function usePromptInputV2Controller(props: PromptInputV2ControllerProps):
       },
       submit: {
         stopping,
+        interrupting: () => submission.interrupting?.() === true,
         working,
         onSubmit: () => void submission.handleSubmit(new Event("submit")),
         onStop: () => void submission.abort(),

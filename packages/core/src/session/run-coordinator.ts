@@ -82,6 +82,7 @@ export const make = <Key, E>(options: {
       Effect.sync(() => {
         const entry = active.get(key)
         if (entry !== undefined) {
+          if (entry.stopping) return
           entry.pendingWake = true
           return
         }

@@ -3,7 +3,7 @@ import { showToast } from "@/utils/toast"
 import { base64Encode } from "@opencode-ai/core/util/encode"
 import { Binary } from "@opencode-ai/core/util/binary"
 import { useNavigate, useParams, useSearchParams } from "@solidjs/router"
-import { batch, startTransition, type Accessor } from "solid-js"
+import { batch, createSignal, startTransition, type Accessor } from "solid-js"
 import { useTabs } from "@/context/tabs"
 import { useServerSync, type ServerSync } from "@/context/server-sync"
 import { useLanguage } from "@/context/language"
@@ -30,6 +30,25 @@ type PendingPrompt = {
 }
 
 const pending = new Map<string, PendingPrompt>()
+const INTERRUPT_POLL_MS = 100
+const INTERRUPT_TIMEOUT_MS = 5_000
+
+export async function interruptSession(input: {
+  sessionID: string
+  interrupt: () => Promise<unknown>
+  resync: () => Promise<{ active: Record<string, unknown>; errors: unknown[] }>
+  pollMs?: number
+  timeoutMs?: number
+}) {
+  await input.interrupt()
+  const deadline = Date.now() + (input.timeoutMs ?? INTERRUPT_TIMEOUT_MS)
+  while (true) {
+    const result = await input.resync()
+    if (!Object.prototype.hasOwnProperty.call(result.active, input.sessionID)) return result
+    if (Date.now() >= deadline) throw new Error("Session is still running")
+    await new Promise<void>((resolve) => setTimeout(resolve, input.pollMs ?? INTERRUPT_POLL_MS))
+  }
+}
 
 export type FollowupDraft = {
   sessionID: string
@@ -245,6 +264,8 @@ export function createPromptSubmit(input: PromptSubmitInput) {
   const [search] = useSearchParams<{ draftId?: string }>()
   const tabs = useTabs()
   const pendingKey = (sessionID: string) => ScopedKey.from(sdk().scope, sessionID)
+  const [interrupting, setInterrupting] = createSignal(false)
+  let interruptRequest: Promise<void> | undefined
 
   const errorMessage = (err: unknown) => {
     if (err && typeof err === "object" && "message" in err && typeof err.message === "string") return err.message
@@ -260,6 +281,8 @@ export function createPromptSubmit(input: PromptSubmitInput) {
     const sessionID = params.id
     if (!sessionID) return Promise.resolve()
 
+    if (interruptRequest) return interruptRequest
+
     serverSync().session.set("todo", sessionID, [])
 
     input.onAbort?.()
@@ -272,9 +295,29 @@ export function createPromptSubmit(input: PromptSubmitInput) {
       pending.delete(key)
       return Promise.resolve()
     }
-    return sdk()
-      .api.session.interrupt({ sessionID })
-      .catch(() => {})
+
+    if (!input.working()) return Promise.resolve()
+
+    setInterrupting(true)
+    interruptRequest = (async () => {
+      try {
+        await interruptSession({
+          sessionID,
+          interrupt: () => sdk().api.session.interrupt({ sessionID }),
+          resync: () => serverSync().session.resync(sessionID),
+        })
+      } catch (err) {
+        showToast({
+          variant: "error",
+          title: language.t("prompt.action.stop"),
+          description: formatServerError(err, language.t, language.t("common.requestFailed")),
+        })
+      } finally {
+        interruptRequest = undefined
+        setInterrupting(false)
+      }
+    })()
+    return interruptRequest
   }
 
   const restoreCommentItems = (
@@ -640,6 +683,7 @@ export function createPromptSubmit(input: PromptSubmitInput) {
 
   return {
     abort,
+    interrupting,
     handleSubmit,
   }
 }

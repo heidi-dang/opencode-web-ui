@@ -188,6 +188,35 @@ describe("createCompatibleApi", () => {
     expect(body).not.toHaveProperty("agents")
   })
 
+  test("routes V2 interruption to the registered session endpoint", async () => {
+    const { api, requests } = setup("v2")
+
+    await api.session.interrupt({ sessionID: "ses_1" })
+
+    expect(new URL(requests[0]!.url).pathname).toBe("/api/session/ses_1/interrupt")
+    expect(requests[0]!.method).toBe("POST")
+  })
+
+  test("routes V1 interruption through the legacy abort API", async () => {
+    const calls: string[] = []
+    const { api } = setup(
+      "v1",
+      undefined,
+      () =>
+        ({
+          session: {
+            abort: async ({ sessionID }: { sessionID: string }) => {
+              calls.push(sessionID)
+            },
+          },
+        }) as unknown as ReturnType<typeof createSdkForServer>,
+    )
+
+    await api.session.interrupt({ sessionID: "ses_1" })
+
+    expect(calls).toEqual(["ses_1"])
+  })
+
   test("preserves original parts for V1 optimistic reconciliation", async () => {
     const { api, requests } = setup("v1")
     await api.session.prompt({

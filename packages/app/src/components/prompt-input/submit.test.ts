@@ -4,6 +4,7 @@ import type { Prompt, PromptStore } from "@/context/prompt"
 import type { ModelSelection } from "@/context/local"
 
 let createPromptSubmit: typeof import("./submit").createPromptSubmit
+let interruptSession: typeof import("./submit").interruptSession
 
 const createdClients: string[] = []
 const createdSessions: string[] = []
@@ -26,11 +27,13 @@ const optimisticSeeded: boolean[] = []
 const storedSessions: Record<string, Array<{ id: string; title?: string }>> = {}
 const promoted: Array<{ directory: string; sessionID: string }> = []
 const sentShell: Array<{ sessionID: string; id?: string; command: string }> = []
+const sentInterrupts: string[] = []
 const syncedDirectories: string[] = []
 const promotedDrafts: Array<{ draftID: string; server: string; sessionId: string }> = []
 const sentPrompts: string[] = []
 const promptInputs: unknown[] = []
 const sentCommands: unknown[] = []
+const toastCalls: unknown[] = []
 const commands: Array<{ name: string }> = []
 let serverSessionSyncs = 0
 
@@ -40,6 +43,7 @@ let selected = "/repo/worktree-a"
 let variant: string | undefined
 let permissionServer = "server-a"
 let createSessionGate: Promise<void> | undefined
+let interruptFailure: Error | undefined
 
 let promptValue: Prompt = [{ type: "text", content: "ls", start: 0, end: 2 }]
 const [promptStore, setPromptStore] = createStore<PromptStore>({
@@ -97,6 +101,11 @@ const clientFor = (directory: string) => {
           promptInputs.push(input)
           return { data: undefined }
         },
+        interrupt: async ({ sessionID }: { sessionID: string }) => {
+          if (interruptFailure) throw interruptFailure
+          sentInterrupts.push(sessionID)
+          return { data: undefined }
+        },
         command: async (input: unknown) => {
           sentCommands.push(input)
         },
@@ -135,6 +144,11 @@ beforeAll(async () => {
   mock.module("@opencode-ai/ui/toast", () => ({
     Toast: { Region: () => null },
     showToast: () => 0,
+    toaster: { dismiss: () => undefined },
+  }))
+
+  mock.module("@/utils/toast", () => ({
+    showToast: (value: unknown) => toastCalls.push(value),
   }))
 
   mock.module("@opencode-ai/core/util/encode", () => ({
@@ -237,6 +251,10 @@ beforeAll(async () => {
       session: {
         remember: () => undefined,
         set: () => undefined,
+        resync: async () => {
+          serverSessionSyncs++
+          return { active: {}, errors: [] }
+        },
         sync: async () => {
           serverSessionSyncs++
         },
@@ -276,6 +294,7 @@ beforeAll(async () => {
 
   const mod = await import("./submit")
   createPromptSubmit = mod.createPromptSubmit
+  interruptSession = mod.interruptSession
 })
 
 beforeEach(() => {
@@ -295,11 +314,14 @@ beforeEach(() => {
   params = {}
   search = {}
   sentShell.length = 0
+  sentInterrupts.length = 0
+  toastCalls.length = 0
   syncedDirectories.length = 0
   selected = "/repo/worktree-a"
   variant = undefined
   permissionServer = "server-a"
   createSessionGate = undefined
+  interruptFailure = undefined
   serverSessionSyncs = 0
   for (const key of Object.keys(storedSessions)) delete storedSessions[key]
 })
@@ -594,5 +616,88 @@ describe("prompt submit worktree selection", () => {
     expect(storedSessions["/repo/worktree-a"]).toHaveLength(1)
     expect(storedSessions["/repo/worktree-a"]?.[0]).toMatchObject({ id: "session-1", title: "New session 1" })
     expect(optimisticSeeded).toEqual([true])
+  })
+})
+
+describe("prompt interruption", () => {
+  const makeRunningSubmit = () =>
+    createPromptSubmit({
+      prompt,
+      info: () => ({ id: "session-running" }),
+      imageAttachments: () => [],
+      commentCount: () => 0,
+      autoAccept: () => false,
+      mode: () => "normal",
+      working: () => true,
+      editor: () => undefined,
+      queueScroll: () => undefined,
+      promptLength: (value) => value.reduce((sum, part) => sum + ("content" in part ? part.content.length : 0), 0),
+      addToHistory: () => undefined,
+      resetHistoryNavigation: () => undefined,
+      setMode: () => undefined,
+      setPopover: () => undefined,
+    })
+
+  test("sends one interrupt and reconciles before settling", async () => {
+    params = { id: "session-running" }
+    const submit = makeRunningSubmit()
+
+    const first = submit.abort()
+    const second = submit.abort()
+    expect(submit.interrupting()).toBe(true)
+    await Promise.all([first, second])
+
+    expect(sentInterrupts).toEqual(["session-running"])
+    expect(serverSessionSyncs).toBe(1)
+    expect(submit.interrupting()).toBe(false)
+  })
+
+  test("keeps interruption failures visible and retryable", async () => {
+    params = { id: "session-running" }
+    interruptFailure = new Error("interrupt unavailable")
+    const submit = makeRunningSubmit()
+
+    await submit.abort()
+
+    expect(submit.interrupting()).toBe(false)
+    expect(serverSessionSyncs).toBe(0)
+    expect(toastCalls).toEqual([
+      expect.objectContaining({ variant: "error", description: expect.stringContaining("interrupt unavailable") }),
+    ])
+
+    interruptFailure = undefined
+    await submit.abort()
+    expect(sentInterrupts).toEqual(["session-running"])
+    expect(serverSessionSyncs).toBe(1)
+  })
+
+  test("does not claim idle when the server remains active past the timeout", async () => {
+    await expect(
+      interruptSession({
+        sessionID: "session-running",
+        interrupt: async () => undefined,
+        resync: async () => ({ active: { "session-running": { type: "running" } }, errors: [] }),
+        timeoutMs: 0,
+        pollMs: 0,
+      }),
+    ).rejects.toThrow("Session is still running")
+  })
+
+  test("waits for authoritative inactive state after the interrupt acknowledgement", async () => {
+    const snapshots = [
+      { active: { "session-running": { type: "running" } }, errors: [] },
+      { active: {}, errors: [] },
+    ]
+    let resyncs = 0
+
+    await interruptSession({
+      sessionID: "session-running",
+      interrupt: async () => undefined,
+      resync: async () => snapshots[resyncs++] ?? snapshots.at(-1)!,
+      pollMs: 0,
+      timeoutMs: 100,
+    })
+
+    expect(resyncs).toBe(2)
   })
 })

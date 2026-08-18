@@ -800,6 +800,15 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
     },
   }
 
+  const resyncSession = async (sessionID: string) => {
+    const result = await reconcileActiveSessionState({
+      active: () => serverSDK.api.session.active(),
+      session,
+      sessionIDs: [sessionID],
+    })
+    return { active: result.active, errors: result.errors }
+  }
+
   const updateConfigMutation = useMutation(() => ({
     mutationFn: (config: Config) => serverSDK.client.global.config.update({ config }),
     onSuccess: () => {
@@ -830,7 +839,7 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
     // bootstrap,
     updateConfig: updateConfigMutation.mutateAsync,
     project: projectApi,
-    session,
+    session: Object.assign(session, { resync: resyncSession }),
     homeSessions,
     mcp: {
       toggle: async (directory: string, name: string) => {

@@ -63,7 +63,7 @@ import { PromptInputV2Composer, usePromptInputV2Controller } from "@/components/
 import { useSettingsCommand } from "@/components/settings-dialog"
 import { setCursorPosition } from "@/components/prompt-input/editor-dom"
 import { promptLength } from "@/components/prompt-input/history"
-import { type FollowupDraft, sendFollowupDraft } from "@/components/prompt-input/submit"
+import { interruptSession, type FollowupDraft, sendFollowupDraft } from "@/components/prompt-input/submit"
 import {
   createPromptInputController,
   createSessionComposerController,
@@ -1819,9 +1819,11 @@ export default function Page() {
 
   const halt = (sessionID: string) =>
     busy(sessionID)
-      ? sdk()
-          .api.session.interrupt({ sessionID })
-          .catch(() => {})
+      ? interruptSession({
+          sessionID,
+          interrupt: () => sdk().api.session.interrupt({ sessionID }),
+          resync: () => serverSync().session.resync(sessionID),
+        })
       : Promise.resolve()
 
   const revertMutation = useMutation(() => ({

@@ -1,4 +1,5 @@
 import type { useLocal } from "@/context/local"
+import type { Accessor } from "solid-js"
 import type { Prompt, usePrompt } from "@/context/prompt"
 import type { PromptInputHistory } from "./history-store"
 import type { FollowupDraft } from "./submit"
@@ -7,6 +8,7 @@ export type PromptInputState = ReturnType<typeof usePrompt>
 
 export type PromptInputSubmission = {
   abort: () => Promise<void> | void
+  interrupting?: Accessor<boolean>
   handleSubmit: (event: Event) => Promise<void> | void
 }
 

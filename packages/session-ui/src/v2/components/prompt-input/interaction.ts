@@ -36,6 +36,7 @@ export type PromptInputV2ViewConfig = {
   variant?: PromptInputV2SelectControl
   submit: {
     stopping: Accessor<boolean>
+    interrupting?: Accessor<boolean>
     working?: Accessor<boolean>
     onSubmit: () => void
     onStop: () => void
