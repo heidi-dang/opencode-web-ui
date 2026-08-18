@@ -11,6 +11,9 @@
     "build": "bun run --cwd packages/app build",
     "serve": "bun --cwd packages/app serve",
     "preview": "bun --cwd packages/app serve",
+    "db:generate": "bun scripts/control-plane-db.ts generate",
+    "db:migrate": "bun scripts/control-plane-db.ts migrate",
+    "db:check": "bun scripts/control-plane-db.ts check",
     "typecheck": "bun --cwd packages/ui typecheck && bun --cwd packages/app typecheck"
   },
   "workspaces": {
