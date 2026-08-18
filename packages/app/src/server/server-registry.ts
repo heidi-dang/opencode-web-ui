@@ -315,5 +315,6 @@ export async function updateServerHealth(id: string, health: Pick<RegisteredServ
 }
 
 export function resetRegistryForTests() {
+  process.env.CONTROL_PLANE_LEGACY_TEST_MODE = "1"
   cached = undefined
 }

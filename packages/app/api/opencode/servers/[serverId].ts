@@ -21,7 +21,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         password: typeof input.password === "string" ? input.password : undefined,
         enabled: typeof input.enabled === "boolean" ? input.enabled : undefined,
       })
-      return res.status(updated ? 200 : 404).json(updated ? { server: "descriptor" in updated ? updated.descriptor : publicServer(updated) } : { error: "SERVER_NOT_FOUND" })
+      return res.status(updated ? 200 : 404).json(updated ? { server: "descriptor" in updated ? updated.descriptor : updated } : { error: "SERVER_NOT_FOUND" })
     }
     if (req.method === "DELETE") return res.status((await deleteBackend(id)) ? 204 : 404).end()
     if (req.method === "POST" && req.url?.includes("/health")) {

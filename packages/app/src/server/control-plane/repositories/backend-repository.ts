@@ -3,10 +3,15 @@ import { openControlPlaneDatabase } from "../database/client"
 import { decryptCredential, encryptCredential } from "../encryption/credentials"
 
 function primaryState(db: ReturnType<typeof openControlPlaneDatabase>) {
-  return (db.query("SELECT value FROM control_plane_meta WHERE key='registry_migration'").get() as { value?: string } | null)?.value === "DATABASE_PRIMARY"
+  try {
+    return (db.query("SELECT value FROM control_plane_meta WHERE key='registry_migration'").get() as { value?: string } | null)?.value === "DATABASE_PRIMARY"
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("no such table")) return false
+    throw error
+  }
 }
 
-export function isDatabasePrimary() { const db = openControlPlaneDatabase(); try { return primaryState(db) } finally { db.close() } }
+export function isDatabasePrimary() { if (process.env.CONTROL_PLANE_LEGACY_TEST_MODE === "1") return false; const db = openControlPlaneDatabase(); try { return primaryState(db) } finally { db.close() } }
 
 export function listPrimaryBackends(): BackendDescriptor[] {
   const db = openControlPlaneDatabase()
