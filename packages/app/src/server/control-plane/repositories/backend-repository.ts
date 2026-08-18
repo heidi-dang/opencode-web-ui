@@ -47,7 +47,7 @@ export function updatePrimaryBackend(id: string, input: { name?: string; endpoin
     for (const [column, value] of [["name", input.name], ["endpoint", input.endpoint], ["enabled", input.enabled === undefined ? undefined : input.enabled ? 1 : 0]] as const) if (value !== undefined) { sets.push(`${column}=?`); values.push(value) }
     sets.push("state='REGISTERED'", "protocol=NULL", "updated_at=?"); values.push(Date.now(), id)
     db.query(`UPDATE agent_backends SET ${sets.join(",")} WHERE id=?`).run(...(values as Array<string | number | boolean | null>))
-    if (input.username !== undefined || input.password !== undefined) db.query("INSERT OR REPLACE INTO backend_credentials (backend_id,encrypted_username,encrypted_password,version,updated_at) VALUES (?,?,?,?,?)").run(id, input.username ? encryptCredential(input.username) : null, input.password ? encryptCredential(input.password) : null, 1, Date.now())
+    if (input.username !== undefined || input.password !== undefined) { const existing = db.query("SELECT encrypted_username, encrypted_password FROM backend_credentials WHERE backend_id=?").get(id) as { encrypted_username?: string | null; encrypted_password?: string | null } | null; db.query("INSERT OR REPLACE INTO backend_credentials (backend_id,encrypted_username,encrypted_password,version,updated_at) VALUES (?,?,?,?,?)").run(id, input.username === undefined ? existing?.encrypted_username || null : input.username ? encryptCredential(input.username) : null, input.password === undefined ? existing?.encrypted_password || null : input.password ? encryptCredential(input.password) : null, 1, Date.now()) }
     return true
   } finally { db.close() }
 }
