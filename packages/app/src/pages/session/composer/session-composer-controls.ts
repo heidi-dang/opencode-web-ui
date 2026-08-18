@@ -16,6 +16,11 @@ import { useSync } from "@/context/sync"
 import { useTabs } from "@/context/tabs"
 import { useProviders } from "@/hooks/use-providers"
 import { pathKey } from "@/utils/path-key"
+import { useLanguage } from "@/context/language"
+import { showToast } from "@/utils/toast"
+import { formatServerError } from "@/utils/server-errors"
+import { createSessionSelectionQueue } from "./session-selection-queue"
+import { createPromptModelSelection } from "./prompt-model-selection"
 
 export function createPromptInputController(input: {
   sessionKey: Accessor<string>
@@ -27,11 +32,47 @@ export function createPromptInputController(input: {
   const local = useLocal()
   const sdk = useSDK()
   const sync = useSync()
+  const language = useLanguage()
   const providers = useProviders(() => sdk().directory)
   const view = layout.view(input.sessionKey)
   const agentsQuery = createQuery(() => input.queryOptions.agents(pathKey(sdk().directory)))
   const globalProvidersQuery = createQuery(() => input.queryOptions.providers(null))
   const providersQuery = createQuery(() => input.queryOptions.providers(pathKey(sdk().directory)))
+  const modelSelection: ModelSelection & {
+    waitForPending?: () => Promise<boolean>
+    switching?: () => boolean
+  } =
+    input.model ??
+    createPromptModelSelection({
+      agent: () => local.agent.current(),
+      base: local.model,
+      sessionID: input.sessionID,
+    })
+  const agentSelection = createSessionSelectionQueue<string>({
+    async apply(name) {
+      const sessionID = input.sessionID()
+      if (!sessionID) return
+      await sdk().api.session.switchAgent({ sessionID, agent: name })
+    },
+    commit(name) {
+      local.agent.set(name)
+    },
+    onError(error) {
+      showToast({
+        title: language.t("common.requestFailed"),
+        description: formatServerError(error, language.t, language.t("common.requestFailed")),
+      })
+    },
+  })
+  const pendingSelection = {
+    ...modelSelection,
+    async waitForPending() {
+      const modelReady = await modelSelection.waitForPending?.()
+      if (modelReady === false) return false
+      return agentSelection.wait()
+    },
+    switching: () => modelSelection.switching?.() || agentSelection.pending(),
+  }
 
   return createMemo<PromptInputControls>(() => {
     return {
@@ -39,17 +80,24 @@ export function createPromptInputController(input: {
         available: sync().data.agent,
         options: local.agent.list().map((agent) => agent.name),
         current: local.agent.current()?.name ?? "",
-        loading: agentsQuery.isLoading,
+        loading: agentsQuery.isLoading || agentSelection.pending(),
         visible: local.agent.visible(),
-        select: local.agent.set,
+        select: (name) => {
+          if (!name) {
+            local.agent.set(name)
+            return
+          }
+          return agentSelection.set(name)
+        },
       },
       model: {
-        selection: input.model ?? local.model,
+        selection: pendingSelection,
         paid: providers.paid().length > 0,
         loading:
           (local.agent.visible() && agentsQuery.isLoading) ||
           providersQuery.isLoading ||
-          globalProvidersQuery.isLoading,
+          globalProvidersQuery.isLoading ||
+          !!modelSelection.switching?.(),
       },
       session: {
         id: input.sessionID(),

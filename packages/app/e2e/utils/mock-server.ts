@@ -5,10 +5,13 @@ const emptyObject = new Set(["/global/config", "/config", "/provider/auth", "/mc
 
 export interface MockServerConfig {
   protocol?: "v1" | "v2"
+  agents?: unknown[]
   provider: unknown | (() => unknown)
   integrationMethods?: Record<string, unknown[]>
   onConnectKey?: (input: { integrationID: string; body: unknown }) => void
   onInstanceDispose?: () => void
+  onSwitchModel?: (input: { sessionID: string; body: unknown }) => void | Promise<void>
+  onSwitchAgent?: (input: { sessionID: string; body: unknown }) => void | Promise<void>
   directory: string
   project: unknown
   sessions: ({ id: string } & Record<string, unknown>)[]
@@ -115,9 +118,10 @@ export async function mockOpenCodeServer(page: Page, config: MockServerConfig) {
             modelID: id,
             providerID: provider.id,
             name: typeof current.name === "string" ? current.name : id,
+            family: id,
             capabilities: { tools: true, input: ["text"], output: ["text"] },
             variants: [],
-            time: { released: 1 },
+            time: { released: Date.now() },
             cost: [{ input: 0, output: 0, cache: { read: 0, write: 0 } }],
             status: "active",
             enabled: true,
@@ -207,16 +211,17 @@ export async function mockOpenCodeServer(page: Page, config: MockServerConfig) {
     if (path === "/api/agent")
       return json(route, {
         location: location(config),
-        data: [
-          {
-            id: "build",
-            name: "Build",
-            mode: "primary",
-            hidden: false,
-            request: { settings: {}, headers: {}, body: {} },
-            permissions: [],
-          },
-        ],
+        data:
+          config.agents ?? [
+            {
+              id: "build",
+              name: "Build",
+              mode: "primary",
+              hidden: false,
+              request: { settings: {}, headers: {}, body: {} },
+              permissions: [],
+            },
+          ],
       })
     if (path === "/api/command") return json(route, { location: location(config), data: [] })
     if (path === "/api/mcp") return json(route, { location: location(config), data: [] })
@@ -323,6 +328,24 @@ export async function mockOpenCodeServer(page: Page, config: MockServerConfig) {
           timeCreated: Date.now(),
         },
       })
+    }
+    const switchModelMatch = path.match(/^\/api\/session\/([^/]+)\/model$/)
+    if (switchModelMatch && route.request().method() === "POST") {
+      try {
+        await config.onSwitchModel?.({ sessionID: switchModelMatch[1]!, body: route.request().postDataJSON() })
+      } catch (error) {
+        return json(route, { error: error instanceof Error ? error.message : "model switch failed" }, undefined, 503)
+      }
+      return route.fulfill({ status: 204, headers: { "access-control-allow-origin": "*" } })
+    }
+    const switchAgentMatch = path.match(/^\/api\/session\/([^/]+)\/agent$/)
+    if (switchAgentMatch && route.request().method() === "POST") {
+      try {
+        await config.onSwitchAgent?.({ sessionID: switchAgentMatch[1]!, body: route.request().postDataJSON() })
+      } catch (error) {
+        return json(route, { error: error instanceof Error ? error.message : "agent switch failed" }, undefined, 503)
+      }
+      return route.fulfill({ status: 204, headers: { "access-control-allow-origin": "*" } })
     }
     const legacyPromptMatch = path.match(/^\/session\/([^/]+)\/prompt_async$/)
     if (legacyPromptMatch && route.request().method() === "POST") {

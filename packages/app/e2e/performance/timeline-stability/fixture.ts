@@ -104,8 +104,12 @@ export async function setupTimeline(
     deviceScaleFactor?: number
     seedHistory?: boolean
     protocol?: "v1" | "v2"
+    agents?: unknown[]
+    provider?: unknown | (() => unknown)
     onPrompt?: (input: { sessionID: string; body: unknown }) => void | Promise<void>
     onInterrupt?: (input: { sessionID: string; body: unknown }) => void | Promise<void>
+    onSwitchModel?: (input: { sessionID: string; body: unknown }) => void | Promise<void>
+    onSwitchAgent?: (input: { sessionID: string; body: unknown }) => void | Promise<void>
     activeSessions?: () => Record<string, unknown>
     pageMessages?: (sessionID: string, limit: number, before?: string) => { items: unknown[]; cursor?: string }
   } = {},
@@ -127,13 +131,16 @@ export async function setupTimeline(
   })
   await mockOpenCodeServer(page, {
     protocol: input.protocol,
+    agents: input.agents,
     directory,
     project: project(),
-    provider: provider(),
+    provider: input.provider ?? provider(),
     sessions,
     sessionStatus: { [sessionID]: initialStatus },
     onPrompt: input.onPrompt,
     onInterrupt: input.onInterrupt,
+    onSwitchModel: input.onSwitchModel,
+    onSwitchAgent: input.onSwitchAgent,
     activeSessions: input.activeSessions,
     pageMessages: input.pageMessages ?? (() => ({ items: messages })),
   })

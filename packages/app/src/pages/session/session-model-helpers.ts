@@ -1,4 +1,5 @@
 import type { UserMessage } from "@opencode-ai/sdk/v2"
+import type { SessionMessageInfo } from "@opencode-ai/client/promise"
 
 type Local = {
   session: {
@@ -31,6 +32,42 @@ export const resetSessionModel = (local: Local) => {
 
 export const syncSessionModel = (local: Local, msg: UserMessage) => {
   local.session.restore(msg)
+}
+
+export function serverSessionSelection(input: {
+  info?: {
+    agent?: string
+    model?: { id: string; providerID: string; variant?: string }
+  }
+  messages: readonly SessionMessageInfo[]
+}) {
+  let agent = input.info?.agent
+  let model = input.info?.model
+    ? {
+        providerID: input.info.model.providerID,
+        modelID: input.info.model.id,
+        variant: input.info.model.variant,
+      }
+    : undefined
+
+  const messages = input.messages.slice().sort((a, b) => {
+    const createdA = typeof a.time?.created === "number" ? a.time.created : 0
+    const createdB = typeof b.time?.created === "number" ? b.time.created : 0
+    return createdA - createdB || a.id.localeCompare(b.id)
+  })
+
+  for (const message of messages) {
+    if (message.type === "agent-switched") agent = message.agent
+    if (message.type === "model-switched") {
+      model = {
+        providerID: message.model.providerID,
+        modelID: message.model.id,
+        variant: message.model.variant,
+      }
+    }
+  }
+
+  return { agent, model, variant: model?.variant ?? null }
 }
 
 export const syncPromptModel = (local: ModelSelection, prompt: PromptState) => {
