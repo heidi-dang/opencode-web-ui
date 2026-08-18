@@ -1,5 +1,4 @@
 import type { NextApiRequest, NextApiResponse } from "next"
-import { getServer, probeRegisteredServer, publicServer, updateServerHealth } from "@/server/server-registry"
 import { deleteBackend, getBackend, probeBackend, updateBackend } from "@/server/services/backend-service"
 
 async function requestBody(req: NextApiRequest) {
@@ -12,7 +11,6 @@ async function requestBody(req: NextApiRequest) {
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const id = String(req.query.serverId)
   try {
-    const server = await getServer(id)
     if (req.method === "GET") { const backend = await getBackend(id); return res.status(backend ? 200 : 404).json(backend ? { server: backend.descriptor } : { error: "SERVER_NOT_FOUND" }) }
     if (req.method === "PATCH") {
       const input = await requestBody(req)
@@ -27,9 +25,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
     if (req.method === "DELETE") return res.status((await deleteBackend(id)) ? 204 : 404).end()
     if (req.method === "POST" && req.url?.includes("/health")) {
-      const probe = await probeRegisteredServer(id)
-      const updated = await updateServerHealth(id, { state: probe.state, protocol: probe.protocol, reachable: probe.reachable, authenticated: probe.authenticated, healthy: probe.healthy, latencyMs: probe.latencyMs, error: probe.error })
-      return res.status(200).json({ server: publicServer(updated || server), ...probe })
+      const result = await probeBackend(id, true)
+      return res.status(result.health.healthy ? 200 : 502).json({ server: result.server, ...result.health })
     }
     return res.status(405).json({ error: "METHOD_NOT_ALLOWED" })
   } catch (error) {
