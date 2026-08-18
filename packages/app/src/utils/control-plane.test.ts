@@ -13,6 +13,14 @@ describe("control-plane bootstrap", () => {
     expect(normalizedBackendUrl("https://example.test/api/?token=ignored#fragment")).toBe("https://example.test/api")
   })
 
+  test("does not throw when a persisted backend URL is empty", () => {
+    expect(normalizedBackendUrl("")).toBeUndefined()
+  })
+
+  test("skips malformed enabled backend records", () => {
+    expect(bootstrapToServerConnections({ backends: [{ id: "broken", endpoint: "", enabled: true }] })).toEqual([])
+  })
+
   test("excludes disabled backends from active connections", () => {
     expect(bootstrapToServerConnections({ backends: [{ id: "b-1", endpoint: "http://localhost:4096", enabled: false }] })).toEqual([])
   })

@@ -15,31 +15,42 @@ export type BootstrapResponse = {
   recent?: unknown
 }
 
-export function normalizedBackendUrl(value: string) {
-  const url = new URL(value)
-  url.pathname = url.pathname.replace(/\/$/, "") || "/"
-  url.search = ""
-  url.hash = ""
-  return url.toString()
+export function normalizedBackendUrl(value: unknown) {
+  if (typeof value !== "string" || !value.trim()) return undefined
+  try {
+    const url = new URL(value)
+    url.pathname = url.pathname.replace(/\/$/, "") || "/"
+    url.search = ""
+    url.hash = ""
+    return url.toString()
+  } catch {
+    return undefined
+  }
 }
 
-export function backendToServerConnection(backend: BootstrapBackend): ServerConnection.Http {
+export function backendToServerConnection(backend: BootstrapBackend): ServerConnection.Http | undefined {
+  const url = normalizedBackendUrl(backend.endpoint)
+  if (!url) return undefined
   return {
     type: "http",
     displayName: backend.name,
     http: {
       id: backend.id,
-      url: normalizedBackendUrl(backend.endpoint),
+      url,
     },
   }
 }
 
 export function bootstrapToServerConnections(response: BootstrapResponse) {
-  return (response.backends ?? []).filter((backend) => backend.enabled).map(backendToServerConnection)
+  return (response.backends ?? [])
+    .filter((backend) => backend.enabled)
+    .map(backendToServerConnection)
+    .filter((connection): connection is ServerConnection.Http => !!connection)
 }
 
 export function findBootstrapBackend(response: BootstrapResponse, url: string) {
   const normalized = normalizedBackendUrl(url)
+  if (!normalized) return undefined
   return (response.backends ?? []).find((backend) => normalizedBackendUrl(backend.endpoint) === normalized)
 }
 

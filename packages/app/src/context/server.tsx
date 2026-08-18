@@ -303,7 +303,9 @@ export const { use: useServer, provider: ServerProvider } = createSimpleContext(
       const stored = store.list
         .filter((value) => {
           const candidate = typeof value === "string" ? { url: value } : "type" in value ? value.http : value
-          return !authoritative || (candidate.id ? authoritative.some((server) => server.http.id === candidate.id) : !authoritative.some((server) => normalizedBackendUrl(server.http.url) === normalizedBackendUrl(candidate.url)))
+          const candidateUrl = normalizedBackendUrl(candidate.url)
+          if (!candidateUrl) return false
+          return !authoritative || (candidate.id ? authoritative.some((server) => server.http.id === candidate.id) : !authoritative.some((server) => normalizedBackendUrl(server.http.url) === candidateUrl))
         })
         .map((value) => {
           if (typeof value === "string") return value
@@ -318,7 +320,7 @@ export const { use: useServer, provider: ServerProvider } = createSimpleContext(
       if (typeof window === "undefined" || !ready() || bootstrap.loading || !value) return
       const legacy = store.list.map((entry, index) => ({ entry, index })).filter(({ entry }) => {
         const http = typeof entry === "string" ? { url: entry } : "type" in entry ? entry.http : entry
-        return !http.id
+        return !http.id && !!normalizedBackendUrl(http.url)
       })
       if (!legacy.length) return
       const credentials = new Map<number, { username?: string; password?: string }>()
