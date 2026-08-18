@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "node:crypto"
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises"
 import { dirname, join } from "node:path"
 import { deletePrimaryBackend, getPrimaryBackend, getPrimaryCredentials, insertPrimaryBackend, isDatabasePrimary, updatePrimaryBackend, updatePrimaryHealth } from "./control-plane/repositories/backend-repository"
+import { assertNetworkPolicy } from "./backend/network"
 
 export type ServerState = "REGISTERED" | "READY" | "UNHEALTHY" | "AUTH_FAILED"
 export type ServerProtocol = "v1" | "v2"
@@ -256,7 +257,7 @@ export async function probeRegisteredServer(serverOrId: RegisteredServer | strin
   if (!server.enabled) {
     return { serverId, reachable: false, authenticated: false, healthy: false, state: "UNHEALTHY", latencyMs: Date.now() - started, error: "SERVER_DISABLED" }
   }
-  const base = new URL(server.baseUrl)
+  const base = assertNetworkPolicy(server.baseUrl)
   const headers = server.password !== undefined
     ? { Authorization: `Basic ${Buffer.from(`${server.username || "opencode"}:${server.password}`).toString("base64")}` }
     : undefined
@@ -270,12 +271,14 @@ export async function probeRegisteredServer(serverOrId: RegisteredServer | strin
     } catch (error) {
       return { kind: "network", error: classifyNetworkFailure(error) }
     }
-    if (!response.ok) return { kind: "http", status: response.status }
+    if (!response.ok) { await response.body?.cancel().catch(() => undefined); return { kind: "http", status: response.status } }
     try {
       const value = (await response.json()) as { healthy?: unknown }
       return typeof value.healthy === "boolean" ? { kind: "ok", healthy: value.healthy } : { kind: "malformed" }
     } catch {
       return { kind: "malformed" }
+    } finally {
+      await response.body?.cancel().catch(() => undefined)
     }
   }
 
