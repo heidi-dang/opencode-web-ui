@@ -2,20 +2,19 @@ import { createEffect, createMemo, createSignal, on, onCleanup, Show } from "sol
 import { useSync } from "@/context/sync"
 import { useParams } from "@solidjs/router"
 import { NumberTicker } from "@/components/ui/number-ticker"
-import { useLanguage } from "@/context/language"
 import { createMediaQuery } from "@solid-primitives/media"
 import { ModelActivityWaveform } from "./model-activity-waveform"
 
 export type ActivityHint = "thinking" | "tool" | "shell" | "file" | "text" | "step"
 
-function getPhrases(lang: ReturnType<typeof useLanguage>, hint: ActivityHint): readonly string[] {
+function getPhrases(hint: ActivityHint): readonly string[] {
   switch (hint) {
-    case "tool": return [lang.t("session.status.tool.1"), lang.t("session.status.tool.2"), lang.t("session.status.tool.3")]
-    case "shell": return [lang.t("session.status.shell.1"), lang.t("session.status.shell.2"), lang.t("session.status.shell.3")]
-    case "file": return [lang.t("session.status.file.1"), lang.t("session.status.file.2"), lang.t("session.status.file.3")]
-    case "text": return [lang.t("session.status.text.1"), lang.t("session.status.text.2"), lang.t("session.status.text.3")]
-    case "step": return [lang.t("session.status.step.1"), lang.t("session.status.step.2"), lang.t("session.status.step.3")]
-    default: return [lang.t("session.status.working.1"), lang.t("session.status.working.2"), lang.t("session.status.working.3")]
+    case "tool": return ["Running a tool…", "Executing operation…", "Calling function…"]
+    case "shell": return ["Running a command…", "Executing shell script…", "Executing bash…"]
+    case "file": return ["Reading a file…", "Analyzing file contents…", "Scanning the codebase…"]
+    case "text": return ["Writing a response…", "Generating output…", "Composing the answer…"]
+    case "step": return ["Planning the next step…", "Evaluating the approach…", "Determining the next action…"]
+    default: return ["Analyzing the request…", "Reading through the code…", "Formulating a plan…", "Working on it…", "Thinking…"]
   }
 }
 
@@ -44,6 +43,7 @@ const costFormatter = new Intl.NumberFormat("en-US", {
 
 interface StreamingStatusBarProps {
   activityHint?: ActivityHint
+  stopping?: boolean
 }
 
 /**
@@ -54,18 +54,17 @@ export function StreamingStatusBar(props: StreamingStatusBarProps) {
   const sync = useSync()
   const params = useParams<{ id: string }>()
   const isWorking = createMemo(() => sync().data.session_working(params.id ?? ""))
+  const visible = createMemo(() => isWorking() || props.stopping === true)
 
   return (
-    <Show when={isWorking()}>
-      <StreamingStatusBarInner activityHint={props.activityHint ?? "thinking"} />
+    <Show when={visible()}>
+      <StreamingStatusBarInner activityHint={props.activityHint ?? "thinking"} stopping={props.stopping === true} />
     </Show>
   )
 }
 
-function StreamingStatusBarInner(props: { activityHint: ActivityHint }) {
-  const language = useLanguage()
-
-  const [phrase, setPhrase] = createSignal<string>(pick(getPhrases(language, props.activityHint)))
+function StreamingStatusBarInner(props: { activityHint: ActivityHint; stopping: boolean }) {
+  const [phrase, setPhrase] = createSignal<string>(pick(getPhrases(props.activityHint)))
   const [phraseFading, setPhraseFading] = createSignal(false)
   const [elapsedSeconds, setElapsedSeconds] = createSignal(0)
   const compact = createMediaQuery("(max-width: 640px)")
@@ -80,7 +79,7 @@ function StreamingStatusBarInner(props: { activityHint: ActivityHint }) {
     setPhraseFading(true)
     phraseTimer = setTimeout(() => {
       phraseTimer = undefined
-      setPhrase(pick(getPhrases(language, props.activityHint)))
+      setPhrase(pick(getPhrases(props.activityHint)))
       setPhraseFading(false)
     }, 250)
   }
@@ -139,8 +138,17 @@ function StreamingStatusBarInner(props: { activityHint: ActivityHint }) {
       }}
       role="status"
       aria-live="polite"
-      aria-label={language.t("session.status.accessibleName")}
+      aria-label="AI activity"
     >
+      <span
+        class="status-pulse-emerald shrink-0 rounded-full"
+        style={{
+          width: "6px",
+          height: "6px",
+          background: "var(--v2-icon-icon-accent)",
+        }}
+        aria-hidden="true"
+      />
       {/* Status phrase — shown on larger screens */}
       <div class="status-text-verbose" style={{ overflow: "hidden" }}>
         <span
@@ -157,7 +165,7 @@ function StreamingStatusBarInner(props: { activityHint: ActivityHint }) {
           }}
           aria-hidden="true"
         >
-          {phrase()}
+          {props.stopping ? "Stopping…" : phrase()}
         </span>
       </div>
 

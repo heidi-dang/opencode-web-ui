@@ -608,6 +608,7 @@ kbd, [data-slot="desktop-app-menu-keybind"] {
   /* Stop todo dock animations */
   .todo-dot-glow,
   .todo-complete-flash,
+  .todo-item-enter,
   .status-pulse-emerald {
     animation: none;
   }
@@ -803,6 +804,11 @@ kbd, [data-slot="desktop-app-menu-keybind"] {
   border-radius: var(--radius-lg, 8px);
 }
 
+.streaming-stopping {
+  border-color: color-mix(in srgb, var(--v2-state-fg-warning) 45%, transparent);
+  box-shadow: 0 0 18px color-mix(in srgb, var(--v2-state-fg-warning) 12%, transparent);
+}
+
 /* 3. Status phrase fade transitions */
 @keyframes status-phrase-in {
   from { opacity: 0; transform: translateY(4px); }
@@ -831,6 +837,15 @@ kbd, [data-slot="desktop-app-menu-keybind"] {
 
 .todo-complete-flash {
   animation: todo-complete-flash 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes todo-item-enter {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.todo-item-enter {
+  animation: todo-item-enter 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 /* 5. TODO in-progress dot — accent glow ring using Deep Aurora tokens */

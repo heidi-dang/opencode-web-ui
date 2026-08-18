@@ -1,11 +1,14 @@
-import { Show, type JSX } from "solid-js"
+import { Show, createMemo, type JSX } from "solid-js"
+import { useParams } from "@solidjs/router"
 import { useLanguage } from "@/context/language"
 import { useSettings } from "@/context/settings"
+import { useSync } from "@/context/sync"
 import { SessionPermissionDock } from "@/pages/session/composer/session-permission-dock"
 import { SessionQuestionDock } from "@/pages/session/composer/session-question-dock"
 import { SessionFollowupDock } from "@/pages/session/composer/session-followup-dock"
 import { SessionRevertDock } from "@/pages/session/composer/session-revert-dock"
 import { SessionTodoDock } from "@/pages/session/composer/session-todo-dock"
+import { SessionProgressRing } from "@/pages/session/composer/session-progress-ring"
 import { StreamingStatusBar } from "@/pages/session/composer/streaming-status-bar"
 import type { SessionComposerRegionController } from "./session-composer-region-controller"
 
@@ -16,10 +19,13 @@ export function SessionComposerRegion(props: {
   const language = useLanguage()
   const controller = props.controller
   const settings = useSettings()
+  const sync = useSync()
+  const params = useParams<{ id: string }>()
   const rolled = () => {
     const revert = controller.revert()
     return revert?.items.length ? revert : undefined
   }
+  const streaming = createMemo(() => settings.general.newLayoutDesigns() && sync().data.session_working(params.id ?? ""))
 
   return (
     <div
@@ -79,6 +85,7 @@ export function SessionComposerRegion(props: {
                   collapseLabel={language.t("session.todo.collapse")}
                   expandLabel={language.t("session.todo.expand")}
                   dockProgress={controller.dockProgress()}
+                  progressRing={<SessionProgressRing todos={controller.state.todos()} />}
                 />
               </div>
             </div>
@@ -124,10 +131,13 @@ export function SessionComposerRegion(props: {
                 </div>
               )}
             </Show>
-            <StreamingStatusBar />
+            <Show when={settings.general.newLayoutDesigns()}>
+              <StreamingStatusBar />
+            </Show>
             <div
               classList={{
                 "relative z-[70]": true,
+                "streaming-active-glow-enhanced": streaming(),
               }}
               style={{
                 "margin-top": `${-controller.lift()}px`,

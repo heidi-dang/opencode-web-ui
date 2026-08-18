@@ -656,7 +656,7 @@ function ChannelIndicator(props: { debugTools?: { visible: boolean; toggle: () =
         aria-label="Toggle debug tools"
         aria-pressed={props.debugTools.visible}
       >
-        DEV
+        HEIDI
       </button>
     )
   }
@@ -665,7 +665,7 @@ function ChannelIndicator(props: { debugTools?: { visible: boolean; toggle: () =
     <>
       {["beta", "dev"].includes(channel) && (
         <div class="bg-icon-interactive-base text-[#FFF] font-medium px-2 rounded-sm uppercase font-mono">
-          {channel.toUpperCase()}
+          HEIDI
         </div>
       )}
     </>
