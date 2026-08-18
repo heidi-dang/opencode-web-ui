@@ -17,6 +17,7 @@ import { MenuV2 } from "@opencode-ai/ui/v2/menu-v2"
 import { TooltipV2 } from "@opencode-ai/ui/v2/tooltip-v2"
 import { ModelTooltip } from "./model-tooltip"
 import { useLanguage } from "@/context/language"
+import { useModels } from "@/context/models"
 import { decode64 } from "@/utils/base64"
 import { handleDocumentSearchKeydown } from "@/utils/search-keydown"
 import { createMenuDismissController } from "@/utils/menu-dismiss-controller"
@@ -52,7 +53,9 @@ const ModelList: Component<{
   model?: ModelState
 }> = (props) => {
   const model = props.model ?? useLocal().model
+  const modelsState = useModels()
   const language = useLanguage()
+  const status = modelsState.status
 
   const models = createMemo(() =>
     model
@@ -62,53 +65,69 @@ const ModelList: Component<{
   )
 
   return (
-    <List
-      class={`flex-1 px-3 min-h-0 [&_[data-slot=list-scroll]]:flex-1 [&_[data-slot=list-scroll]]:min-h-0 ${props.class ?? ""}`}
-      search={{ placeholder: language.t("dialog.model.search.placeholder"), autofocus: true, action: props.action }}
-      emptyMessage={language.t("dialog.model.empty")}
-      key={(x) => `${x.provider.id}:${x.id}`}
-      items={models}
-      current={model.current()}
-      filterKeys={["provider.name", "name", "id"]}
-      sortBy={(a, b) => a.name.localeCompare(b.name)}
-      groupBy={(x) => x.provider.name}
-      sortGroupsBy={(a, b) => {
-        const aProvider = a.items[0].provider.id
-        const bProvider = b.items[0].provider.id
-        if (popularProviders.includes(aProvider) && !popularProviders.includes(bProvider)) return -1
-        if (!popularProviders.includes(aProvider) && popularProviders.includes(bProvider)) return 1
-        return popularProviders.indexOf(aProvider) - popularProviders.indexOf(bProvider)
-      }}
-      itemWrapper={(item, node) => (
-        <Tooltip
-          class="w-full"
-          placement="right-start"
-          gutter={12}
-          openDelay={0}
-          value={<ModelTooltip model={item} latest={item.latest} free={isFree(item.provider.id, item.cost)} />}
-        >
-          {node}
-        </Tooltip>
-      )}
-      onSelect={(x) => {
-        model.set(x ? { modelID: x.id, providerID: x.provider.id } : undefined, {
-          recent: true,
-        })
-        props.onSelect()
-      }}
-    >
-      {(i) => (
-        <div class="w-full flex items-center gap-x-2 text-13-regular">
-          <span class="truncate">{i.name}</span>
-          <Show when={isFree(i.provider.id, i.cost)}>
-            <Tag>{language.t("model.tag.free")}</Tag>
-          </Show>
-          <Show when={i.latest}>
-            <Tag>{language.t("model.tag.latest")}</Tag>
+    <Show
+      when={status() === "ready" || status() === "empty"}
+      fallback={
+        <div class={`flex flex-1 items-center justify-center px-6 text-center text-13-regular ${props.class ?? ""}`}>
+          <Show when={status() === "error"} fallback={<span>Loading models…</span>}>
+            <div class="flex flex-col items-center gap-3">
+              <span>{language.t("common.requestFailed")}</span>
+              <Button variant="ghost" onClick={() => void modelsState.refresh()}>
+                Retry
+              </Button>
+            </div>
           </Show>
         </div>
-      )}
-    </List>
+      }
+    >
+      <List
+        class={`flex-1 px-3 min-h-0 [&_[data-slot=list-scroll]]:flex-1 [&_[data-slot=list-scroll]]:min-h-0 ${props.class ?? ""}`}
+        search={{ placeholder: language.t("dialog.model.search.placeholder"), autofocus: true, action: props.action }}
+        emptyMessage={language.t("dialog.model.empty")}
+        key={(x) => `${x.provider.id}:${x.id}`}
+        items={models}
+        current={model.current()}
+        filterKeys={["provider.name", "name", "id"]}
+        sortBy={(a, b) => a.name.localeCompare(b.name)}
+        groupBy={(x) => x.provider.name}
+        sortGroupsBy={(a, b) => {
+          const aProvider = a.items[0].provider.id
+          const bProvider = b.items[0].provider.id
+          if (popularProviders.includes(aProvider) && !popularProviders.includes(bProvider)) return -1
+          if (!popularProviders.includes(aProvider) && popularProviders.includes(bProvider)) return 1
+          return popularProviders.indexOf(aProvider) - popularProviders.indexOf(bProvider)
+        }}
+        itemWrapper={(item, node) => (
+          <Tooltip
+            class="w-full"
+            placement="right-start"
+            gutter={12}
+            openDelay={0}
+            value={<ModelTooltip model={item} latest={item.latest} free={isFree(item.provider.id, item.cost)} />}
+          >
+            {node}
+          </Tooltip>
+        )}
+        onSelect={(x) => {
+          model.set(x ? { modelID: x.id, providerID: x.provider.id } : undefined, {
+            recent: true,
+          })
+          props.onSelect()
+        }}
+      >
+        {(i) => (
+          <div class="w-full flex items-center gap-x-2 text-13-regular">
+            <span class="truncate">{i.name}</span>
+            <Show when={isFree(i.provider.id, i.cost)}>
+              <Tag>{language.t("model.tag.free")}</Tag>
+            </Show>
+            <Show when={i.latest}>
+              <Tag>{language.t("model.tag.latest")}</Tag>
+            </Show>
+          </div>
+        )}
+      </List>
+    </Show>
   )
 }
 

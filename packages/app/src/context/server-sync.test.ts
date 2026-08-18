@@ -9,8 +9,14 @@ import type {
 } from "@opencode-ai/client/promise"
 import { QueryClient } from "@tanstack/solid-query"
 import { canDisposeDirectory, pickDirectoriesToEvict } from "./global-sync/eviction"
-import { estimateRootSessionTotal, loadRootSessions } from "./global-sync/session-load"
-import { loadActiveSessionsQuery, loadMcpQuery, loadMcpResourcesQuery, seedActiveSessionStatuses } from "./server-sync"
+import { estimateRootSessionTotal, loadRootSessions, loadRootSessionsV1 } from "./global-sync/session-load"
+import {
+  loadActiveSessionsQuery,
+  loadMcpQuery,
+  loadMcpResourcesQuery,
+  loadSessionQuery,
+  seedActiveSessionStatuses,
+} from "./server-sync"
 import { ServerScope } from "@/utils/server-scope"
 import { createServerSession } from "./server-session"
 import type { ServerApi } from "@/utils/server"
@@ -99,6 +105,48 @@ describe("active session query", () => {
       message: "retrying",
       next: 10,
     })
+  })
+})
+
+describe("session query", () => {
+  test("returns the normalized result after reconciliation", async () => {
+    const queryClient = new QueryClient()
+    let reconciled = false
+    const result = await queryClient.fetchQuery(
+      loadSessionQuery({
+        scope: ServerScope.local,
+        directory: "/project",
+        load: async () => ({ data: [], limit: 25, limited: true }),
+        reconcile: () => {
+          reconciled = true
+        },
+      }),
+    )
+
+    expect(result).toEqual({ data: [], limit: 25, limited: true })
+    expect(result).not.toBeUndefined()
+    expect(reconciled).toBe(true)
+  })
+
+  test("normalizes the legacy session response to the same non-undefined contract", async () => {
+    let calls = 0
+    const result = await loadRootSessionsV1({
+      client: {
+        session: {
+          list: async () => {
+            calls++
+            if (calls === 1) throw new Error("limit unsupported")
+            return { data: [] }
+          },
+        },
+      } as unknown as OpencodeClient,
+      directory: "/project",
+      limit: 25,
+    })
+
+    expect(result).toEqual({ data: [], limit: 25, limited: false })
+    expect(result).not.toBeUndefined()
+    expect(calls).toBe(2)
   })
 })
 

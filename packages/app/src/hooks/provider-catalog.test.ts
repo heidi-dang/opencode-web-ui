@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test"
 import type { NormalizedProviderListResponse } from "@opencode-ai/session-ui/context"
-import { resolveDefaultModel, selectProviderCatalog } from "./provider-catalog"
+import { resolveDefaultModel, resolveProviderQueryState, selectProviderCatalog } from "./provider-catalog"
 
 const catalog = (id: string): NormalizedProviderListResponse => ({
   all: new Map([[id, { id, name: id, source: "api", env: [], options: {}, models: {} }]]),
@@ -74,4 +74,30 @@ test("uses config for legacy servers", () => {
     providerID: "anthropic",
     modelID: "claude",
   })
+})
+
+test("keeps provider query errors out of the ready and empty states", () => {
+  const error = new Error("provider request failed")
+
+  expect(
+    resolveProviderQueryState({
+      enabled: true,
+      isLoading: false,
+      isSuccess: false,
+      isError: true,
+      error,
+    }),
+  ).toMatchObject({ status: "error", ready: false, error })
+})
+
+test("reports a successful empty provider response as empty", () => {
+  expect(
+    resolveProviderQueryState({
+      enabled: true,
+      isLoading: false,
+      isSuccess: true,
+      isError: false,
+      data: { all: new Map(), connected: [], default: {} },
+    }),
+  ).toMatchObject({ status: "empty", ready: true })
 })

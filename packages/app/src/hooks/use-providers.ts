@@ -41,9 +41,20 @@ export function useProviders(directory: Accessor<string | undefined>) {
   return {
     ready: () => {
       const value = dir()
-      if (!value) return true
+      if (!value) return serverSync().data.provider_status === "ready" || serverSync().data.provider_status === "empty"
       return serverSync().child(value)[0]?.provider_ready === true
     },
+    status: () => {
+      const value = dir()
+      if (!value) return serverSync().data.provider_status
+      return serverSync().child(value)[0]?.provider_status ?? "idle"
+    },
+    error: () => {
+      const value = dir()
+      if (!value) return serverSync().data.provider_error
+      return serverSync().child(value)[0]?.provider_error
+    },
+    refresh: () => serverSync().refreshProviders(),
     all: () => providers().all,
     default: () => providers().default,
     defaultModel: () => providers().defaultModel,

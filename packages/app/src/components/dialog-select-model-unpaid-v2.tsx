@@ -7,6 +7,7 @@ import { useDialog } from "@opencode-ai/ui/context/dialog"
 import { useTheme } from "@opencode-ai/ui/theme"
 import { createMemo, onCleanup, onMount, type Component, For, Show } from "solid-js"
 import { useLocal } from "@/context/local"
+import { useModels } from "@/context/models"
 import { useProviders } from "@/hooks/use-providers"
 import { decode64 } from "@/utils/base64"
 import { useLanguage } from "@/context/language"
@@ -19,6 +20,7 @@ const displayModelName = (name: string) => name.replace(/\s+(?:\(free\)|free)$/i
 export const DialogSelectModelUnpaidV2: Component<{ model?: ModelState }> = (props) => {
   const local = useLocal()
   const model = props.model ?? local.model
+  const modelsState = useModels()
   const dialog = useDialog()
   const theme = useTheme()
   const directory = () => decode64(local.slug())
@@ -75,6 +77,23 @@ export const DialogSelectModelUnpaidV2: Component<{ model?: ModelState }> = (pro
         <DialogTitle>{language.t("dialog.model.select.title")}</DialogTitle>
       </DialogHeader>
       <DialogBody class="max-h-[calc(100vh_-_68px)] min-h-0 flex-none gap-0 overflow-y-auto px-2 pb-2">
+        <Show
+          when={modelsState.status() === "ready" || modelsState.status() === "empty"}
+          fallback={
+            <div class="flex min-h-32 flex-col items-center justify-center gap-3 px-6 text-center text-[13px] text-v2-text-text-muted">
+              <Show when={modelsState.status() === "error"} fallback={<span>Loading models…</span>}>
+                <span>{language.t("common.requestFailed")}</span>
+                <button
+                  type="button"
+                  class="rounded-md px-3 py-1.5 text-v2-text-text-base hover:bg-v2-overlay-simple-overlay-hover"
+                  onClick={() => void modelsState.refresh()}
+                >
+                  Retry
+                </button>
+              </Show>
+            </div>
+          }
+        >
         <div ref={listEl} class="flex min-h-0 flex-col">
           <div data-section="free-models" class="flex w-full flex-col items-start pb-3">
             <div class="flex h-8 w-full flex-none select-none flex-row items-center px-3 pb-2">
@@ -170,6 +189,7 @@ export const DialogSelectModelUnpaidV2: Component<{ model?: ModelState }> = (pro
             </div>
           </div>
         </div>
+        </Show>
       </DialogBody>
     </DialogV2>
   )

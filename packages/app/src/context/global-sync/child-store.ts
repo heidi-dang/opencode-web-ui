@@ -19,6 +19,7 @@ import { QueryOptionsApi } from "../server-sync"
 import { directoryKey, type DirectoryKey } from "./utils"
 import { NormalizedProviderListResponse } from "@opencode-ai/session-ui/context"
 import type { ServerScope } from "@/utils/server-scope"
+import { resolveProviderQueryState } from "@/hooks/provider-catalog"
 
 export function createChildStoreManager(input: {
   owner: Owner
@@ -201,18 +202,31 @@ export function createChildStoreManager(input: {
             enabled: instanceQueriesEnabled(),
           }))
 
+          const providerState = () =>
+            resolveProviderQueryState({
+              enabled: instanceQueriesEnabled(),
+              isLoading: providerQuery.isLoading,
+              isSuccess: providerQuery.isSuccess,
+              isError: providerQuery.isError,
+              data: providerQuery.data,
+              error: providerQuery.error,
+            })
+
           const child = createStore<State>({
             project: "",
             projectMeta: initialMeta,
             icon: initialIcon,
             get provider_ready() {
-              return instanceQueriesEnabled() && !providerQuery.isLoading
+              return providerState().ready
+            },
+            get provider_status() {
+              return providerState().status
+            },
+            get provider_error() {
+              return providerState().error
             },
             get provider() {
-              const EMPTY = { all: new Map(), connected: [], default: {} }
-              if (providerQuery.isLoading) return EMPTY
-              if (providerQuery.data?.all.size === 0 && input.global.provider.all.size > 0) return input.global.provider
-              return providerQuery.data ?? EMPTY
+              return providerState().providers
             },
             config: {},
             get path() {

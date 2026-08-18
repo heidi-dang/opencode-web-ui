@@ -649,7 +649,6 @@ export function useServerManagementController(options: { onSelect?: () => void; 
 
 export function ServerConnectionList(props: { controller: ReturnType<typeof useServerManagementController> }) {
   const language = useLanguage()
-  const settings = useSettings()
 
   return (
     <div class="flex flex-1 min-h-0 flex-col gap-4">
@@ -664,7 +663,7 @@ export function ServerConnectionList(props: { controller: ReturnType<typeof useS
         items={props.controller.sortedItems}
         key={(x) => x.http.url}
         onSelect={(x) => {
-          if (x && !settings.general.newLayoutDesigns()) void props.controller.select(x)
+          if (x) void props.controller.select(x)
         }}
         divider={true}
       >

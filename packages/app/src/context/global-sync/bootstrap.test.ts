@@ -4,8 +4,10 @@ import { QueryClient } from "@tanstack/solid-query"
 import type { Config, OpencodeClient, Project } from "@opencode-ai/sdk/v2/client"
 import type { AgentApi, CatalogApi, CommandApi, ReferenceApi } from "@opencode-ai/client/promise"
 import type { NormalizedProviderListResponse } from "@opencode-ai/session-ui/context"
+import { ClientError } from "@opencode-ai/client"
 import {
   bootstrapDirectory,
+  type CurrentProjectApi,
   loadAgentsQuery,
   loadCommands,
   loadGlobalConfigQuery,
@@ -267,6 +269,25 @@ describe("query keys", () => {
     expect(result.connected).toEqual(["openai"])
   })
 
+  test("keeps providers and models when the optional default endpoint is unsupported", async () => {
+    const result = await new QueryClient().fetchQuery(
+      loadProvidersQuery(ServerScope.local, "/repo", {
+        provider: {
+          list: async () => ({ location: {}, data: [{ id: "openai", name: "OpenAI" }] }),
+        },
+        model: {
+          list: async () => ({ location: {}, data: [] }),
+          default: async () => {
+            throw new ClientError("UnsupportedContentType")
+          },
+        },
+      } as unknown as CatalogApi),
+    )
+
+    expect(result.connected).toEqual(["openai"])
+    expect(result.all.size).toBe(1)
+  })
+
   test("loads agents from the current location-scoped endpoint", async () => {
     const calls: unknown[] = []
     const api = {
@@ -311,6 +332,25 @@ describe("query keys", () => {
     const result = await new QueryClient().fetchQuery(loadProjectsQuery(ServerScope.local, api))
 
     expect(result.map((project) => project.id)).toEqual(["a", "b"])
+  })
+
+  test("uses the v2 project endpoint when the detected protocol is v2", async () => {
+    const result = await new QueryClient().fetchQuery(
+      loadProjectsQuery(
+        ServerScope.local,
+        {
+          list: async () => {
+            throw new Error("legacy project endpoint should not be called")
+          },
+        } as unknown as ProjectApi,
+        {
+          list: async () => [{ id: "v2", worktree: "/v2", time: { created: 1, updated: 1 }, sandboxes: [] }],
+        } as unknown as CurrentProjectApi,
+        Promise.resolve("v2"),
+      ),
+    )
+
+    expect(result.map((project) => project.id)).toEqual(["v2"])
   })
 
   test("loads references from the current location-scoped endpoint", async () => {

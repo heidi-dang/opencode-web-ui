@@ -24,10 +24,16 @@ import {
   loadProjectsQuery,
   loadProvidersQuery,
   loadReferencesQuery,
+  type CurrentProjectApi,
 } from "./global-sync/bootstrap"
 import { createChildStoreManager } from "./global-sync/child-store"
 import { applyDirectoryEvent, applyGlobalEvent } from "./global-sync/event-reducer"
-import { estimateRootSessionTotal, loadRootSessions, loadRootSessionsV1 } from "./global-sync/session-load"
+import {
+  estimateRootSessionTotal,
+  loadRootSessions,
+  loadRootSessionsV1,
+  type RootSessionLoadResult,
+} from "./global-sync/session-load"
 import { trimSessions } from "./global-sync/session-trim"
 import type { ProjectMeta } from "./global-sync/types"
 import { SESSION_RECENT_LIMIT } from "./global-sync/types"
@@ -59,6 +65,7 @@ import type {
 } from "@opencode-ai/client/promise"
 import { toggleMcp } from "./global-sync/mcp"
 import { createServerSession, type ServerSession } from "./server-session"
+import { resolveProviderQueryState, type ProviderQueryStatus } from "@/hooks/provider-catalog"
 
 type GlobalStore = {
   ready: boolean
@@ -66,6 +73,8 @@ type GlobalStore = {
   path: Path
   project: Project[]
   provider: NormalizedProviderListResponse
+  provider_status: ProviderQueryStatus
+  provider_error?: unknown
   provider_auth: ProviderAuthResponse
   config: Config
   reload: undefined | "pending" | "complete"
@@ -88,6 +97,22 @@ type ApiQueryOptions<T, K extends readonly unknown[]> = SolidQueryOptions<T, Err
 
 type SessionActiveApi = {
   readonly active: () => Promise<SessionActiveOutput>
+}
+
+export function loadSessionQuery(input: {
+  scope: ServerScope
+  directory: string
+  load: () => Promise<RootSessionLoadResult>
+  reconcile: (result: RootSessionLoadResult) => void
+}) {
+  return queryOptions<RootSessionLoadResult>({
+    queryKey: [input.scope, input.directory, "loadSessions"] as const,
+    queryFn: async () => {
+      const result = await input.load()
+      input.reconcile(result)
+      return result
+    },
+  })
 }
 
 export const loadMcpQuery = (
@@ -185,7 +210,13 @@ function makeQueryOptionsApi(
 ) {
   return {
     globalConfig: () => loadGlobalConfigQuery(scope, serverSDK(), protocol),
-    projects: () => loadProjectsQuery(scope, serverAPI.project),
+    projects: () =>
+      loadProjectsQuery(
+        scope,
+        serverAPI.project,
+        { list: () => serverSDK().project.list() } as unknown as CurrentProjectApi,
+        protocol,
+      ),
     providers: (directory: PathKey | null) =>
       loadProvidersQuery(scope, directory, serverAPI, directory ? sdkFor(directory) : serverSDK(), protocol),
     path: (directory: PathKey | null) =>
@@ -209,7 +240,7 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
 
   const sdkCache = new Map<string, OpencodeClient>()
   const booting = new Map<string, Promise<void>>()
-  const sessionLoads = new Map<string, Promise<void>>()
+  const sessionLoads = new Map<string, Promise<RootSessionLoadResult>>()
   const sessionMeta = new Map<string, { limit: number }>()
 
   const sdkFor = (directory: string) => {
@@ -238,6 +269,15 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
   const [configQuery, providerQuery, pathQuery] = useQueries(() => ({
     queries: [queryOptionsApi.globalConfig(), queryOptionsApi.providers(null), queryOptionsApi.path(null)],
   }))
+  const providerState = () =>
+    resolveProviderQueryState({
+      enabled: true,
+      isLoading: providerQuery.isLoading,
+      isSuccess: providerQuery.isSuccess,
+      isError: providerQuery.isError,
+      data: providerQuery.data,
+      error: providerQuery.error,
+    })
   const activeSessionsQuery = useQuery(() =>
     loadActiveSessionsQuery(serverSDK.scope, {
       active: async () => {
@@ -269,15 +309,19 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
     },
     project: [],
     provider_auth: {},
+    get provider_status() {
+      return providerState().status
+    },
+    get provider_error() {
+      return providerState().error
+    },
     get path() {
       const EMPTY = { state: "", config: "", worktree: "", directory: "", home: "" }
       if (pathQuery.isLoading) return EMPTY
       return pathQuery.data ?? EMPTY
     },
     get provider() {
-      const EMPTY = { all: new Map(), connected: [], default: {} }
-      if (providerQuery.isLoading) return EMPTY
-      return providerQuery.data ?? EMPTY
+      return providerState().providers
     },
     get config() {
       if (configQuery.isLoading) return {}
@@ -412,53 +456,52 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
     }
 
     const limit = Math.max(retainedLimit + SESSION_RECENT_LIMIT, SESSION_RECENT_LIMIT)
-    const promise = queryClient
-      .fetchQuery({
-        ...queryOptionsApi.sessions(key),
-        queryFn: () =>
-          serverSDK.protocol
-            .then((protocol) =>
-              protocol === "v1"
-                ? loadRootSessionsV1({ client: sdkFor(directory), directory, limit })
-                : loadRootSessions({ api: serverSDK.api.session, directory, limit }),
+    const promise = queryClient.fetchQuery(
+      loadSessionQuery({
+        scope: serverSDK.scope,
+        directory: key,
+        load: () =>
+          serverSDK.protocol.then((protocol) =>
+            protocol === "v1"
+              ? loadRootSessionsV1({ client: sdkFor(directory), directory, limit })
+              : loadRootSessions({ api: serverSDK.api.session, directory, limit }),
+          ),
+        reconcile: (x) => {
+          const nonArchived = x.data
+            .filter((s) => !!s?.id)
+            .filter((s) => !s.time?.archived)
+            .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+          const limit = Math.max(store.limit, options?.limit ?? 0, sessionMeta.get(key)?.limit ?? 0)
+          const childSessions = store.session.filter((s) => !!s.parentID)
+          const next = trimSessions([...nonArchived, ...childSessions], {
+            limit,
+            permission: session.data.permission,
+          })
+          batch(() => {
+            next.forEach(session.remember)
+            setStore(
+              "sessionTotal",
+              estimateRootSessionTotal({
+                count: nonArchived.length,
+                limit: x.limit,
+                limited: x.limited,
+              }),
             )
-            .then((x) => {
-              const nonArchived = (x.data ?? [])
-                .filter((s) => !!s?.id)
-                .filter((s) => !s.time?.archived)
-                .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
-              const limit = Math.max(store.limit, options?.limit ?? 0, sessionMeta.get(key)?.limit ?? 0)
-              const childSessions = store.session.filter((s) => !!s.parentID)
-              const next = trimSessions([...nonArchived, ...childSessions], {
-                limit,
-                permission: session.data.permission,
-              })
-              batch(() => {
-                next.forEach(session.remember)
-                setStore(
-                  "sessionTotal",
-                  estimateRootSessionTotal({
-                    count: nonArchived.length,
-                    limit: x.limit,
-                    limited: x.limited,
-                  }),
-                )
-                setStore("session", reconcile(next, { key: "id" }))
-              })
-              sessionMeta.set(key, { limit })
-            })
-            .catch((err) => {
-              console.error("Failed to load sessions", err)
-              const project = getFilename(directory)
-              showToast({
-                variant: "error",
-                title: language.t("toast.session.listFailed.title", { project }),
-                description: formatServerError(err, language.t),
-              })
-              throw err
-            }),
+            setStore("session", reconcile(next, { key: "id" }))
+          })
+          sessionMeta.set(key, { limit })
+        },
+      }),
+    ).catch((err) => {
+      console.error("Failed to load sessions", err)
+      const project = getFilename(directory)
+      showToast({
+        variant: "error",
+        title: language.t("toast.session.listFailed.title", { project }),
+        description: formatServerError(err, language.t),
       })
-      .then(() => {})
+      throw err
+    })
 
     sessionLoads.set(key, promise)
     void promise.finally(() => {

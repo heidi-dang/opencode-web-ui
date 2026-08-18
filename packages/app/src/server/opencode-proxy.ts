@@ -37,7 +37,11 @@ export async function proxyOpenCodeRequest(req: IncomingMessage & { method?: str
     incoming.searchParams.delete("serverId")
     incoming.searchParams.delete("__proxy_route")
     const basePath = origin.pathname.replace(/\/$/, "")
-    const upstream = new URL(`${basePath}${route}`, `${origin.origin}/`)
+    // The legacy SDK asks for /api/project, while current OpenCode exposes
+    // the same catalogue at /project. Keep that compatibility at the gateway
+    // so a v2 server is never mistaken for an empty project list.
+    const upstreamRoute = registered.protocol === "v2" && route === "/api/project" ? "/project" : route
+    const upstream = new URL(`${basePath}${upstreamRoute}`, `${origin.origin}/`)
     incoming.searchParams.forEach((value, key) => upstream.searchParams.append(key, value))
     const method = req.method || "GET"
     const headers = new Headers()

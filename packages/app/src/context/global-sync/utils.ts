@@ -10,6 +10,19 @@ import type { Project as CurrentProject } from "@opencode-ai/client/promise"
 import { NormalizedProviderListResponse } from "@opencode-ai/session-ui/context"
 export { pathKey as directoryKey, type PathKey as DirectoryKey } from "@/utils/path-key"
 
+export class ProviderResponseError extends Error {
+  readonly code = "PROVIDER_RESPONSE_INVALID"
+
+  constructor(detail: string) {
+    super(`PROVIDER_RESPONSE_INVALID: ${detail}`)
+    this.name = "ProviderResponseError"
+  }
+}
+
+function record(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
 export const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0)
 
 export function normalizeAgentList(input: AgentListOutput["data"] | Agent[]): Agent[] {
@@ -56,6 +69,14 @@ export function normalizeProviderList(
   defaultModel?: ModelDefaultOutput["data"],
 ): NormalizedProviderListResponse {
   if (!Array.isArray(providers)) {
+    if (
+      !record(providers) ||
+      !Array.isArray(providers.all) ||
+      !Array.isArray(providers.connected) ||
+      !record(providers.default)
+    ) {
+      throw new ProviderResponseError("expected a normalized provider envelope")
+    }
     return {
       ...providers,
       all: new Map(
@@ -70,6 +91,40 @@ export function normalizeProviderList(
         ]),
       ),
     }
+  }
+  if (models !== undefined && !Array.isArray(models)) throw new ProviderResponseError("expected model data to be an array")
+  if (
+    defaultModel !== undefined &&
+    defaultModel !== null &&
+    (!record(defaultModel) || typeof defaultModel.id !== "string" || typeof defaultModel.providerID !== "string")
+  ) {
+    throw new ProviderResponseError("expected a valid default model")
+  }
+  if (
+    providers.some(
+      (provider) => !record(provider) || typeof provider.id !== "string" || typeof provider.name !== "string",
+    )
+  ) {
+    throw new ProviderResponseError("expected provider entries with id and name")
+  }
+  if (
+    (models ?? []).some(
+      (model) =>
+        !record(model) ||
+        typeof model.id !== "string" ||
+        typeof model.providerID !== "string" ||
+        typeof model.name !== "string" ||
+        !record(model.capabilities) ||
+        !Array.isArray(model.capabilities.input) ||
+        !Array.isArray(model.capabilities.output) ||
+        !Array.isArray(model.cost) ||
+        !Array.isArray(model.variants) ||
+        !record(model.time) ||
+        typeof model.time.released !== "number" ||
+        !record(model.limit),
+    )
+  ) {
+    throw new ProviderResponseError("expected valid model entries")
   }
   const all = new Map<string, Provider>()
 

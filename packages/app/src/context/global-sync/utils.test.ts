@@ -5,7 +5,13 @@ import type {
   ModelListOutput,
   ProviderListOutput,
 } from "@opencode-ai/client/promise"
-import { directoryKey, normalizeAgentList, normalizePermissionRequest, normalizeProviderList } from "./utils"
+import {
+  directoryKey,
+  normalizeAgentList,
+  normalizePermissionRequest,
+  normalizeProviderList,
+  ProviderResponseError,
+} from "./utils"
 
 describe("normalizeAgentList", () => {
   test("adapts current agents to the app agent shape", () => {
@@ -68,6 +74,11 @@ describe("normalizePermissionRequest", () => {
 })
 
 describe("normalizeProviderList", () => {
+  test("rejects malformed provider envelopes with a structured error", () => {
+    expect(() => normalizeProviderList({ data: [] } as never)).toThrow(ProviderResponseError)
+    expect(() => normalizeProviderList({ data: [] } as never)).toThrow("PROVIDER_RESPONSE_INVALID")
+  })
+
   test("groups current models into the app provider catalog", () => {
     const result = normalizeProviderList(
       [{ id: "openai", name: "OpenAI", package: "@ai-sdk/openai" }] as ProviderListOutput["data"],

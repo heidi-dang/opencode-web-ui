@@ -2,6 +2,34 @@ import type { NormalizedProviderListResponse } from "@opencode-ai/session-ui/con
 
 const emptyProviderCatalog: NormalizedProviderListResponse = { all: new Map(), connected: [], default: {} }
 
+export type ProviderQueryStatus = "idle" | "loading" | "ready" | "empty" | "error"
+
+export function resolveProviderQueryState(input: {
+  enabled: boolean
+  isLoading: boolean
+  isSuccess: boolean
+  isError: boolean
+  data?: NormalizedProviderListResponse
+  error?: unknown
+}) {
+  if (!input.enabled) {
+    return { status: "idle" as const, ready: false, providers: emptyProviderCatalog, error: undefined }
+  }
+  if (input.isError) {
+    return { status: "error" as const, ready: false, providers: emptyProviderCatalog, error: input.error }
+  }
+  if (input.isLoading || !input.isSuccess) {
+    return { status: "loading" as const, ready: false, providers: emptyProviderCatalog, error: undefined }
+  }
+  const providers = input.data ?? emptyProviderCatalog
+  return {
+    status: providers.all.size === 0 ? ("empty" as const) : ("ready" as const),
+    ready: true,
+    providers,
+    error: undefined,
+  }
+}
+
 type DirectoryCatalog = {
   ready: boolean
   providers: NormalizedProviderListResponse

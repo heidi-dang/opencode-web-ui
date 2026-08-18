@@ -46,6 +46,13 @@ export const { use: useModels, provider: ModelsProvider } = createSimpleContext(
       ),
     )
 
+    const status = createMemo(() => {
+      const providerStatus = providers.status()
+      if (providerStatus === "idle" || providerStatus === "loading") return "loading" as const
+      if (providerStatus === "error") return "error" as const
+      return available().length === 0 ? ("empty" as const) : ("ready" as const)
+    })
+
     const release = createMemo(
       () =>
         new Map(
@@ -157,6 +164,10 @@ export const { use: useModels, provider: ModelsProvider } = createSimpleContext(
     return {
       ready,
       providerReady: providers.ready,
+      providerStatus: providers.status,
+      providerError: providers.error,
+      status,
+      refresh: providers.refresh,
       list,
       find,
       visible,

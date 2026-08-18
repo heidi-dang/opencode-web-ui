@@ -16,12 +16,14 @@ import type {
   CommandInfo,
   CommandListInput,
   CommandListOutput,
+  ModelDefaultOutput,
   ProjectCurrentInput,
   ProjectCurrentOutput,
   ProjectListOutput,
   ReferenceListInput,
   ReferenceListOutput,
   SessionApi,
+  Project as CurrentProject,
 } from "@opencode-ai/client/promise"
 import { showToast } from "@/utils/toast"
 import { getFilename } from "@opencode-ai/core/util/path"
@@ -46,12 +48,15 @@ import { ScopedKey, type ServerScope } from "@/utils/server-scope"
 import { normalizeSessionInfo } from "@/utils/session"
 import type { ServerProtocol } from "@/utils/server-protocol"
 import type { ServerApi } from "@/utils/server"
+import type { ProviderQueryStatus } from "@/hooks/provider-catalog"
 
 type GlobalStore = {
   ready: boolean
   path: Path
   project: Project[]
   provider: NormalizedProviderListResponse
+  provider_status: ProviderQueryStatus
+  provider_error?: unknown
   provider_auth: ProviderAuthResponse
   config: Config
   reload: undefined | "pending" | "complete"
@@ -122,26 +127,48 @@ type ProjectApi = {
   readonly list: () => Promise<ProjectListOutput>
   readonly current: (input?: ProjectCurrentInput) => Promise<ProjectCurrentOutput>
 }
+export type CurrentProjectApi = {
+  readonly list: () => Promise<Project[]>
+  readonly current?: OpencodeClient["project"]["current"]
+}
 
 type McpApi = ServerApi["mcp"]
 type PermissionApi = ServerApi["permission"]
 type QuestionApi = ServerApi["question"]
 type VcsApi = ServerApi["vcs"]
 
-export const loadProjectsQuery = (scope: ServerScope, api: ProjectApi) =>
+export const loadProjectsQuery = (
+  scope: ServerScope,
+  api: ProjectApi,
+  current?: CurrentProjectApi,
+  protocol?: Promise<ServerProtocol>,
+) =>
   queryOptions({
     queryKey: [scope, "project"],
     queryFn: () =>
-      retry(() =>
-        api.list().then((projects) => {
-          return projects
-            .filter((p) => !!p?.id)
-            .filter((p) => !!p.worktree && !p.worktree.includes("opencode-test"))
-            .map(normalizeProjectInfo)
-            .slice()
-            .sort((a, b) => cmp(a.id, b.id))
-        }),
-      ),
+      retry(async () => {
+        const protocolKind = await protocol
+        let projects: Project[] | CurrentProject[]
+        if (current) {
+          try {
+            // The current SDK is the canonical project endpoint. Some older
+            // servers report the legacy protocol but still expose this route;
+            // only fall back after a detected v1 endpoint rejects it.
+            projects = await current.list()
+          } catch (error) {
+            if (protocolKind !== "v1") throw error
+            projects = await api.list()
+          }
+        } else {
+          projects = await api.list()
+        }
+        return projects
+          .filter((p) => !!p?.id)
+          .filter((p) => !!p.worktree && !p.worktree.includes("opencode-test"))
+          .map(normalizeProjectInfo)
+          .slice()
+          .sort((a, b) => cmp(a.id, b.id))
+      }),
   })
 
 export async function bootstrapGlobal(input: {
@@ -178,7 +205,14 @@ export async function bootstrapGlobal(input: {
     () => input.queryClient.fetchQuery(loadPathQuery(input.scope, null, input.serverSDK, input.protocol)),
     () =>
       input.queryClient
-        .fetchQuery(loadProjectsQuery(input.scope, input.serverAPI.project))
+        .fetchQuery(
+          loadProjectsQuery(
+            input.scope,
+            input.serverAPI.project,
+            { list: () => input.serverSDK.project.list() } as unknown as CurrentProjectApi,
+            input.protocol,
+          ),
+        )
         .then((data) => input.setGlobalStore("project", data)),
   ]
   const results = await runAll(slow)
@@ -257,12 +291,20 @@ export const loadProvidersQuery = (
           return normalizeProviderList(result.data!)
         }
         const location = directory ? { location: { directory } } : undefined
-        const [providers, models, defaultModel] = await Promise.all([
+        const [providers, models] = await Promise.all([
           sdk.provider.list(location),
           sdk.model.list(location),
-          sdk.model.default(location),
         ])
-        return normalizeProviderList(providers.data, models.data, defaultModel.data)
+        let defaultModel: ModelDefaultOutput["data"] = null
+        try {
+          defaultModel = (await sdk.model.default(location)).data
+        } catch (error) {
+          // Older/current OpenCode servers can expose provider and model data
+          // without the optional default-model endpoint. The catalogue remains
+          // usable; resolve a default from the first connected model instead.
+          if (!(error instanceof ClientError) || error.reason !== "UnsupportedContentType") throw error
+        }
+        return normalizeProviderList(providers.data, models.data, defaultModel)
       }),
   })
 
@@ -368,7 +410,7 @@ export async function bootstrapDirectory(input: {
   store: Store<State>
   setStore: SetStoreFunction<State>
   vcsCache: VcsCache
-  loadSessions: (directory: string) => Promise<void> | void
+  loadSessions: (directory: string) => Promise<unknown> | void
   translate: (key: string, vars?: Record<string, string | number>) => string
   global: {
     config: Config
@@ -547,16 +589,7 @@ export async function bootstrapDirectory(input: {
             loadMcpResourcesQuery(input.scope, input.directory, input.api.mcp, input.sdk, input.protocol),
           )),
       () =>
-        input.queryClient
-          .fetchQuery(loadProvidersQuery(input.scope, input.directory, input.api, input.sdk, input.protocol))
-          .catch((err) => {
-            const project = getFilename(input.directory)
-            showToast({
-              variant: "error",
-              title: input.translate("toast.project.reloadFailed.title", { project }),
-              description: formatServerError(err, input.translate),
-            })
-          }),
+        input.queryClient.fetchQuery(loadProvidersQuery(input.scope, input.directory, input.api, input.sdk, input.protocol)),
     ].filter(Boolean) as (() => Promise<any>)[]
 
     await waitForPaint()

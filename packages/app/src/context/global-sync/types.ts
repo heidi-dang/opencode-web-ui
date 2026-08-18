@@ -18,6 +18,7 @@ import { NormalizedProviderListResponse } from "@opencode-ai/session-ui/context"
 import type { CommandInfo, McpResource, McpServer, SessionMessageInfo } from "@opencode-ai/client/promise"
 import type { Accessor } from "solid-js"
 import type { SetStoreFunction, Store } from "solid-js/store"
+import type { ProviderQueryStatus } from "@/hooks/provider-catalog"
 
 export type ProjectMeta = {
   name?: string
@@ -39,6 +40,8 @@ export type State = {
   projectMeta: ProjectMeta | undefined
   icon: string | undefined
   provider_ready: boolean
+  provider_status?: ProviderQueryStatus
+  provider_error?: unknown
   provider: NormalizedProviderListResponse
   config: Config
   path: Path
