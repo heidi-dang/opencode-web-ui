@@ -51,5 +51,3 @@ export class EventHub {
   clearBackend(backendId: string) { for (const key of this.lastSequence.keys()) if (key.startsWith(`${backendId}:`)) this.lastSequence.delete(key) }
   metrics() { return { subscribers: this.subscribers.size, sequences: this.lastSequence.size } }
 }
-
-export const eventHub = new EventHub()

@@ -1,11 +1,76 @@
 import { describe, expect, test } from "bun:test"
+import { mkdtemp, rm, writeFile } from "node:fs/promises"
+import { join } from "node:path"
 import { encryptCredential, decryptCredential } from "../control-plane/encryption/credentials"
+import type { BackendHealth } from "./domain"
+import { AgentBackendManager } from "./manager"
 import { EventHub } from "./event-hub"
 import { CircuitBreaker } from "./circuit-breaker"
 import { assertNetworkPolicy, normalizeBackendEndpoint } from "./network"
 import { assertImmutableBackendIdentity } from "./domain"
 
 describe("control server foundation", () => {
+  async function withLegacyBackend<T>(run: (manager: AgentBackendManager, id: string) => Promise<T>) {
+    const directory = await mkdtemp(join(process.env.TMPDIR || "/tmp", "opencode-backend-runtime-"))
+    const previousMode = process.env.CONTROL_PLANE_LEGACY_TEST_MODE
+    const previousStore = process.env.OPENCODE_SERVERS_STORE
+    const id = "backend-runtime-test"
+    process.env.CONTROL_PLANE_LEGACY_TEST_MODE = "1"
+    process.env.OPENCODE_SERVERS_STORE = join(directory, "servers.json")
+    await writeFile(process.env.OPENCODE_SERVERS_STORE, JSON.stringify({ version: 1, servers: [{ id, name: "Fixture", baseUrl: "https://fixture.example", enabled: true, managed: "runtime", state: "READY", protocol: "v2", updatedAt: new Date().toISOString() }] }))
+    const manager = new AgentBackendManager()
+    try {
+      return await run(manager, id)
+    } finally {
+      await manager.invalidate(id)
+      if (previousMode === undefined) delete process.env.CONTROL_PLANE_LEGACY_TEST_MODE
+      else process.env.CONTROL_PLANE_LEGACY_TEST_MODE = previousMode
+      if (previousStore === undefined) delete process.env.OPENCODE_SERVERS_STORE
+      else process.env.OPENCODE_SERVERS_STORE = previousStore
+      await rm(directory, { recursive: true, force: true })
+    }
+  }
+
+  test("creates one managed runtime for concurrent get calls", async () => {
+    await withLegacyBackend(async (manager, id) => {
+      const [first, second] = await Promise.all([manager.get(id), manager.get(id)])
+      expect(first).toBe(second)
+      expect(manager.metrics().runtimes).toBe(1)
+    })
+  })
+
+  test("shares concurrent normal health probes for one backend", async () => {
+    await withLegacyBackend(async (manager, id) => {
+      const backend = await manager.get(id)
+      let calls = 0
+      backend.health = async (): Promise<BackendHealth> => {
+        calls++
+        await new Promise((resolve) => setTimeout(resolve, 10))
+        return { backendId: id, reachable: true, authenticated: true, healthy: true, latencyMs: 1, checkedAt: new Date().toISOString() }
+      }
+      const [first, second] = await Promise.all([manager.health(id), manager.health(id)])
+      expect(first).toEqual(second)
+      expect(calls).toBe(1)
+      expect(manager.metrics().healthProbes).toBe(0)
+    })
+  })
+
+  test("clears a failed health probe without leaving a rejected cleanup promise", async () => {
+    await withLegacyBackend(async (manager, id) => {
+      const backend = await manager.get(id)
+      backend.health = async () => { throw new Error("fixture health failure") }
+      let error: unknown
+      try {
+        await manager.health(id)
+      } catch (cause) {
+        error = cause
+      }
+      expect(error).toBeInstanceOf(Error)
+      expect((error as Error).message).toBe("fixture health failure")
+      expect(manager.metrics().healthProbes).toBe(0)
+    })
+  })
+
   test("encrypts credentials with an authenticated versioned payload", () => { const key = Buffer.alloc(32, 7).toString("base64"); const encrypted = encryptCredential("secret", key); expect(encrypted.startsWith("v1.")).toBe(true); expect(decryptCredential(encrypted, key)).toBe("secret"); expect(() => decryptCredential(encrypted, Buffer.alloc(32, 8).toString("base64"))).toThrow() })
   test("normalizes endpoints and rejects URL credentials", () => { expect(normalizeBackendEndpoint("https://example.test///")).toBe("https://example.test"); expect(() => normalizeBackendEndpoint("https://user:pass@example.test")).toThrow("UNSAFE_SERVER_URL") })
   test("rejects private backend destinations by default", () => { expect(() => assertNetworkPolicy("http://127.0.0.1:8080")).toThrow("PRIVATE_NETWORK_NOT_ALLOWED"); expect(() => assertNetworkPolicy("http://169.254.169.254")).toThrow("PRIVATE_NETWORK_NOT_ALLOWED"); expect(assertNetworkPolicy("https://example.test").hostname).toBe("example.test") })
