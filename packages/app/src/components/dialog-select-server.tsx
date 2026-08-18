@@ -594,8 +594,13 @@ export function useServerManagementController(options: { onSelect?: () => void; 
   async function handleRemove(key: ServerConnection.Key) {
     try {
       if (key.startsWith("wsl:")) await platform.wslServers?.removeServer(key)
-      tabs.removeServer(key)
-      server.remove(key)
+    const target = server.list.find((conn) => ServerConnection.key(conn) === key)
+    if (target?.type === "http" && target.http.id) {
+      const response = await fetch(`/api/opencode/servers/${encodeURIComponent(target.http.id)}`, { method: "DELETE" })
+      if (!response.ok && response.status !== 404) throw new Error("SERVER_DELETE_FAILED")
+    }
+    tabs.removeServer(key)
+    server.remove(key)
       if ((await platform.getDefaultServer?.()) === key) {
         await setDefault(null)
       }

@@ -20,11 +20,15 @@ const sentry =
 
 const universalServerProxy = {
   name: "opencode-universal-proxy",
-  configureServer(server: { middlewares: { use: (handler: (req: any, res: any, next: () => void) => void) => void }; ssrLoadModule: (id: string) => Promise<{ handleOpenCodeProxy: (req: any, res: any, next: () => void) => void }> }) {
+  configureServer(server: { middlewares: { use: (handler: (req: any, res: any, next: () => void) => void) => void }; ssrLoadModule: (id: string) => Promise<{ handleOpenCodeProxy: (req: any, res: any, next: () => void) => void; handleControlPlaneRequest: (req: any, res: any, pathname: string) => Promise<boolean | void> }> }) {
     server.middlewares.use((req, res, next) => {
       const pathname = req.url ? new URL(req.url, "http://localhost").pathname : ""
-      if (!pathname.startsWith("/api/opencode/")) return next()
-      void server.ssrLoadModule("/src/server/proxy.ts").then(({ handleOpenCodeProxy }) => handleOpenCodeProxy(req, res, next))
+      const isControl = pathname === "/api/bootstrap" || pathname === "/api/opencode/servers" || pathname.startsWith("/api/opencode/servers/")
+      if (!isControl && !pathname.startsWith("/api/opencode/")) return next()
+      void server.ssrLoadModule("/src/server/control-plane-api.ts").then(({ handleControlPlaneRequest }) => {
+        if (isControl) return handleControlPlaneRequest(req, res, pathname).then((handled) => { if (handled === false) next() })
+        return server.ssrLoadModule("/src/server/proxy.ts").then(({ handleOpenCodeProxy }) => handleOpenCodeProxy(req, res, next))
+      })
     })
   },
 }
