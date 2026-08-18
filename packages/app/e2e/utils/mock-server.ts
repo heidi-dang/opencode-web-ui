@@ -136,6 +136,29 @@ export async function mockOpenCodeServer(page: Page, config: MockServerConfig) {
         : null
       return json(route, { location: location(config), data })
     }
+    if (path === "/api/integration" && route.request().method() === "GET") {
+      const value = (typeof config.provider === "function" ? config.provider() : config.provider) as {
+        all?: Array<{ id: string; name?: string }>
+        connected?: string[]
+      }
+      const methods = config.integrationMethods ?? {}
+      const ids = new Set([...(value.all ?? []).map((provider) => provider.id), ...Object.keys(methods)])
+      const connected = new Set(value.connected ?? [])
+      return json(route, {
+        location: location(config),
+        data: [...ids].map((id) => ({
+          id,
+          name: value.all?.find((provider) => provider.id === id)?.name ?? id,
+          methods: (methods[id] ?? [{ type: "api", label: "API key" }]).map((method) => {
+            const item = method as { type?: string; label?: string; id?: string }
+            if (item.type === "oauth") return { type: "oauth", id: item.id ?? `${id}-oauth`, label: item.label ?? "OAuth" }
+            if (item.type === "env") return { type: "env", names: [] }
+            return { type: "key", label: item.label ?? "API key" }
+          }),
+          connections: connected.has(id) ? [{ type: "credential", id, label: id }] : [],
+        })),
+      })
+    }
     if (path === "/provider/auth") return json(route, config.integrationMethods ?? {})
     const legacyAuth = path.match(/^\/auth\/([^/]+)$/)?.[1]
     if (legacyAuth && route.request().method() === "PUT") {
@@ -239,6 +262,7 @@ export async function mockOpenCodeServer(page: Page, config: MockServerConfig) {
     if (path === "/api/vcs/status") return json(route, { location: location(config), data: [] })
     if (path === "/api/vcs/diff") return json(route, { location: location(config), data: config.vcsDiff ?? [] })
     if (path === "/api/pty/shells") return json(route, { location: location(config), data: [] })
+    if (path === "/pty/shells") return json(route, [])
     if (/^\/api\/pty\/[^/]+\/connect-token$/.test(path))
       return json(route, { location: location(config), data: { ticket: "e2e-ticket", expires_in: 60 } })
     if (emptyObject.has(path)) return json(route, {})

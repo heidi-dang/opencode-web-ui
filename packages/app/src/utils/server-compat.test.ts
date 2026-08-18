@@ -114,6 +114,44 @@ describe("createCompatibleApi", () => {
     expect(calls).toEqual([{ directory: "/home/heidi", path: "." }])
   })
 
+  test("exposes the complete V1 provider auth catalogue separately from connected models", async () => {
+    const { api } = setup(
+      "v1",
+      undefined,
+      () =>
+        ({
+          provider: {
+            auth: async () => ({
+              data: {
+                anthropic: [{ type: "api", label: "API key" }],
+                obscure: [{ type: "oauth", label: "OAuth" }],
+              },
+            }),
+            list: async () => ({
+              data: { all: [], connected: ["anthropic"], default: {} },
+            }),
+          },
+        }) as unknown as ReturnType<typeof createSdkForServer>,
+    )
+
+    const result = await api.integration.list({ location: { directory: "/repo" } })
+
+    expect(result.data).toEqual([
+      {
+        id: "anthropic",
+        name: "anthropic",
+        methods: [{ type: "key", label: "API key" }],
+        connections: [{ type: "credential", id: "anthropic", label: "anthropic" }],
+      },
+      {
+        id: "obscure",
+        name: "obscure",
+        methods: [{ type: "oauth", id: "obscure-oauth", label: "OAuth" }],
+        connections: [],
+      },
+    ])
+  })
+
   test("rejects unknown protocol instead of entering the V1 compatibility layer", async () => {
     const { api } = setup(Promise.resolve("unknown" as never))
     await expect(api.session.list()).rejects.toThrow("Unable to determine the OpenCode API protocol")

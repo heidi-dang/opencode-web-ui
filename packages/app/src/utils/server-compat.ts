@@ -463,6 +463,28 @@ function createV1Api(input: CompatibleInput): CompatibleApi {
     },
     integration: {
       ...input.current.integration,
+      async list(value?: Parameters<ServerApi["integration"]["list"]>[0]) {
+        const [auth, providers] = await Promise.all([
+          legacy(value?.location).provider.auth(),
+          legacy(value?.location).provider.list(),
+        ])
+        const providerData = providers.data
+        const providerList = Array.isArray(providerData) ? providerData : providerData?.all ?? []
+        const connected = new Set(Array.isArray(providerData) ? providerList.map((provider) => provider.id) : providerData?.connected ?? [])
+        return located(
+          Object.entries(auth.data ?? {}).map(([id, methods]) => ({
+            id,
+            name: providerList.find((provider) => provider.id === id)?.name ?? id,
+            methods: methods.map((method) =>
+              method.type === "api"
+                ? { type: "key" as const, label: method.label }
+                : { type: "oauth" as const, id: `${id}-oauth`, label: method.label },
+            ),
+            connections: connected.has(id) ? [{ type: "credential", id, label: id }] : [],
+          })),
+          value?.location,
+        )
+      },
       async get(value: Parameters<ServerApi["integration"]["get"]>[0]) {
         const methods = ((await legacy(value.location).provider.auth()).data?.[value.integrationID] ?? []).map(
           (method, index) =>

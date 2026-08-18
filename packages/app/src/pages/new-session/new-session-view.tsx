@@ -83,7 +83,7 @@ export function NewSessionStatus(props: { mount: Accessor<HTMLElement | null>; v
         <Portal mount={mount}>
           <Show when={props.visible()}>
             <Tooltip placement="bottom" value={language.t("status.popover.trigger")}>
-              <StatusPopoverV2 />
+              <StatusPopoverV2 scope="server" />
             </Tooltip>
           </Show>
         </Portal>
