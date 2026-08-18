@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "node:crypto"
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises"
 import { dirname, join } from "node:path"
+import { deletePrimaryBackend, getPrimaryBackend, getPrimaryCredentials, insertPrimaryBackend, isDatabasePrimary, updatePrimaryBackend, updatePrimaryHealth } from "./control-plane/repositories/backend-repository"
 
 export type ServerState = "REGISTERED" | "READY" | "UNHEALTHY" | "AUTH_FAILED"
 export type ServerProtocol = "v1" | "v2"
@@ -130,11 +131,17 @@ export async function listServers() {
 }
 
 export async function getServer(id: string) {
+  if (isDatabasePrimary()) { const backend = getPrimaryBackend(id); if (!backend) return undefined; const credentials = getPrimaryCredentials(id); return { id: backend.id, name: backend.name, baseUrl: backend.endpoint, ...credentials, enabled: backend.enabled, managed: "runtime" as const, state: backend.state, protocol: backend.protocol as ServerProtocol | undefined, updatedAt: backend.updatedAt } }
   return (await load()).servers.find((server) => server.id === id)
 }
 
 export async function registerServer(input: { name?: string; baseUrl: string; username?: string; password?: string; enabled?: boolean }) {
   const baseUrl = normalizeBaseUrl(input.baseUrl)
+  if (isDatabasePrimary()) {
+    const server: RegisteredServer = { id: `srv_${randomBytes(12).toString("hex")}`, name: input.name?.trim() || new URL(baseUrl).hostname, baseUrl, username: input.username?.trim() || undefined, password: input.password || undefined, enabled: input.enabled !== false, managed: "runtime", state: "REGISTERED", updatedAt: new Date().toISOString() }
+    if (!insertPrimaryBackend({ id: server.id, name: server.name, endpoint: server.baseUrl, enabled: server.enabled, username: server.username, password: server.password })) throw new Error("DUPLICATE_SERVER_URL")
+    return server
+  }
   const registry = await load()
   const duplicate = registry.servers.find((server) => server.baseUrl === baseUrl)
   if (duplicate) {
@@ -170,6 +177,7 @@ export async function registerServer(input: { name?: string; baseUrl: string; us
 }
 
 export async function updateServer(id: string, input: Partial<Pick<RegisteredServer, "name" | "baseUrl" | "username" | "password" | "enabled">>) {
+  if (isDatabasePrimary()) { const updated = updatePrimaryBackend(id, { name: input.name, endpoint: input.baseUrl ? normalizeBaseUrl(input.baseUrl) : undefined, username: input.username, password: input.password, enabled: input.enabled }); if (!updated) return; const current = await getServer(id); return current ? { ...current, ...input, baseUrl: input.baseUrl ? normalizeBaseUrl(input.baseUrl) : current.baseUrl, updatedAt: new Date().toISOString() } : undefined }
   const registry = await load()
   const index = registry.servers.findIndex((server) => server.id === id)
   if (index === -1) return
@@ -196,6 +204,7 @@ export async function updateServer(id: string, input: Partial<Pick<RegisteredSer
 }
 
 export async function deleteServer(id: string) {
+  if (isDatabasePrimary()) return deletePrimaryBackend(id)
   const registry = await load()
   const server = registry.servers.find((item) => item.id === id)
   if (!server) return false
@@ -296,6 +305,7 @@ export async function probeRegisteredServer(serverOrId: RegisteredServer | strin
 }
 
 export async function updateServerHealth(id: string, health: Pick<RegisteredServer, "state" | "protocol"> & Partial<Pick<RegisteredServer, "reachable" | "authenticated" | "healthy" | "latencyMs" | "error">>) {
+  if (isDatabasePrimary()) { updatePrimaryHealth(id, health); const current = await getServer(id); return current ? { ...current, ...health, updatedAt: new Date().toISOString() } : undefined }
   const registry = await load()
   const index = registry.servers.findIndex((server) => server.id === id)
   if (index === -1) return

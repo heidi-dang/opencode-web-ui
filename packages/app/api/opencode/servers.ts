@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next"
-import { listServers, probeRegisteredServer, publicServer, registerServer, updateServerHealth } from "@/server/server-registry"
+import { listBackendDescriptors, probeBackend, registerBackend } from "@/server/services/backend-service"
 
 async function body(req: NextApiRequest) {
   if (typeof req.body === "object" && req.body) return req.body
@@ -10,31 +10,22 @@ async function body(req: NextApiRequest) {
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
-    if (req.method === "GET") return res.status(200).json({ servers: (await listServers()).map(publicServer) })
+    if (req.method === "GET") { const descriptors = await listBackendDescriptors(); return res.status(200).json({ servers: descriptors }) }
     if (req.method !== "POST") return res.status(405).json({ error: "METHOD_NOT_ALLOWED" })
     const input = await body(req)
-    const server = await registerServer({
+    const server = await registerBackend({
       name: typeof input.name === "string" ? input.name : undefined,
       baseUrl: typeof input.baseUrl === "string" ? input.baseUrl : "",
       username: typeof input.username === "string" ? input.username : undefined,
       password: typeof input.password === "string" ? input.password : undefined,
       enabled: input.enabled !== false,
     })
-    const probe = await probeRegisteredServer(server.id)
-    const updated = await updateServerHealth(server.id, {
-      state: probe.state,
-      protocol: probe.protocol,
-      reachable: probe.reachable,
-      authenticated: probe.authenticated,
-      healthy: probe.healthy,
-      latencyMs: probe.latencyMs,
-      error: probe.error,
-    })
+    const result = await probeBackend(server.id)
     return res.status(201).json({
-      server: publicServer(updated || server),
-      ready: probe.state === "READY",
-      reachability: probe.reachable ? (probe.healthy ? "SERVER_READY" : "SERVER_HEALTH_FAILED") : "SERVER_REGISTERED_BUT_UNREACHABLE",
-      probe: { ...probe },
+      server: result.server,
+      ready: result.health.healthy,
+      reachability: result.health.reachable ? (result.health.healthy ? "SERVER_READY" : "SERVER_HEALTH_FAILED") : "SERVER_REGISTERED_BUT_UNREACHABLE",
+      probe: { ...result.health },
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : "REGISTRATION_FAILED"
