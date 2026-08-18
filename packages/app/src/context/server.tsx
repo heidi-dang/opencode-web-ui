@@ -1,9 +1,10 @@
 import { createSimpleContext } from "@opencode-ai/ui/context"
-import { type Accessor, batch, createEffect, createMemo } from "solid-js"
+import { type Accessor, batch, createEffect, createMemo, createResource } from "solid-js"
 import { createStore, type SetStoreFunction, type Store } from "solid-js/store"
 import { Persist, persisted } from "@/utils/persist"
 import { pathKey } from "@/utils/path-key"
 import { ServerScope } from "@/utils/server-scope"
+import { fetchBootstrap, bootstrapToServerConnections, findBootstrapBackend, normalizedBackendUrl, type BootstrapResponse } from "@/utils/control-plane"
 
 type StoredProject = { worktree: string; expanded: boolean }
 type StoredServer = string | ServerConnection.HttpBase | ServerConnection.Http
@@ -289,35 +290,66 @@ export const { use: useServer, provider: ServerProvider } = createSimpleContext(
     )
 
     const url = (x: StoredServer) => (typeof x === "string" ? x : "type" in x ? x.http.url : x.url)
+    const [bootstrap, { refetch: refetchBootstrap }] = createResource<BootstrapResponse | undefined>(
+      () => (typeof window === "undefined" ? undefined : fetchBootstrap()),
+    )
+    const bootstrapServers = createMemo(() => {
+      const value = bootstrap()
+      return value ? bootstrapToServerConnections(value) : undefined
+    })
 
     const allServers = createMemo((): Array<ServerConnection.Any> => {
-      return resolveServerList({ stored: store.list, props: props.servers })
+      const authoritative = bootstrapServers()
+      const stored = store.list
+        .filter((value) => {
+          const candidate = typeof value === "string" ? { url: value } : "type" in value ? value.http : value
+          return !authoritative || (candidate.id ? authoritative.some((server) => server.http.id === candidate.id) : !authoritative.some((server) => normalizedBackendUrl(server.http.url) === normalizedBackendUrl(candidate.url)))
+        })
+        .map((value) => {
+          if (typeof value === "string") return value
+          if ("type" in value) return { ...value, http: { ...value.http, username: undefined, password: undefined } }
+          return { ...value, username: undefined, password: undefined }
+        })
+      return resolveServerList({ stored, props: authoritative ?? props.servers })
     })
 
     createEffect(() => {
-      if (typeof window === "undefined" || !ready()) return
-      const toHttp = (value: StoredServer): ServerConnection.HttpBase => {
-        if (typeof value === "string") return { url: value }
-        const candidate = value as ServerConnection.Http | ServerConnection.HttpBase
-        return "http" in candidate ? candidate.http : candidate
-      }
-      const legacy = store.list.filter((value) => !toHttp(value).id)
+      const value = bootstrap()
+      if (typeof window === "undefined" || !ready() || bootstrap.loading || !value) return
+      const legacy = store.list.map((entry, index) => ({ entry, index })).filter(({ entry }) => {
+        const http = typeof entry === "string" ? { url: entry } : "type" in entry ? entry.http : entry
+        return !http.id
+      })
       if (!legacy.length) return
-      void Promise.all(legacy.map(async (value, index) => {
-        const http = toHttp(value)
-
-        try {
-          const response = await fetch("/api/opencode/servers", {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ baseUrl: http.url, username: http.username, password: http.password }),
-          })
-          const payload = await response.json()
-          if (response.ok && payload.server?.id) setStore("list", index, { type: "http", http: { ...http, id: payload.server.id, password: undefined } })
-        } catch {
-          // Keep the legacy record visible so migration can be retried later.
+      const credentials = new Map<number, { username?: string; password?: string }>()
+      for (const item of legacy) {
+        const http = typeof item.entry === "string" ? { url: item.entry } : "type" in item.entry ? item.entry.http : item.entry
+        credentials.set(item.index, { username: http.username, password: http.password })
+        setStore("list", item.index, { type: "http", http: { url: http.url } })
+      }
+      void (async () => {
+        let changed = false
+        for (const item of legacy) {
+          const http = typeof item.entry === "string" ? { url: item.entry } : "type" in item.entry ? item.entry.http : item.entry
+          const existing = findBootstrapBackend(value, http.url)
+          if (existing) {
+            setStore("list", item.index, { type: "http", http: { id: existing.id, url: existing.endpoint } })
+            changed = true
+            continue
+          }
+          try {
+            const response = await fetch("/api/opencode/servers", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ baseUrl: http.url, ...credentials.get(item.index) }) })
+            const payload = await response.json()
+            if (response.ok && payload.server?.id) {
+              setStore("list", item.index, { type: "http", http: { id: payload.server.id, url: payload.server.endpoint ?? normalizedBackendUrl(http.url) } })
+              changed = true
+            }
+          } catch {
+            // Keep only the URL in browser storage and retry on a later bootstrap.
+          }
         }
-      }))
+        if (changed) await refetchBootstrap()
+      })()
     })
 
     const [state, setState] = createStore({
@@ -331,8 +363,13 @@ export const { use: useServer, provider: ServerProvider } = createSimpleContext(
     createEffect(() => {
       const list = allServers()
       if (list.length === 0) return
+      const preferred = bootstrap()?.activeBackendId
+      if (preferred && list.some((conn) => conn.type === "http" && conn.http.id === preferred)) {
+        if (state.active !== preferred) setState("active", preferred as ServerConnection.Key)
+        return
+      }
       if (list.some((conn) => ServerConnection.key(conn) === state.active)) return
-      const byUrl = list.find((conn) => conn.type === "http" && conn.http.url === props.defaultServer)
+      const byUrl = list.find((conn) => conn.type === "http" && normalizedBackendUrl(conn.http.url) === normalizedBackendUrl(props.defaultServer))
       setState("active", ServerConnection.key(byUrl ?? list[0]!))
     })
 
