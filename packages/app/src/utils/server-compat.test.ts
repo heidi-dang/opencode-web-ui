@@ -130,6 +130,31 @@ describe("createCompatibleApi", () => {
     expect(body.parts[2]).not.toHaveProperty("source")
   })
 
+  test("wraps current prompts in the V2 prompt contract", async () => {
+    const { api, requests } = setup("v2")
+    await api.session.prompt({
+      sessionID: "ses_1",
+      id: "msg_1",
+      text: "hello",
+      files: [{ uri: "data:text/plain;base64,aGVsbG8=", name: "notes.txt" }],
+      agents: [{ name: "build" }],
+    })
+
+    expect(new URL(requests[0]!.url).pathname).toBe("/api/session/ses_1/prompt")
+    const body = await requests[0]!.json()
+    expect(body).toMatchObject({
+      id: "msg_1",
+      prompt: {
+        text: "hello",
+        files: [{ uri: "data:text/plain;base64,aGVsbG8=", name: "notes.txt" }],
+        agents: [{ name: "build" }],
+      },
+    })
+    expect(body).not.toHaveProperty("text")
+    expect(body).not.toHaveProperty("files")
+    expect(body).not.toHaveProperty("agents")
+  })
+
   test("preserves original parts for V1 optimistic reconciliation", async () => {
     const { api, requests } = setup("v1")
     await api.session.prompt({
