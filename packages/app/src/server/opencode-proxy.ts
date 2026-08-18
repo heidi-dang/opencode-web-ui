@@ -20,6 +20,38 @@ function json(res: ServerResponse, status: number, error: string) {
 }
 
 export async function proxyOpenCodeRequest(req: IncomingMessage & { method?: string; url?: string }, res: ServerResponse): Promise<boolean> {
+  const upstreamAbort = new AbortController()
+  const onRequestAbort = () => upstreamAbort.abort()
+  const onResponseClose = () => upstreamAbort.abort()
+  const onResponseError = () => upstreamAbort.abort()
+  let upstreamFinished = false
+  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined
+
+  const removeListeners = () => {
+    req.removeListener?.("aborted", onRequestAbort)
+    res.removeListener?.("close", onResponseClose)
+    res.removeListener?.("error", onResponseError)
+  }
+
+  const waitForDrain = () => {
+    if (upstreamAbort.signal.aborted) return Promise.reject(new Error("CLIENT_DISCONNECTED"))
+    return new Promise<void>((resolve, reject) => {
+      const onAbort = () => {
+        res.removeListener?.("drain", onDrain)
+        reject(new Error("CLIENT_DISCONNECTED"))
+      }
+      const onDrain = () => {
+        upstreamAbort.signal.removeEventListener("abort", onAbort)
+        resolve()
+      }
+      res.once?.("drain", onDrain)
+      upstreamAbort.signal.addEventListener("abort", onAbort, { once: true })
+    })
+  }
+
+  req.once?.("aborted", onRequestAbort)
+  res.once?.("close", onResponseClose)
+  res.once?.("error", onResponseError)
   try {
     const incoming = new URL(req.url || "/", `http://${req.headers?.host || "localhost"}`)
     const route = incoming.searchParams.get("__proxy_route") || incoming.pathname.replace(/^\/api\/opencode(?:\/api\/opencode)?/, "") || "/"
@@ -51,24 +83,36 @@ export async function proxyOpenCodeRequest(req: IncomingMessage & { method?: str
     }
     if (registered.password) headers.set("authorization", `Basic ${Buffer.from(`${registered.username || "opencode"}:${registered.password}`).toString("base64")}`)
     const body = method === "GET" || method === "HEAD" ? undefined : req
-    const response = await fetch(upstream, { method, headers, body, duplex: body ? "half" : undefined } as unknown as RequestInit & { duplex?: "half" })
+    const response = await fetch(upstream, {
+      method,
+      headers,
+      body,
+      signal: upstreamAbort.signal,
+      duplex: body ? "half" : undefined,
+    } as unknown as RequestInit & { duplex?: "half" })
     res.statusCode = response.status
     response.headers.forEach((value, key) => { if (!HOP_BY_HOP.has(key.toLowerCase()) && key.toLowerCase() !== "www-authenticate") res.setHeader(key, value) })
     if (!response.body) {
+      upstreamFinished = true
       res.end()
       return true
     }
-    const reader = response.body.getReader()
+    reader = response.body.getReader()
     while (true) {
       const chunk = await reader.read()
       if (chunk.done) break
-      res.write(Buffer.from(chunk.value))
+      if (!res.write(Buffer.from(chunk.value))) await waitForDrain()
     }
+    upstreamFinished = true
     res.end()
     return true
   } catch (error) {
-    console.error("[OpenCode Proxy Error]", error instanceof Error ? error.name : "unknown")
+    if (!upstreamAbort.signal.aborted) console.error("[OpenCode Proxy Error]", error instanceof Error ? error.name : "unknown")
     if (!res.headersSent) json(res, 502, "UPSTREAM_CONNECTION_FAILED")
     return true
+  } finally {
+    removeListeners()
+    if (!upstreamFinished) upstreamAbort.abort()
+    await reader?.cancel().catch(() => undefined)
   }
 }

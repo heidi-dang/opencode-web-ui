@@ -131,4 +131,42 @@ describe("Universal OpenCode Proxy", () => {
       globalThis.fetch = originalFetch
     }
   })
+
+  test("aborts the upstream SSE request when the browser response closes", async () => {
+    const originalFetch = globalThis.fetch
+    let controller: ReadableStreamDefaultController<Uint8Array> | undefined
+    let upstreamSignal: AbortSignal | null | undefined
+    globalThis.fetch = mock(async (_url: URL | RequestInfo, init?: RequestInit) => {
+      upstreamSignal = init?.signal
+      return new Response(
+        new ReadableStream({
+          start(next) {
+            controller = next
+          },
+        }),
+        { status: 200, headers: { "content-type": "text/event-stream" } },
+      )
+    }) as unknown as typeof fetch
+    const listeners = new Map<string, () => void>()
+    const res = {
+      ...response(),
+      once(name: string, listener: () => void) {
+        listeners.set(name, listener)
+      },
+      removeListener(name: string) {
+        listeners.delete(name)
+      },
+    }
+    try {
+      const pending = handleOpenCodeProxy(request("/api/opencode/global/event?serverId=srv-api") as any, res as any)
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      expect(upstreamSignal?.aborted).toBe(false)
+      listeners.get("close")?.()
+      expect(upstreamSignal?.aborted).toBe(true)
+      controller?.close()
+      await pending
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
 })
