@@ -10,6 +10,7 @@ import {
   updateServerHealth,
 } from "../packages/app/src/server/server-registry"
 import { proxyOpenCodeRequest } from "../packages/app/src/server/opencode-proxy"
+import { getBootstrap } from "../packages/app/src/server/services/bootstrap-service"
 
 const port = Number(process.env.OPENCODE_PROXY_PORT ?? 8787)
 
@@ -82,6 +83,10 @@ export async function handleRequest(req: IncomingMessage, res: ServerResponse) {
   try {
     const incoming = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`)
     if (incoming.pathname === "/healthz") return sendJson(res, 200, { error: "ok" })
+    if (incoming.pathname === "/api/bootstrap" && req.method === "GET") {
+      res.setHeader("cache-control", "private, max-age=0, stale-while-revalidate=5")
+      return sendJson(res, 200, await getBootstrap())
+    }
     if (incoming.pathname === "/api/opencode/servers") return serverCollection(req, res)
 
     const match = incoming.pathname.match(/^\/api\/opencode\/servers\/([^/]+)(?:\/(health|reconnect))?$/)
