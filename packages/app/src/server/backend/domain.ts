@@ -1,4 +1,5 @@
 export type BackendType = "opencode" | (string & {})
+export type BackendProtocol = "v1" | "v2"
 
 export type BackendCapabilities = {
   projects: boolean
@@ -29,7 +30,7 @@ export type BackendDescriptor = {
 
 export type BackendHealth = {
   backendId: string
-  protocol?: string
+  protocol?: BackendProtocol
   reachable: boolean
   authenticated: boolean
   healthy: boolean

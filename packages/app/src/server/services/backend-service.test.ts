@@ -14,7 +14,7 @@ describe("backend service", () => {
     process.env.OPENCODE_SERVERS_STORE = join(directory, "servers.json")
     process.env.CONTROL_PLANE_LEGACY_TEST_MODE = "1"
     resetRegistryForTests()
-    globalThis.fetch = async () => Response.json({ healthy: true })
+    globalThis.fetch = (async () => Response.json({ healthy: true })) as unknown as typeof fetch
     let backendId: string | undefined
 
     try {
