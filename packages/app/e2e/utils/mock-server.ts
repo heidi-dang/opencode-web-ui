@@ -56,7 +56,21 @@ export async function mockOpenCodeServer(page: Page, config: MockServerConfig) {
     ).port
     if (url.port !== targetPort && url.port !== appPort) return route.fallback()
 
-    const path = url.pathname
+    // Browser requests go through the same-origin gateway in production. In
+    // tests that proxy prefix is still an upstream OpenCode path, so strip it
+    // before applying the fixture contract.
+    const path = url.pathname.startsWith("/api/opencode")
+      ? url.pathname.slice("/api/opencode".length) || "/"
+      : url.pathname
+    if (/^\/servers\/[^/]+\/health$/.test(path))
+      return json(route, {
+        state: "READY",
+        healthy: true,
+        authenticated: true,
+        reachable: true,
+        protocol: config.protocol ?? "v1",
+        latencyMs: 1,
+      })
     if (path === "/global/event" || path === "/event" || path === "/api/event") {
       const events = config.events?.()
       return sse(

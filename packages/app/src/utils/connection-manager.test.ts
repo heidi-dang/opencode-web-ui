@@ -31,6 +31,19 @@ describe("ConnectionManager", () => {
     expect(states).toEqual(["CONNECTING", "HEALTHY", "PROTOCOL_READY", "STREAM_READY", "STATE_RESYNCING", "READY"])
   })
 
+  test("can resynchronize an already ready connection after a lifecycle event", async () => {
+    const manager = new ConnectionManager(async () => "v2")
+
+    await manager.connect()
+    manager.markStreamReady()
+    manager.markSynchronized()
+    manager.markStateResyncing()
+
+    expect(manager.snapshot.state).toBe("STATE_RESYNCING")
+    manager.markSynchronized()
+    expect(manager.snapshot.state).toBe("READY")
+  })
+
   test("invalidates protocol after stream failure so the next retry re-detects", async () => {
     let probes = 0
     const manager = new ConnectionManager(async () => {

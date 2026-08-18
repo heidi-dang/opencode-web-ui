@@ -65,6 +65,11 @@ export const { use: usePermission, provider: PermissionProvider } = createSimple
     const owner = getOwner()
     const states = new Map<ServerScope, { key: ServerConnection.Key; dispose: () => void; state: PermissionState }>()
 
+    // Server registration is hydrated asynchronously. Permission consumers are
+    // mounted before that hydration can complete, so a missing key is a
+    // recoverable loading state—not an application invariant failure.
+    const unavailable = unavailablePermissionState()
+
     const activeDraft = createMemo(() => {
       if (!search.draftId) return
       return tabs.store.find((tab): tab is DraftTab => tab.type === "draft" && tab.draftID === search.draftId)
@@ -77,7 +82,7 @@ export const { use: usePermission, provider: PermissionProvider } = createSimple
 
     const ensure = (key: ServerConnection.Key) => {
       const conn = global.servers.list().find((item) => ServerConnection.key(item) === key)
-      if (!conn) throw new Error(`Permission server not found: ${key}`)
+      if (!conn) return unavailable
       const ctx = global.ensureServerCtx(conn)
       const existing = states.get(ctx.sdk.scope)
       if (existing && global.servers.list().some((item) => ServerConnection.key(item) === existing.key)) {
@@ -118,13 +123,22 @@ export const { use: usePermission, provider: PermissionProvider } = createSimple
     onCleanup(() => states.forEach((value) => value.dispose()))
 
     let lastSelected: PermissionState | undefined
+    let lastSelectedKey: ServerConnection.Key | undefined
     const selected = () => {
       const key = activeServer()
       if (global.servers.list().some((conn) => ServerConnection.key(conn) === key)) {
         lastSelected = ensure(key)
+        lastSelectedKey = key
       }
-      if (lastSelected) return lastSelected
-      return ensure(server.key)
+      const list = global.servers.list()
+      if (lastSelected && lastSelectedKey && list.some((conn) => ServerConnection.key(conn) === lastSelectedKey)) return lastSelected
+      const fallback = list[0]
+      if (fallback) {
+        lastSelectedKey = ServerConnection.key(fallback)
+        lastSelected = ensure(lastSelectedKey)
+        return lastSelected
+      }
+      return unavailable
     }
     const activeDirectory = createMemo(() => {
       const directory = decode64(params.dir)
@@ -186,6 +200,28 @@ export const { use: usePermission, provider: PermissionProvider } = createSimple
 
 type PermissionState = ReturnType<typeof createServerPermissionState>
 type PermissionEvent = Parameters<Parameters<ServerSDK["event"]["listen"]>[0]>[0]
+
+function unavailablePermissionState(): PermissionState {
+  const api = {
+    ready: () => false,
+    respond: () => {},
+    autoResponds: () => false,
+    isAutoAccepting: () => false,
+    isAutoAcceptingDirectory: () => false,
+    toggleAutoAccept: () => {},
+    toggleAutoAcceptDirectory: () => {},
+    enableAutoAccept: () => {},
+    disableAutoAccept: () => {},
+    isPermissionAllowAll: () => false,
+  }
+  return {
+    ...api,
+    api,
+    sync: undefined,
+    enableConfiguredDirectory: () => {},
+    permissionsEnabled: () => false,
+  } as unknown as PermissionState
+}
 
 function createServerPermissionState(input: { sdk: ServerSDK; sync: ServerSync }) {
   const [store, setStore, _, ready] = persisted(

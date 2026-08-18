@@ -359,7 +359,7 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
     if (activeResync) return activeResync
     activeResync = (async () => {
       const snapshot = serverSDK.connection.snapshot
-      if (snapshot.state === "STREAM_READY") serverSDK.connection.markStateResyncing()
+      if (snapshot.state === "READY" || snapshot.state === "STREAM_READY") serverSDK.connection.markStateResyncing()
       const result = await reconcileActiveSessionState({
         active: () => serverSDK.api.session.active(),
         session,
@@ -389,7 +389,12 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
   }
 
   const unsubConnection = serverSDK.connection.onChange((snapshot) => {
-    if (snapshot.state === "STREAM_READY" || snapshot.state === "RECONNECTING" || snapshot.state === "DEGRADED")
+    if (
+      snapshot.state === "STATE_RESYNCING" ||
+      snapshot.state === "STREAM_READY" ||
+      snapshot.state === "RECONNECTING" ||
+      snapshot.state === "DEGRADED"
+    )
       void resyncActiveSessions()
   })
   onCleanup(unsubConnection)

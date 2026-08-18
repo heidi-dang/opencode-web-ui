@@ -19,6 +19,19 @@ const isAbortError = (error: unknown) =>
   error !== null && typeof error === "object" && "name" in error && error.name === "AbortError"
 
 const isStreamClosed = (error: unknown, signal?: AbortSignal) => isAbortError(error) || signal?.aborted === true
+
+// The current event endpoint is volatile: reconnecting from an event id can
+// replay an incomplete execution and duplicate already reconciled messages.
+// Recovery is intentionally authoritative (status/messages/interaction state),
+// so keep the generated SSE client from asking the server for event replay.
+function withoutEventReplay(fetcher: typeof globalThis.fetch) {
+  return ((input: RequestInfo | URL, init?: RequestInit) => {
+    const request = new Request(input, init)
+    const headers = new Headers(request.headers)
+    headers.delete("last-event-id")
+    return fetcher(request, { ...init, headers })
+  }) as typeof globalThis.fetch
+}
 export type ServerEvent = Event & { current?: unknown }
 type QueuedServerEvent = { directory: string; payload: ServerEvent }
 type CurrentDelta = Extract<
@@ -264,7 +277,7 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
 
   const eventSdk = createSdkForServer({
     signal: abort.signal,
-    fetch: eventFetch,
+    fetch: eventFetch ? withoutEventReplay(eventFetch) : withoutEventReplay(globalThis.fetch),
     server: transportServer.http,
   })
   const connectionListeners = new Set<(snapshot: ReturnType<typeof createConnectionManager>["snapshot"]) => void>()
@@ -365,6 +378,7 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
           attempt?.abort()
         }
         abort.signal.addEventListener("abort", onAbort)
+        let streamEnded = false
         try {
           const kind = await manager.connect()
           const events =
@@ -397,6 +411,7 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
             yielded = Date.now()
             await wait(0)
           }
+          streamEnded = true
         } catch (error) {
           if (!isStreamClosed(error, attempt?.signal)) manager.markStreamFailure(error)
           if (!isStreamClosed(error, attempt?.signal) && !streamErrorLogged) {
@@ -411,6 +426,13 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
           abort.signal.removeEventListener("abort", onAbort)
           attempt = undefined
         }
+
+        // The event endpoint is long-lived. A clean EOF is still a transport
+        // failure for our purposes: it can occur after the server persisted a
+        // terminal execution event but before the browser received it. Force
+        // the next attempt through protocol detection and authoritative sync.
+        if (streamEnded && !abort.signal.aborted && started && generation === active)
+          manager.markStreamFailure(new Error("OpenCode event stream closed"))
 
         if (abort.signal.aborted || !started || generation !== active) return
         await wait(manager.retryDelay() || RECONNECT_DELAY_MS)
@@ -432,12 +454,16 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
   }
 
   onMount(() => {
+    const recover = () => {
+      manager.markStateResyncing()
+      start()
+    }
     makeEventListener(window, "pagehide", stop)
-    makeEventListener(window, "pageshow", (event) => resumeStreamAfterPageShow(event, start))
+    makeEventListener(window, "pageshow", (event) => resumeStreamAfterPageShow(event, recover))
     makeEventListener(document, "visibilitychange", () => {
-      if (document.visibilityState === "visible") start()
+      if (document.visibilityState === "visible") recover()
     })
-    makeEventListener(window, "online", start)
+    makeEventListener(window, "online", recover)
     makeEventListener(window, "offline", () => {
       stop()
       manager.invalidate(new Error("Network offline"))

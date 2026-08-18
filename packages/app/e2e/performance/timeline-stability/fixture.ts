@@ -105,6 +105,7 @@ export async function setupTimeline(
     protocol?: "v1" | "v2"
   } = {},
 ) {
+  const fixtureServer = `http://e2e.test:${process.env.PLAYWRIGHT_SERVER_PORT ?? "4096"}`
   const sessions = input.sessions ?? [session()]
   const messages = validateTimelineMessages([
     ...(input.seedHistory ? historyMessages(18) : []),
@@ -116,7 +117,7 @@ export async function setupTimeline(
     decodeOptions,
   )
   const transport = await installSseTransport<EventPayload>(page, {
-    server: `http://${process.env.PLAYWRIGHT_SERVER_HOST ?? "127.0.0.1"}:${process.env.PLAYWRIGHT_SERVER_PORT ?? "4096"}`,
+    server: fixtureServer,
     retry: input.eventRetry ?? 20,
   })
   await mockOpenCodeServer(page, {
@@ -152,6 +153,9 @@ export async function setupTimeline(
       localStorage.setItem("opencode.global.dat:language", JSON.stringify({ locale }))
     }, input.locale)
   }
+  await page.addInitScript((server) => {
+    localStorage.setItem("opencode.settings.dat:defaultServerUrl", server)
+  }, fixtureServer)
   if (input.reducedMotion) await page.emulateMedia({ reducedMotion: "reduce" })
   await page.setViewportSize(input.viewport ?? { width: 1400, height: 900 })
   if (input.deviceScaleFactor) {

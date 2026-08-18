@@ -1,8 +1,11 @@
 import { createSignal, createRenderEffect, onCleanup, createMemo } from "solid-js"
 import { useSync } from "@/context/sync"
-import { ActivityConfig, type ModelActivityState } from "./activity-config"
+import { ActivityConfig, modelActivityIsStalled, type ModelActivityState } from "./activity-config"
+import { useServerSDK } from "@/context/server-sdk"
 
 export function useModelActivity(sessionID: () => string, sync = useSync()) {
+
+  const serverSDK = useServerSDK()
 
   // Track the derived state
   const [state, setState] = createSignal<ModelActivityState>("idle")
@@ -24,11 +27,13 @@ export function useModelActivity(sessionID: () => string, sync = useSync()) {
   
   const todos = createMemo(() => sync().data.todo[sessionID()] ?? [])
   const waitingForTool = createMemo(() => todos().some(t => t.status === "in_progress"))
+  let recoveryRequested = false
 
   // Evaluation loop
   createRenderEffect(() => {
     // If not working, clear timer and set appropriate resting state
     if (!isWorking()) {
+      recoveryRequested = false
       setState("idle")
       setLastProcessedEventTime(0)
       setTimeSinceLastActivity(0)
@@ -63,8 +68,18 @@ export function useModelActivity(sessionID: () => string, sync = useSync()) {
         return
       }
       
-      if (last !== 0 && timeSince >= ActivityConfig.STALL_THRESHOLD_MS) {
+      if (modelActivityIsStalled(last, now)) {
         setState("stalled")
+        if (!recoveryRequested) {
+          recoveryRequested = true
+          void serverSDK()
+            .connection.reconnect()
+            .catch((error) => {
+              console.error("[session] stalled execution recovery failed", {
+                error: error instanceof Error ? error.message : "unknown recovery error",
+              })
+            })
+        }
       } else {
         if (ewma() <= ActivityConfig.FAST_CADENCE_MS) {
           setState("active-fast")

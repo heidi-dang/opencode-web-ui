@@ -36,3 +36,7 @@ export const ActivityConfig = {
    */
   EVALUATION_INTERVAL_MS: 250,
 }
+
+export function modelActivityIsStalled(lastEventAt: number, now: number, threshold = ActivityConfig.STALL_THRESHOLD_MS) {
+  return lastEventAt > 0 && now - lastEventAt >= threshold
+}

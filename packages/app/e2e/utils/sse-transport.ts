@@ -174,9 +174,12 @@ export async function installSseTransport<T>(
       const fetch = (input: RequestInfo | URL, init?: RequestInit) => {
         const request = new Request(input, init)
         const url = new URL(request.url)
+        const path = url.pathname.startsWith("/api/opencode")
+          ? url.pathname.slice("/api/opencode".length) || "/"
+          : url.pathname
         if (
-          url.origin !== server ||
-          (url.pathname !== "/global/event" && url.pathname !== "/event" && url.pathname !== "/api/event")
+          (url.origin !== server && url.origin !== window.location.origin) ||
+          (path !== "/global/event" && path !== "/event" && path !== "/api/event")
         )
           return originalFetch(request)
 
@@ -184,7 +187,7 @@ export async function installSseTransport<T>(
         const record = {
           id,
           url: url.href,
-          path: url.pathname,
+          path,
           headers: Object.fromEntries(request.headers.entries()),
           openedAt: performance.now(),
         } as Connection
@@ -193,11 +196,11 @@ export async function installSseTransport<T>(
             record.controller = controller
             connections.push(record)
             if (retry !== undefined) controller.enqueue(encoder.encode(`retry: ${retry}\n\n`))
-            if (url.pathname === "/api/event")
+            if (path === "/api/event")
               controller.enqueue(
                 encoder.encode(frame({ id: `evt_mock_connected_${id}`, type: "server.connected", data: {} })),
               )
-            if (url.pathname === "/global/event")
+            if (path === "/global/event")
               controller.enqueue(
                 encoder.encode(
                   frame({

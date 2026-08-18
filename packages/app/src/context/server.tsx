@@ -324,6 +324,18 @@ export const { use: useServer, provider: ServerProvider } = createSimpleContext(
       active: props.defaultServer,
     })
 
+    // The persisted registry identifies a server by its registry id, while
+    // the browser's default-server preference is URL-based. Reconcile those
+    // identities after hydration so a valid server is selected instead of
+    // leaving scoped providers with a key that is not in the registry.
+    createEffect(() => {
+      const list = allServers()
+      if (list.length === 0) return
+      if (list.some((conn) => ServerConnection.key(conn) === state.active)) return
+      const byUrl = list.find((conn) => conn.type === "http" && conn.http.url === props.defaultServer)
+      setState("active", ServerConnection.key(byUrl ?? list[0]!))
+    })
+
     function setActive(input: ServerConnection.Key) {
       if (state.active !== input) setState("active", input)
     }
