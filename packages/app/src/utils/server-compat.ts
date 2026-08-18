@@ -450,7 +450,7 @@ function createV1Api(input: CompatibleInput): CompatibleApi {
         return located(result.data ?? [], value?.location)
       },
       async find(value: Parameters<ServerApi["file"]["find"]>[0]) {
-        const result = await legacy(directory(value.location)).find.files({
+        const result = await legacy({ directory: directory(value.location) }).find.files({
           query: value.query,
           dirs: value.type === undefined ? undefined : value.type === "directory" ? "true" : "false",
           limit: value.limit,
@@ -580,7 +580,7 @@ function createV1Api(input: CompatibleInput): CompatibleApi {
     permission: {
       ...input.current.permission,
       async reply(value: Parameters<ServerApi["permission"]["reply"]>[0] & { location?: { directory?: string } }) {
-        await legacy(directory(value.location)).permission.respond({
+        await legacy({ directory: directory(value.location) }).permission.respond({
           sessionID: value.sessionID,
           permissionID: value.requestID,
           response: value.reply,
