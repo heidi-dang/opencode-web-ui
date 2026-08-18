@@ -27,7 +27,9 @@ import type { ServerApi } from "@/utils/server"
 type MessageApi = ServerApi["message"]
 
 const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0)
-const cmpMessage = (a: Message, b: Message) => a.time.created - b.time.created || cmp(a.id, b.id)
+const messageCreated = (message: Pick<Message, "time">) =>
+  typeof message.time?.created === "number" && Number.isFinite(message.time.created) ? message.time.created : 0
+const cmpMessage = (a: Message, b: Message) => messageCreated(a) - messageCreated(b) || cmp(a.id, b.id)
 const SKIP_PARTS = new Set(["patch", "step-start", "step-finish"])
 const initialMessagePageSize = 20
 const historyMessagePageSize = 200

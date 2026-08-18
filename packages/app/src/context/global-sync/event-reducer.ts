@@ -34,7 +34,61 @@ const SESSION_CONTENT_EVENTS = new Set([
   "question.rejected",
 ])
 
-const compareMessage = (a: Message, b: Message) => a.time.created - b.time.created || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+export class EventPayloadError extends Error {
+  readonly code = "EVENT_PAYLOAD_INVALID"
+
+  constructor(
+    readonly eventType: string,
+    detail: string,
+  ) {
+    super(`Invalid ${eventType} event payload: ${detail}`)
+    this.name = "EventPayloadError"
+  }
+}
+
+const messageCreated = (message: Pick<Message, "time">) =>
+  typeof message.time?.created === "number" && Number.isFinite(message.time.created) ? message.time.created : undefined
+
+const compareMessage = (a: Message, b: Message) =>
+  (messageCreated(a) ?? 0) - (messageCreated(b) ?? 0) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value)
+}
+
+function normalizeMessageEvent(
+  eventType: string,
+  properties: unknown,
+  existing?: Message,
+): { info?: Message; error?: EventPayloadError } {
+  if (!isRecord(properties) || !isRecord(properties.info)) {
+    return { error: new EventPayloadError(eventType, "missing info") }
+  }
+
+  const raw = properties.info
+  const id = typeof raw.id === "string" ? raw.id : existing?.id
+  const sessionID = typeof raw.sessionID === "string" ? raw.sessionID : existing?.sessionID
+  const role = raw.role === "user" || raw.role === "assistant" ? raw.role : existing?.role
+  const created = isRecord(raw.time) && typeof raw.time.created === "number" ? raw.time.created : existing?.time?.created
+
+  if (!id || !sessionID || !role || typeof created !== "number" || !Number.isFinite(created)) {
+    return { error: new EventPayloadError(eventType, "message requires id, sessionID, role, and time.created") }
+  }
+
+  return {
+    info: clean({
+      ...(existing ?? {}),
+      ...raw,
+      id,
+      sessionID,
+      role,
+      time: {
+        ...(isRecord(raw.time) ? raw.time : existing?.time),
+        created,
+      },
+    } as Message),
+  }
+}
 
 export function applyGlobalEvent(input: {
   event: { type: string; properties?: unknown }
@@ -118,6 +172,7 @@ export function applyDirectoryEvent(input: {
   loadReferences?: () => void
   vcsCache?: VcsCache
   setSessionTodo?: (sessionID: string, todos: Todo[] | undefined) => void
+  onEventError?: (error: EventPayloadError) => void
   retainedLimit?: number
   sessionContent?: boolean
   permission?: State["permission"]
@@ -278,7 +333,17 @@ export function applyDirectoryEvent(input: {
       break
     }
     case "message.updated": {
-      const info = clean((event.properties as { info: Message }).info)
+      const properties = isRecord(event.properties) ? event.properties : undefined
+      const rawInfo = properties && isRecord(properties.info) ? properties.info : undefined
+      const sessionID = typeof rawInfo?.sessionID === "string" ? rawInfo.sessionID : undefined
+      const existing = rawInfo?.id && sessionID ? input.store.message[sessionID]?.find((message) => message.id === rawInfo.id) : undefined
+      const normalized = normalizeMessageEvent(event.type, event.properties, existing)
+      if (!normalized.info) {
+        input.onEventError?.(normalized.error ?? new EventPayloadError(event.type, "unknown message payload"))
+        input.push(input.directory)
+        break
+      }
+      const info = normalized.info
       const messages = input.store.message[info.sessionID]
       if (!messages) {
         input.setStore("message", info.sessionID, [info])

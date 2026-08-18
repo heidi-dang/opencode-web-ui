@@ -418,6 +418,41 @@ describe("applyDirectoryEvent", () => {
     expect(store.part.msg_a).toBeUndefined()
   })
 
+  test("contains a malformed streamed message event instead of crashing reconciliation", () => {
+    const sessionID = "ses_1"
+    const [store, setStore] = createStore(
+      baseState({
+        message: { [sessionID]: [userMessage("msg_user", sessionID, 1)] },
+      }),
+    )
+    const errors: unknown[] = []
+
+    expect(() =>
+      applyDirectoryEvent({
+        event: {
+          type: "message.updated",
+          properties: {
+            info: {
+              id: "msg_assistant",
+              sessionID,
+              role: "assistant",
+              parentID: "msg_user",
+            } as Message,
+          },
+        },
+        store,
+        setStore,
+        push() {},
+        directory: "/tmp",
+        loadLsp() {},
+        onEventError: (error: unknown) => errors.push(error),
+      }),
+    ).not.toThrow()
+
+    expect(store.message[sessionID]?.map((message) => message.id)).toEqual(["msg_user"])
+    expect(errors[0]).toMatchObject({ code: "EVENT_PAYLOAD_INVALID", eventType: "message.updated" })
+  })
+
   test("upserts and prunes message parts", () => {
     const sessionID = "ses_1"
     const messageID = "msg_1"

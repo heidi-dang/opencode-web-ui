@@ -16,6 +16,35 @@ export type ProviderModelNotFoundError = {
   }
 }
 
+function record(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value)
+}
+
+function safeRuntimeMessage(value: unknown, depth = 0): string | undefined {
+  if (depth > 4) return undefined
+  if (value instanceof Error && value.message) return value.message
+  if (typeof value === "string" && value.trim()) return value.trim()
+  if (!record(value)) return undefined
+
+  if (typeof value.message === "string" && value.message.trim()) return value.message.trim()
+  for (const key of ["data", "error", "body", "cause"]) {
+    const message = safeRuntimeMessage(value[key], depth + 1)
+    if (message) return message
+  }
+  return undefined
+}
+
+export function normalizeRuntimeError(error: unknown): Error {
+  if (error instanceof Error) return error
+  const message = safeRuntimeMessage(error) ?? "Unknown error"
+  const normalized = new Error(message)
+  if (record(error)) {
+    const name = typeof error.name === "string" ? error.name : typeof error._tag === "string" ? error._tag : undefined
+    if (name) normalized.name = name
+  }
+  return normalized
+}
+
 type Translator = (key: string, vars?: Record<string, string | number>) => string
 
 function tr(translator: Translator | undefined, key: string, text: string, vars?: Record<string, string | number>) {
@@ -31,6 +60,8 @@ export function formatServerError(error: unknown, translate?: Translator, fallba
   if (isProviderModelNotFoundErrorLike(unwrapped)) return parseReadableProviderModelNotFoundError(unwrapped, translate)
   if (error instanceof Error && error.message) return error.message
   if (typeof error === "string" && error) return error
+  const message = safeRuntimeMessage(unwrapped)
+  if (message) return message
   if (fallback) return fallback
   return tr(translate, "error.chain.unknown", "Unknown error")
 }

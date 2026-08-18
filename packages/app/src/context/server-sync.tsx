@@ -666,6 +666,9 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
         if (!children.active(key)) return
         void queryClient.fetchQuery(queryOptionsApi.references(key))
       },
+      onEventError: (error) => {
+        console.error("[OpenCode event payload]", { code: error.code, eventType: error.eventType })
+      },
     })
   })
 

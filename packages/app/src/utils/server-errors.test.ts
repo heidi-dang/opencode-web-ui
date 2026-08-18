@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import type { SessionNotFoundError } from "@opencode-ai/sdk/v2/client"
 import type { ConfigInvalidError, ProviderModelNotFoundError } from "./server-errors"
-import { formatServerError, isSessionNotFoundError, parseReadableConfigInvalidError } from "./server-errors"
+import { formatServerError, isSessionNotFoundError, normalizeRuntimeError, parseReadableConfigInvalidError } from "./server-errors"
 
 function fill(text: string, vars?: Record<string, string | number>) {
   if (!vars) return text
@@ -141,6 +141,19 @@ describe("formatServerError", () => {
     const wrapped = new Error("ConfigInvalidError", { cause: { body, status: 400 } })
 
     expect(formatServerError(wrapped, language.t)).toBe("Arquivo de config em config invalido: Missing host")
+  })
+
+  test("preserves safe messages from structured runtime errors", () => {
+    expect(formatServerError({ data: { message: "agent failed" } }, language.t)).toBe("agent failed")
+    expect(formatServerError({ error: { message: "tool failed" } }, language.t)).toBe("tool failed")
+    expect(formatServerError({ body: { message: "stream failed" } }, language.t)).toBe("stream failed")
+  })
+
+  test("normalizes non-Error runtime failures into an Error", () => {
+    const error = normalizeRuntimeError({ name: "AgentError", data: { message: "agent failed" } })
+    expect(error).toBeInstanceOf(Error)
+    expect(error.name).toBe("AgentError")
+    expect(error.message).toBe("agent failed")
   })
 })
 
