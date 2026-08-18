@@ -15,6 +15,8 @@ import {
   loadMcpQuery,
   loadMcpResourcesQuery,
   loadSessionQuery,
+  reconcileActiveSessionState,
+  reconcileActiveSessionStatuses,
   seedActiveSessionStatuses,
 } from "./server-sync"
 import { ServerScope } from "@/utils/server-scope"
@@ -105,6 +107,49 @@ describe("active session query", () => {
       message: "retrying",
       next: 10,
     })
+  })
+
+  test("clears stale local busy state when authoritative active state is empty", () => {
+    const session = createServerSession({} as OpencodeClient)
+    session.set("session_status", "ses_done", { type: "busy" })
+    session.set("session_status", "ses_retry", { type: "retry", attempt: 1, message: "retrying", next: 10 })
+
+    reconcileActiveSessionStatuses(session, {})
+
+    expect(session.data.session_status.ses_done).toEqual({ type: "idle" })
+    expect(session.data.session_status.ses_retry).toEqual({ type: "idle" })
+  })
+
+  test("maps authoritative running sessions to local busy state", () => {
+    const session = createServerSession({} as OpencodeClient)
+    session.set("session_status", "ses_running", { type: "idle" })
+
+    reconcileActiveSessionStatuses(session, { ses_running: { type: "running" } })
+
+    expect(session.data.session_status.ses_running).toEqual({ type: "busy" })
+  })
+
+  test("resynchronizes active and previously busy sessions without aborting on one session error", async () => {
+    const session = createServerSession({} as OpencodeClient)
+    session.set("session_status", "ses_stale", { type: "busy" })
+    const synced: string[] = []
+
+    const result = await reconcileActiveSessionState({
+      active: async () => ({ ses_running: { type: "running" } }),
+      session: {
+        data: session.data,
+        set: session.set,
+        sync: async (sessionID: string) => {
+          synced.push(sessionID)
+          if (sessionID === "ses_stale") throw new Error("temporary message failure")
+        },
+      },
+    })
+
+    expect(result.errors).toHaveLength(1)
+    expect(synced).toEqual(["ses_running", "ses_stale"])
+    expect(session.data.session_status.ses_running).toEqual({ type: "busy" })
+    expect(session.data.session_status.ses_stale).toEqual({ type: "idle" })
   })
 })
 

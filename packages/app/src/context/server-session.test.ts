@@ -244,6 +244,40 @@ describe("server session", () => {
     expect(ctx.store.data.part.msg_2_assistant).toMatchObject([{ type: "text", text: "world" }])
   })
 
+  test("settles session.next execution state when the current v2 step ends", () => {
+    const ctx = setup({ child: session("child") })
+    ctx.store.remember(session("child"))
+
+    ctx.store.applyV2({
+      id: "evt_start",
+      type: "session.next.step.started",
+      location: { directory: "/repo" },
+      data: {
+        timestamp: 1,
+        sessionID: "child",
+        assistantMessageID: "msg_assistant",
+        agent: "build",
+        model: { id: "model", providerID: "provider" },
+      },
+    } as unknown as OpenCodeEvent)
+    expect(ctx.store.data.session_status.child).toEqual({ type: "busy" })
+
+    ctx.store.applyV2({
+      id: "evt_end",
+      type: "session.next.step.ended",
+      location: { directory: "/repo" },
+      data: {
+        timestamp: 2,
+        sessionID: "child",
+        assistantMessageID: "msg_assistant",
+        finish: "stop",
+        cost: 0,
+        tokens: { input: 1, output: 1, reasoning: 0, cache: { read: 0, write: 0 } },
+      },
+    } as unknown as OpenCodeEvent)
+    expect(ctx.store.data.session_status.child).toEqual({ type: "idle" })
+  })
+
   test("resolves lineage by session ID without directory", async () => {
     const ctx = setup({ child: session("child", "root"), root: session("root") })
 

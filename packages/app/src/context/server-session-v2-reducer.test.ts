@@ -153,4 +153,85 @@ describe("v2 session reducer", () => {
 
     expect(result).toMatchObject({ sessionID: "ses_1", missing: "msg_user", touched: [] })
   })
+
+  test("reduces the current session.next event contract through terminal step settlement", () => {
+    const reducer = createV2SessionReducer()
+    let messages: SessionMessageInfo[] = []
+    const apply = (input: object) => {
+      const result = reducer.reduce(messages, event(input))
+      if (result) messages = result.messages
+      return result
+    }
+    const current = (type: string, timestamp: number, data: Record<string, unknown>) =>
+      apply({ id: `evt_${timestamp}`, type, location: { directory: "/repo" }, data: { timestamp, sessionID: "ses_1", ...data } })
+
+    current("session.next.prompt.admitted", 1, {
+      messageID: "msg_user",
+      prompt: { text: "hello" },
+      delivery: "steer",
+    })
+    current("session.next.prompted", 2, {
+      messageID: "msg_user",
+      prompt: { text: "hello" },
+      delivery: "steer",
+    })
+    current("session.next.step.started", 3, {
+      assistantMessageID: "msg_assistant",
+      agent: "build",
+      model: { id: "model", providerID: "provider" },
+    })
+    current("session.next.text.started", 4, { assistantMessageID: "msg_assistant", textID: "text_1" })
+    current("session.next.text.delta", 5, { assistantMessageID: "msg_assistant", textID: "text_1", delta: "hello" })
+    current("session.next.text.ended", 6, { assistantMessageID: "msg_assistant", textID: "text_1", text: "hello" })
+    current("session.next.step.ended", 7, {
+      assistantMessageID: "msg_assistant",
+      finish: "stop",
+      cost: 0,
+      tokens: { input: 1, output: 1, reasoning: 0, cache: { read: 0, write: 0 } },
+    })
+
+    expect(messages).toMatchObject([
+      { id: "msg_user", type: "user", text: "hello" },
+      { id: "msg_assistant", type: "assistant", finish: "stop", content: [{ type: "text", text: "hello" }] },
+    ])
+  })
+
+  test("retains partial assistant text when the provider emits a terminal step failure", () => {
+    const reducer = createV2SessionReducer()
+    let messages: SessionMessageInfo[] = []
+    const apply = (type: string, timestamp: number, data: Record<string, unknown>) => {
+      const result = reducer.reduce(
+        messages,
+        event({
+          id: `evt_${timestamp}`,
+          type,
+          location: { directory: "/repo" },
+          data: { timestamp, sessionID: "ses_1", ...data },
+        }),
+      )
+      if (result) messages = result.messages
+    }
+
+    apply("session.next.step.started", 1, {
+      assistantMessageID: "msg_assistant",
+      agent: "build",
+      model: { id: "model", providerID: "provider" },
+    })
+    apply("session.next.text.started", 2, { assistantMessageID: "msg_assistant", textID: "text_1" })
+    apply("session.next.text.delta", 3, { assistantMessageID: "msg_assistant", textID: "text_1", delta: "partial" })
+    apply("session.next.step.failed", 4, {
+      assistantMessageID: "msg_assistant",
+      error: { type: "unknown", message: "HTTP transport failed" },
+    })
+
+    expect(messages).toMatchObject([
+      {
+        id: "msg_assistant",
+        type: "assistant",
+        finish: "error",
+        error: { message: "HTTP transport failed" },
+        content: [{ type: "text", text: "partial" }],
+      },
+    ])
+  })
 })

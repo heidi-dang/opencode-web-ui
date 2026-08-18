@@ -3,6 +3,7 @@ export type ConnectionState =
   | "HEALTHY"
   | "PROTOCOL_READY"
   | "STREAM_READY"
+  | "STATE_RESYNCING"
   | "READY"
   | "DEGRADED"
   | "RECONNECTING"
@@ -88,6 +89,15 @@ export class ConnectionManager {
   markStreamReady() {
     if (!this.protocolValue) return
     this.setState("STREAM_READY", { protocol: this.protocolValue })
+  }
+
+  markStateResyncing() {
+    if (!this.protocolValue) return
+    this.setState("STATE_RESYNCING", { protocol: this.protocolValue })
+  }
+
+  markSynchronized() {
+    if (!this.protocolValue) return
     this.setState("READY", { protocol: this.protocolValue })
   }
 

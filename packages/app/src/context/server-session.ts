@@ -968,20 +968,27 @@ export function createServerSession(
     //   if (info) remember({ ...info, time: { ...info.time, archived: event.created, updated: event.created } })
     //   evict([sessionID])
     // }
-    if (event.type === "session.execution.started") setData("session_status", sessionID, { type: "busy" })
+    const eventType = event.type as string
+    if (eventType === "session.execution.started" || eventType === "session.next.step.started")
+      setData("session_status", sessionID, { type: "busy" })
     if (
-      event.type === "session.execution.succeeded" ||
-      event.type === "session.execution.failed" ||
-      event.type === "session.execution.interrupted"
+      eventType === "session.execution.succeeded" ||
+      eventType === "session.execution.failed" ||
+      eventType === "session.execution.interrupted" ||
+      eventType === "session.next.step.ended" ||
+      eventType === "session.next.step.failed"
     )
       setData("session_status", sessionID, { type: "idle" })
-    if (event.type === "session.retry.scheduled")
-      setData("session_status", sessionID, {
-        type: "retry",
-        attempt: event.data.attempt,
-        message: event.data.error.message,
-        next: event.data.at,
-      })
+    if (eventType === "session.retry.scheduled" || eventType === "session.next.retried")
+      (() => {
+        const retryData = event.data as { attempt?: number; error?: { message?: string }; at?: number }
+        setData("session_status", sessionID, {
+          type: "retry",
+          attempt: retryData.attempt ?? 0,
+          message: retryData.error?.message ?? "Retrying",
+          next: retryData.at ?? Date.now(),
+        })
+      })()
     if (event.type === "session.forked") void resolve(sessionID, { force: true }).catch(() => {})
     if (
       event.type === "session.revert.staged" ||

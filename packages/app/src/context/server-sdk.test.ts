@@ -1,17 +1,35 @@
 import { describe, expect, test } from "bun:test"
-import { adaptServerEvent, coalesceServerEvents, enqueueServerEvent, resumeStreamAfterPageShow } from "./server-sdk"
+import { adaptServerEvent, coalesceServerEvents, dispatchServerEvents, enqueueServerEvent, resumeStreamAfterPageShow } from "./server-sdk"
 import type { OpenCodeEvent } from "@opencode-ai/client/promise"
 import type { Event } from "@opencode-ai/sdk/v2/client"
 
 describe("resumeStreamAfterPageShow", () => {
-  test("restarts a stream only after a back-forward cache restore", () => {
+  test("restarts a stream for every Safari foreground page show", () => {
     let starts = 0
     const start = () => starts++
 
     resumeStreamAfterPageShow({ persisted: false } as PageTransitionEvent, start)
     resumeStreamAfterPageShow({ persisted: true } as PageTransitionEvent, start)
 
-    expect(starts).toBe(1)
+    expect(starts).toBe(2)
+  })
+})
+
+describe("dispatchServerEvents", () => {
+  test("isolates one malformed event so later terminal events still dispatch", () => {
+    const seen: string[] = []
+    const errors: string[] = []
+    dispatchServerEvents(
+      ["valid-start", "malformed", "valid-terminal"],
+      (event) => {
+        if (event === "malformed") throw new Error("bad event")
+        seen.push(event)
+      },
+      (error, event) => errors.push(`${event}:${error instanceof Error ? error.message : "unknown"}`),
+    )
+
+    expect(seen).toEqual(["valid-start", "valid-terminal"])
+    expect(errors).toEqual(["malformed:bad event"])
   })
 })
 
@@ -96,6 +114,23 @@ describe("coalesceServerEvents", () => {
     const result = coalesceServerEvents([first, other, last])
 
     expect(result.map((event) => event.payload.id)).toEqual(["1", "2", "3"])
+  })
+
+  test("quarantines malformed deltas without aborting adjacent terminal events", () => {
+    const malformed = {
+      directory: "/repo",
+      payload: { type: "message.part.delta", properties: { messageID: "msg" } } as Event,
+    }
+    const terminal = {
+      directory: "/repo",
+      payload: { type: "session.status", properties: { sessionID: "ses", status: { type: "idle" } } } as Event,
+    }
+
+    expect(() => coalesceServerEvents([malformed, terminal])).not.toThrow()
+    expect(coalesceServerEvents([malformed, terminal]).map((event) => event.payload.type)).toEqual([
+      "message.part.delta",
+      "session.status",
+    ])
   })
 })
 
@@ -192,5 +227,17 @@ describe("enqueueServerEvent", () => {
     enqueue("busy")
 
     expect(events).toHaveLength(2)
+  })
+
+  test("keeps malformed part updates queueable for per-event recovery", () => {
+    const events: Array<{ directory: string; payload: Event }> = []
+
+    expect(() =>
+      enqueueServerEvent(events, {
+        directory: "/repo",
+        payload: { type: "message.part.updated", properties: {} } as Event,
+      }),
+    ).not.toThrow()
+    expect(events).toHaveLength(1)
   })
 })

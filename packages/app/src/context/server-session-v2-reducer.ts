@@ -13,10 +13,12 @@ export type V2SessionReduction = {
 
 export function createV2SessionReducer() {
   const pending = new Map<string, SessionPendingMessage>()
+  const contentIDs = new Map<string, string[]>()
 
-  const reduce = (source: readonly SessionMessageInfo[], event: OpenCodeEvent): V2SessionReduction | undefined => {
-    if (!("data" in event) || !("sessionID" in event.data) || typeof event.data.sessionID !== "string") return
-    const sessionID = event.data.sessionID
+  const reduce = (source: readonly SessionMessageInfo[], inputEvent: OpenCodeEvent): V2SessionReduction | undefined => {
+    const normalized = normalizeCurrentEvent(inputEvent, source, contentIDs)
+    if (!("data" in normalized) || !("sessionID" in normalized.data) || typeof normalized.data.sessionID !== "string") return
+    const sessionID = normalized.data.sessionID
     const result = (messages: SessionMessageInfo[], touched: string[] = []): V2SessionReduction => ({
       sessionID,
       messages,
@@ -25,6 +27,7 @@ export function createV2SessionReducer() {
     const append = (message: SessionMessageInfo) =>
       result(source.some((item) => item.id === message.id) ? [...source] : [...source, message], [message.id])
 
+    const event = normalized
     switch (event.type) {
       case "session.input.admitted":
         pending.set(key(sessionID, event.data.inputID), event.data.input)
@@ -412,7 +415,201 @@ export function createV2SessionReducer() {
       for (const id of pending.keys()) {
         if (id.startsWith(`${sessionID}:`)) pending.delete(id)
       }
+      for (const id of contentIDs.keys()) {
+        if (id.startsWith(`${sessionID}:`)) contentIDs.delete(id)
+      }
     },
+  }
+}
+
+function normalizeCurrentEvent(
+  event: OpenCodeEvent,
+  source: readonly SessionMessageInfo[],
+  contentIDs: Map<string, string[]>,
+): OpenCodeEvent {
+  if (!event.type.startsWith("session.next.")) return event
+  const raw = event as unknown as { type: string; id: string; metadata?: unknown; location?: unknown; data?: unknown }
+  if (!raw.data || typeof raw.data !== "object" || Array.isArray(raw.data)) return event
+  const data = raw.data as Record<string, unknown>
+  const sessionID = typeof data.sessionID === "string" ? data.sessionID : undefined
+  const timestamp = typeof data.timestamp === "number" && Number.isFinite(data.timestamp) ? data.timestamp : Date.now()
+  const base = { ...raw, created: timestamp }
+  const model = data.model
+  const prompt = data.prompt
+  const promptData = prompt && typeof prompt === "object" && !Array.isArray(prompt) ? (prompt as Record<string, unknown>) : {}
+  const assistantMessageID = typeof data.assistantMessageID === "string" ? data.assistantMessageID : undefined
+  const contentOrdinal = (type: "text" | "reasoning", id: unknown) => {
+    if (!sessionID || !assistantMessageID || typeof id !== "string") return 0
+    const key = `${sessionID}:${assistantMessageID}:${type}`
+    const values = contentIDs.get(key) ?? []
+    const known = values.indexOf(id)
+    if (known !== -1) return known
+    const assistant = source.find((item) => item.id === assistantMessageID && item.type === "assistant")
+    const ordinal = assistant?.type === "assistant" ? assistant.content.filter((item) => item.type === type).length : values.length
+    values[ordinal] = id
+    contentIDs.set(key, values)
+    return ordinal
+  }
+  const next = (type: string, nextData: Record<string, unknown>) => ({ ...base, type, data: nextData }) as unknown as OpenCodeEvent
+
+  switch (raw.type) {
+    case "session.next.prompt.admitted":
+      return next("session.input.admitted", {
+        sessionID,
+        inputID: data.messageID,
+        input: {
+          type: "user",
+          delivery: data.delivery,
+          data: {
+            text: promptData.text,
+            files: promptData.files,
+            agents: promptData.agents,
+          },
+        },
+      })
+    case "session.next.prompted":
+      return next("session.input.promoted", { sessionID, inputID: data.messageID })
+    case "session.next.agent.switched":
+      return next("session.agent.selected", { sessionID, agent: data.agent })
+    case "session.next.model.switched":
+      return next("session.model.selected", { sessionID, model })
+    case "session.next.synthetic":
+      return next("session.synthetic", { sessionID, metadata: raw.metadata, text: data.text, description: undefined })
+    case "session.next.shell.started":
+      return next("session.shell.started", {
+        sessionID,
+        shell: { id: data.callID, command: data.command, status: "running", exit: undefined },
+      })
+    case "session.next.shell.ended":
+      return next("session.shell.ended", {
+        sessionID,
+        shell: { id: data.callID, status: "completed", exit: undefined },
+        output: data.output,
+      })
+    case "session.next.step.started":
+      return next("session.step.started", { sessionID, assistantMessageID, agent: data.agent, model, snapshot: data.snapshot })
+    case "session.next.step.ended":
+      return next("session.step.ended", {
+        sessionID,
+        assistantMessageID,
+        finish: data.finish,
+        cost: data.cost,
+        tokens: data.tokens,
+        snapshot: data.snapshot,
+        files: data.files,
+      })
+    case "session.next.step.failed":
+      return next("session.step.failed", { sessionID, assistantMessageID, error: data.error })
+    case "session.next.text.started":
+      return next("session.text.started", {
+        sessionID,
+        assistantMessageID,
+        ordinal: contentOrdinal("text", data.textID),
+      })
+    case "session.next.text.delta":
+      return next("session.text.delta", {
+        sessionID,
+        assistantMessageID,
+        ordinal: contentOrdinal("text", data.textID),
+        delta: data.delta,
+      })
+    case "session.next.text.ended":
+      return next("session.text.ended", {
+        sessionID,
+        assistantMessageID,
+        ordinal: contentOrdinal("text", data.textID),
+        text: data.text,
+      })
+    case "session.next.reasoning.started":
+      return next("session.reasoning.started", {
+        sessionID,
+        assistantMessageID,
+        ordinal: contentOrdinal("reasoning", data.reasoningID),
+        state: undefined,
+      })
+    case "session.next.reasoning.delta":
+      return next("session.reasoning.delta", {
+        sessionID,
+        assistantMessageID,
+        ordinal: contentOrdinal("reasoning", data.reasoningID),
+        delta: data.delta,
+      })
+    case "session.next.reasoning.ended":
+      return next("session.reasoning.ended", {
+        sessionID,
+        assistantMessageID,
+        ordinal: contentOrdinal("reasoning", data.reasoningID),
+        text: data.text,
+        state: undefined,
+      })
+    case "session.next.tool.input.started":
+      return next("session.tool.input.started", { sessionID, assistantMessageID, callID: data.callID, name: data.name })
+    case "session.next.tool.input.delta":
+      return next("session.tool.input.delta", { sessionID, assistantMessageID, callID: data.callID, delta: data.delta })
+    case "session.next.tool.input.ended":
+      return next("session.tool.input.ended", { sessionID, assistantMessageID, callID: data.callID, text: data.text })
+    case "session.next.tool.called": {
+      const provider = data.provider && typeof data.provider === "object" ? (data.provider as Record<string, unknown>) : {}
+      return next("session.tool.called", {
+        sessionID,
+        assistantMessageID,
+        callID: data.callID,
+        input: data.input,
+        executed: provider.executed,
+        metadata: provider.metadata,
+      })
+    }
+    case "session.next.tool.progress": {
+      const provider = data.provider && typeof data.provider === "object" ? (data.provider as Record<string, unknown>) : {}
+      return next("session.tool.progress", {
+        sessionID,
+        assistantMessageID,
+        callID: data.callID,
+        metadata: provider.metadata,
+      })
+    }
+    case "session.next.tool.success": {
+      const provider = data.provider && typeof data.provider === "object" ? (data.provider as Record<string, unknown>) : {}
+      return next("session.tool.success", {
+        sessionID,
+        assistantMessageID,
+        callID: data.callID,
+        executed: provider.executed,
+        metadata: provider.metadata,
+        content: data.content,
+      })
+    }
+    case "session.next.tool.failed": {
+      const provider = data.provider && typeof data.provider === "object" ? (data.provider as Record<string, unknown>) : {}
+      return next("session.tool.failed", {
+        sessionID,
+        assistantMessageID,
+        callID: data.callID,
+        executed: provider.executed,
+        metadata: provider.metadata,
+        content: [],
+        error: data.error,
+      })
+    }
+    case "session.next.compaction.started":
+      return next("session.compaction.started", { sessionID, inputID: data.messageID, reason: data.reason, recent: "" })
+    case "session.next.compaction.delta":
+      return next("session.compaction.delta", { sessionID, text: data.text })
+    case "session.next.compaction.ended":
+      return next("session.compaction.ended", { sessionID, reason: data.reason, text: data.text, recent: data.recent })
+    case "session.next.retried": {
+      const current = source.findLast((item): item is Assistant => item.type === "assistant" && !item.time.completed)
+      if (!current) return event
+      return next("session.retry.scheduled", {
+        sessionID,
+        assistantMessageID: current.id,
+        attempt: data.attempt,
+        at: timestamp,
+        error: data.error,
+      })
+    }
+    default:
+      return event
   }
 }
 

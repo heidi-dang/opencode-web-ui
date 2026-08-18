@@ -189,11 +189,11 @@ export const loadActiveSessionsQuery = (
     queryKey: [scope, "activeSessions"] as const,
     queryFn: () => api.active(),
     enabled: true,
-    staleTime: Number.POSITIVE_INFINITY,
-    gcTime: Number.POSITIVE_INFINITY,
-    refetchOnMount: false,
-    refetchOnReconnect: false,
-    refetchOnWindowFocus: false,
+    staleTime: 5_000,
+    gcTime: 5 * 60_000,
+    refetchOnMount: true,
+    refetchOnReconnect: true,
+    refetchOnWindowFocus: true,
   })
 
 export function seedActiveSessionStatuses(
@@ -205,6 +205,50 @@ export function seedActiveSessionStatuses(
     const status = active[sessionID]
     session.set("session_status", sessionID, status?.type === "running" ? { type: "busy" } : status)
   }
+}
+
+export function reconcileActiveSessionStatuses(
+  session: Pick<ServerSession, "data" | "set">,
+  active: SessionActiveOutput | Record<string, { type?: string }>,
+) {
+  const statuses = active as Record<string, { type?: string }>
+  for (const [sessionID, status] of Object.entries(session.data.session_status)) {
+    if (status.type === "idle" || statuses[sessionID]) continue
+    session.set("session_status", sessionID, reconcile({ type: "idle" }))
+  }
+  for (const [sessionID, status] of Object.entries(statuses)) {
+    session.set(
+      "session_status",
+      sessionID,
+      reconcile(status.type === "running" ? { type: "busy" } : { type: "idle" }),
+    )
+  }
+}
+
+export async function reconcileActiveSessionState(input: {
+  active: () => Promise<SessionActiveOutput>
+  session: Pick<ServerSession, "data" | "set" | "sync">
+  sessionIDs?: Iterable<string>
+}) {
+  const active = await input.active()
+  const previouslyBusy = Object.entries(input.session.data.session_status)
+    .filter(([, status]) => status.type !== "idle")
+    .map(([sessionID]) => sessionID)
+  reconcileActiveSessionStatuses(input.session, active)
+  const sessionIDs = new Set<string>([
+    ...Object.keys(active),
+    ...previouslyBusy,
+    ...(input.sessionIDs ?? []),
+  ])
+  const errors: unknown[] = []
+  for (const sessionID of sessionIDs) {
+    try {
+      await input.session.sync(sessionID, { force: true })
+    } catch (error) {
+      errors.push(error)
+    }
+  }
+  return { active, errors }
 }
 
 function makeQueryOptionsApi(
@@ -289,18 +333,19 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
       active: async () => {
         if ((await serverSDK.protocol) === "v1") {
           const statuses = (await serverSDK.client.session.status()).data ?? {}
-          seedActiveSessionStatuses(session, statuses)
-          for (const sessionID of Object.keys(statuses)) {
-            void session.resolve(sessionID).catch(() => undefined)
-          }
-          return Object.fromEntries(
+          const active = Object.fromEntries(
             Object.entries(statuses).flatMap(([sessionID, status]) =>
               status.type === "idle" ? [] : [[sessionID, { type: "running" as const }]],
             ),
           )
+          reconcileActiveSessionStatuses(session, active)
+          for (const sessionID of Object.keys(statuses)) {
+            void session.resolve(sessionID).catch(() => undefined)
+          }
+          return active
         }
         const active = await serverSDK.api.session.active()
-        seedActiveSessionStatuses(session, active)
+        reconcileActiveSessionStatuses(session, active)
         for (const sessionID of Object.keys(active)) {
           void session.resolve(sessionID).catch(() => undefined)
         }
@@ -308,6 +353,46 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
       },
     }),
   )
+
+  let activeResync: Promise<void> | undefined
+  const resyncActiveSessions = () => {
+    if (activeResync) return activeResync
+    activeResync = (async () => {
+      const snapshot = serverSDK.connection.snapshot
+      if (snapshot.state === "STREAM_READY") serverSDK.connection.markStateResyncing()
+      const result = await reconcileActiveSessionState({
+        active: () => serverSDK.api.session.active(),
+        session,
+        sessionIDs: Object.entries(session.data.session_status)
+          .filter(([, status]) => status.type !== "idle")
+          .map(([sessionID]) => sessionID),
+      })
+      if (result.errors.length > 0) {
+        console.error("[global-sdk] active session reconciliation failed", {
+          serverId: ServerConnection.key(serverSDK.server),
+          errorCount: result.errors.length,
+        })
+      }
+      const state = serverSDK.connection.snapshot.state
+      if (state === "STATE_RESYNCING" || state === "STREAM_READY") serverSDK.connection.markSynchronized()
+    })()
+      .catch((error) => {
+        console.error("[global-sdk] active session resync failed", {
+          serverId: ServerConnection.key(serverSDK.server),
+          error: formatServerError(error, language.t),
+        })
+      })
+      .finally(() => {
+        activeResync = undefined
+      })
+    return activeResync
+  }
+
+  const unsubConnection = serverSDK.connection.onChange((snapshot) => {
+    if (snapshot.state === "STREAM_READY" || snapshot.state === "RECONNECTING" || snapshot.state === "DEGRADED")
+      void resyncActiveSessions()
+  })
+  onCleanup(unsubConnection)
 
   const [globalStore, setGlobalStore] = createStore<GlobalStore>({
     get ready() {
@@ -584,7 +669,7 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
     const eventType: string = event.type
     const recent = bootingRoot || Date.now() - bootedAt < 1500
 
-    if (event.current) session.applyV2(event.current)
+    if (event.current) session.applyV2(event.current as Parameters<typeof session.applyV2>[0])
     session.apply(event)
     if (event.type === "session.created" || event.type === "session.updated" || event.type === "session.deleted") {
       homeSessions.apply(event)
@@ -621,13 +706,14 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
       return
     }
 
-    if (event.current?.type === "session.moved") {
-      const info = session.get(event.current.data.sessionID)
+    const currentEvent = event.current as { type?: string; data?: { sessionID?: string } } | undefined
+    if (currentEvent?.type === "session.moved" && currentEvent.data?.sessionID) {
+      const info = session.get(currentEvent.data.sessionID)
       if (info) indexSession(info)
     }
-    if (event.current?.type === "session.forked")
+    if (currentEvent?.type === "session.forked" && currentEvent.data?.sessionID)
       void session
-        .resolve(event.current.data.sessionID, { force: true })
+        .resolve(currentEvent.data.sessionID, { force: true })
         .then(indexSession)
         .catch(() => {})
 
@@ -635,9 +721,9 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
     if (!existing) return
     children.mark(key)
     if (
-      event.current?.type === "session.moved" ||
+      currentEvent?.type === "session.moved" ||
       // event.current?.type === "session.archived" ||
-      event.current?.type === "session.forked" ||
+      currentEvent?.type === "session.forked" ||
       eventType === "command.updated" ||
       eventType === "config.updated" ||
       eventType === "agent.updated"

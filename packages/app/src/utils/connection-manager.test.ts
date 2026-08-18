@@ -12,7 +12,23 @@ describe("ConnectionManager", () => {
     expect(await Promise.all([manager.connect(), manager.connect()])).toEqual(["v2", "v2"])
     manager.markStreamReady()
     expect(probes).toBe(1)
+    expect(manager.snapshot.state).toBe("STREAM_READY")
+    manager.markSynchronized()
     expect(manager.snapshot.state).toBe("READY")
+  })
+
+  test("publishes synchronization transitions separately from transport readiness", async () => {
+    const states: string[] = []
+    const manager = new ConnectionManager(async () => "v2", {
+      onChange: (snapshot) => states.push(snapshot.state),
+    })
+
+    await manager.connect()
+    manager.markStreamReady()
+    manager.markStateResyncing()
+    manager.markSynchronized()
+
+    expect(states).toEqual(["CONNECTING", "HEALTHY", "PROTOCOL_READY", "STREAM_READY", "STATE_RESYNCING", "READY"])
   })
 
   test("invalidates protocol after stream failure so the next retry re-detects", async () => {
