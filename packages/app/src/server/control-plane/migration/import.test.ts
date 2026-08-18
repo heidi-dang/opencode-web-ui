@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { mkdtemp, rm } from "node:fs/promises"
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { openControlPlaneDatabase, migrateControlPlaneDatabase } from "../database/client"
@@ -22,6 +22,30 @@ describe("control-plane database migration state", () => {
     expect(initial.value).toBe("LEGACY_ONLY")
     expect(repeated.value).toBe("LEGACY_ONLY")
     expect(tables).toHaveLength(1)
+  })
+
+  test("leaves the legacy registry untouched after cutover", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "opencode-control-plane-legacy-"))
+    const filename = join(directory, "control-plane.sqlite")
+    const legacyStore = join(directory, "legacy-registry.json")
+    const legacyContents = JSON.stringify({ version: 1, servers: [] }, null, 2)
+    const previousStore = process.env.OPENCODE_SERVERS_STORE
+    const previousKey = process.env.APP_ENCRYPTION_KEY
+    await writeFile(legacyStore, legacyContents)
+    process.env.OPENCODE_SERVERS_STORE = legacyStore
+    process.env.APP_ENCRYPTION_KEY = Buffer.alloc(32, 9).toString("base64")
+    try {
+      const db = openControlPlaneDatabase(filename)
+      await importLegacyRegistry(db)
+      db.close()
+      expect(await readFile(legacyStore, "utf8")).toBe(legacyContents)
+    } finally {
+      if (previousStore === undefined) delete process.env.OPENCODE_SERVERS_STORE
+      else process.env.OPENCODE_SERVERS_STORE = previousStore
+      if (previousKey === undefined) delete process.env.APP_ENCRYPTION_KEY
+      else process.env.APP_ENCRYPTION_KEY = previousKey
+      await rm(directory, { recursive: true, force: true })
+    }
   })
 
   test("cuts over once and remains database primary", async () => {
