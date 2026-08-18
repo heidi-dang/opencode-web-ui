@@ -3,7 +3,7 @@ import { Icon } from "@opencode-ai/ui/icon"
 import { IconButtonV2 } from "@opencode-ai/ui/v2/icon-button-v2"
 import { Icon as IconV2 } from "@opencode-ai/ui/v2/icon"
 import { Popover } from "@opencode-ai/ui/popover"
-import { Suspense, createMemo, createSignal, lazy, Show, type JSX } from "solid-js"
+import { Suspense, createEffect, createMemo, createSignal, lazy, onCleanup, Show, type JSX } from "solid-js"
 import { useLanguage } from "@/context/language"
 import { ServerConnection, useServer } from "@/context/server"
 import { useServerSDK } from "@/context/server-sdk"
@@ -14,6 +14,7 @@ import {
   hasServiceNeedingAttention,
   serverStatusDotClass,
 } from "./status-popover-indicator"
+import { resolveServerStatusView } from "./server-status-view"
 
 const Body = lazy(() => import("./status-popover-body").then((x) => ({ default: x.StatusPopoverBody })))
 const ServerBody = lazy(() => import("./status-popover-body").then((x) => ({ default: x.StatusPopoverServerBody })))
@@ -121,22 +122,38 @@ function DirectoryStatusPopover() {
     ),
   }))
 
-  return <StatusPopoverView state={state()} />
+  return <StatusPopoverView state={state} />
 }
 
 function ServerStatusPopover() {
-  const language = useLanguage()
-  const server = useServer()
+  const serverSDK = useServerSDK()
   const global = useGlobal()
   const [shown, setShown] = createSignal(false)
-  const serverHealth = () => global.servers.health[server.key]?.healthy
+  const [connection, setConnection] = createSignal(serverSDK().connection.snapshot)
+  let unsubscribe: (() => void) | undefined
+  createEffect(() => {
+    const current = serverSDK()
+    unsubscribe?.()
+    setConnection(current.connection.snapshot)
+    unsubscribe = current.connection.onChange(setConnection)
+  })
+  onCleanup(() => unsubscribe?.())
+  const serverKey = () => ServerConnection.key(serverSDK().server)
+  const serverHealth = () => global.servers.health[serverKey()]?.healthy
+  const status = createMemo(() =>
+    resolveServerStatusView({
+      visible: true,
+      connection: connection().state,
+      healthy: serverHealth(),
+    }),
+  )
   const state = createMemo<StatusPopoverState>(() => ({
     shown: shown(),
-    ready: serverHealth() !== undefined,
+    ready: status().state === "connected",
     serverHealth: serverHealth(),
     attention: false,
     issue: false,
-    label: language.t("status.popover.trigger"),
+    label: status().label,
     onOpenChange: setShown,
     body: () => (
       <StatusPopoverBody shown={shown()}>
@@ -145,7 +162,7 @@ function ServerStatusPopover() {
     ),
   }))
 
-  return <StatusPopoverView state={state()} />
+  return <StatusPopoverView state={state} />
 }
 
 type StatusPopoverState = {
@@ -171,7 +188,7 @@ function StatusPopoverBody(props: { shown: boolean; children: JSX.Element }) {
   )
 }
 
-function StatusPopoverView(props: { state: StatusPopoverState }) {
+function StatusPopoverView(props: { state: () => StatusPopoverState }) {
   const popoverProps = {
     class:
       "[&_[data-slot=popover-body]]:p-0 w-[360px] max-w-[calc(100vw-40px)] bg-transparent border-0 shadow-none rounded-xl",
@@ -182,27 +199,27 @@ function StatusPopoverView(props: { state: StatusPopoverState }) {
 
   return (
     <Popover
-      open={props.state.shown}
-      onOpenChange={props.state.onOpenChange}
+      open={props.state().shown}
+      onOpenChange={props.state().onOpenChange}
       triggerAs={IconButtonV2}
       triggerProps={{
         variant: "ghost-muted",
         size: "large",
         class: "!w-9 shrink-0",
-        state: props.state.shown ? "pressed" : undefined,
-        "aria-label": props.state.label,
+        state: props.state().shown ? "pressed" : undefined,
+        "aria-label": props.state().label,
       }}
       trigger={
         <div class="relative size-4">
-          <IconV2 name={props.state.shown ? "status-active" : "status"} />
+          <IconV2 name={props.state().shown ? "status-active" : "status"} />
           <div
-            class={`absolute -top-1 -right-1 size-2 rounded-full border border-[var(--v2-background-bg-deep)] ${serverStatusDotClass(props.state)}`}
+            class={`absolute -top-1 -right-1 size-2 rounded-full border border-[var(--v2-background-bg-deep)] ${serverStatusDotClass(props.state())}`}
           />
         </div>
       }
       {...popoverProps}
     >
-      {props.state.body()}
+      {props.state().body()}
     </Popover>
   )
 }
