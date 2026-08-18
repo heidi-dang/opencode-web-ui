@@ -48,6 +48,7 @@ export class EventHub {
   }
 
   private disconnect(sub: Subscriber, _reason: string) { sub.disconnected = true; sub.queue.length = 0; this.subscribers.delete(sub) }
+  clearBackend(backendId: string) { for (const key of this.lastSequence.keys()) if (key.startsWith(`${backendId}:`)) this.lastSequence.delete(key) }
   metrics() { return { subscribers: this.subscribers.size, sequences: this.lastSequence.size } }
 }
 

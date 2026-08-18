@@ -1,5 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http"
 import { getServer } from "./server-registry"
+import { assertNetworkPolicy } from "./backend/network"
 
 const HOP_BY_HOP = new Set(["connection", "content-encoding", "content-length", "etag", "host", "keep-alive", "transfer-encoding", "upgrade"])
 
@@ -59,7 +60,7 @@ export async function proxyOpenCodeRequest(req: IncomingMessage & { method?: str
     let registered: Awaited<ReturnType<typeof resolveServer>>["server"]
     try {
       const resolved = await resolveServer(incoming)
-      origin = resolved.baseUrl
+      origin = assertNetworkPolicy(resolved.baseUrl.toString())
       registered = resolved.server
     } catch (error) {
       const message = error instanceof Error ? error.message : "SERVER_NOT_FOUND"

@@ -1,4 +1,5 @@
 import { getServer, probeRegisteredServer, type RegisteredServer } from "../../../server-registry"
+import { assertNetworkPolicy } from "../../network"
 import { EventHub } from "../../event-hub"
 import { defaultBackendCapabilities, type BackendDescriptor, type BackendHealth, type BackendModel, type BackendProject, type BackendProvider, type BackendSession } from "../../domain"
 import type { AgentBackend, BackendEventSubscription, PromptInput } from "../../agent-backend"
@@ -38,10 +39,10 @@ export class OpenCodeAdapter implements AgentBackend {
         const chunk = await reader.read()
         if (chunk.done) break
         buffer += decoder.decode(chunk.value, { stream: true })
-        const frames = buffer.split(/\\r?\\n\\r?\\n/)
+        const frames = buffer.split(/\r?\n\r?\n/)
         buffer = frames.pop() || ""
         for (const frame of frames) {
-          const data = frame.split(/\\r?\\n/).filter((line) => line.startsWith("data:")).map((line) => line.slice(5).trim()).join("\\n")
+          const data = frame.split(/\r?\n/).filter((line) => line.startsWith("data:")).map((line) => line.slice(5).trim()).join("\n")
           if (!data) continue
           try { this.publishUpstreamEvent(JSON.parse(data)) } catch { /* ignore malformed SSE frames */ }
         }
@@ -59,17 +60,17 @@ export class OpenCodeAdapter implements AgentBackend {
     const sessionId = typeof raw.sessionID === "string" ? raw.sessionID : typeof properties.sessionID === "string" ? properties.sessionID : undefined
     this.events.publish({ id: `${this.server.id}:${++this.sequence}`, sequence: this.sequence, backendId: this.server.id, backendType: "opencode", sessionId, type: eventType, timestamp: new Date().toISOString(), payload: value })
   }
-  async health(signal?: AbortSignal): Promise<BackendHealth> { const result = await probeRegisteredServer(this.server, 5000); return { backendId: this.server.id, reachable: result.reachable, authenticated: result.authenticated, healthy: result.healthy, latencyMs: result.latencyMs, error: result.error, checkedAt: new Date().toISOString() } }
+  async health(signal?: AbortSignal): Promise<BackendHealth> { if (signal?.aborted) throw new DOMException("The operation was aborted", "AbortError"); const result = await probeRegisteredServer(this.server, 5000); return { backendId: this.server.id, reachable: result.reachable, authenticated: result.authenticated, healthy: result.healthy, latencyMs: result.latencyMs, error: result.error, checkedAt: new Date().toISOString() } }
   async capabilities() { return this.descriptor.capabilities }
-  private async request<T>(path: string, init?: RequestInit & { raw?: boolean }): Promise<T> { const url = new URL(path, `${this.server.baseUrl}/`); const headers = new Headers(init?.headers); headers.delete("authorization"); if (this.server.password) headers.set("authorization", `Basic ${Buffer.from(`${this.server.username || "opencode"}:${this.server.password}`).toString("base64")}`); const { raw, ...requestInit } = init || {}; const response = await fetch(url, { ...requestInit, headers }); if (!response.ok) throw new Error(`BACKEND_HTTP_${response.status}`); return (raw ? response : response.json()) as T }
-  async listProjects() { const value = await this.request<unknown>(this.server.protocol === "v2" ? "project" : "api/project"); const projects = Array.isArray(value) ? value : (value as { projects?: unknown[] })?.projects; return (projects || []).filter((item): item is Record<string, unknown> => !!item && typeof item === "object").map((item) => ({ id: String(item.id || item.directory || item.name), name: typeof item.name === "string" ? item.name : undefined, directory: typeof item.directory === "string" ? item.directory : undefined })) as BackendProject[] }
-  async listSessions(projectId?: string) { const value = await this.request<unknown>(`session${projectId ? `?directory=${encodeURIComponent(projectId)}` : ""}`); return (Array.isArray(value) ? value : []) as BackendSession[] }
-  async getSession(sessionId: string) { return this.request<BackendSession>(`session/${encodeURIComponent(sessionId)}`) }
-  async createSession(projectId?: string) { return this.request<BackendSession>("session", { method: "POST", body: JSON.stringify(projectId ? { directory: projectId } : {}) }) }
-  async interruptSession(sessionId: string) { await this.request(`session/${encodeURIComponent(sessionId)}/interrupt`, { method: "POST" }) }
-  async prompt(input: PromptInput) { await this.request(`session/${encodeURIComponent(input.sessionId)}/message`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ parts: [{ type: "text", text: input.text }] }) }) }
-  async listProviders() { const value = await this.request<{ providers?: BackendProvider[] }>("provider"); return value.providers || [] }
-  async listModels() { const providers = await this.listProviders(); return providers.flatMap((provider) => (provider.models || []).map((model) => ({ ...model, providerId: model.providerId || provider.id }))) as BackendModel[] }
+  private async request<T>(path: string, init?: RequestInit & { raw?: boolean }): Promise<T> { const url = assertNetworkPolicy(new URL(path, `${this.server.baseUrl}/`).toString()); const headers = new Headers(init?.headers); headers.delete("authorization"); if (this.server.password) headers.set("authorization", `Basic ${Buffer.from(`${this.server.username || "opencode"}:${this.server.password}`).toString("base64")}`); const { raw, ...requestInit } = init || {}; const response = await fetch(url, { ...requestInit, headers }); if (!response.ok) throw new Error(`BACKEND_HTTP_${response.status}`); return (raw ? response : response.json()) as T }
+  async listProjects(signal?: AbortSignal) { const value = await this.request<unknown>(this.server.protocol === "v2" ? "project" : "api/project", { signal }); const projects = Array.isArray(value) ? value : (value as { projects?: unknown[] })?.projects; return (projects || []).filter((item): item is Record<string, unknown> => !!item && typeof item === "object").map((item) => ({ id: String(item.id || item.directory || item.name), name: typeof item.name === "string" ? item.name : undefined, directory: typeof item.directory === "string" ? item.directory : undefined })) as BackendProject[] }
+  async listSessions(projectId?: string, signal?: AbortSignal) { const value = await this.request<unknown>(`session${projectId ? `?directory=${encodeURIComponent(projectId)}` : ""}`, { signal }); return (Array.isArray(value) ? value : []) as BackendSession[] }
+  async getSession(sessionId: string, signal?: AbortSignal) { return this.request<BackendSession>(`session/${encodeURIComponent(sessionId)}`, { signal }) }
+  async createSession(projectId?: string, signal?: AbortSignal) { return this.request<BackendSession>("session", { method: "POST", body: JSON.stringify(projectId ? { directory: projectId } : {}), signal }) }
+  async interruptSession(sessionId: string, signal?: AbortSignal) { await this.request(`session/${encodeURIComponent(sessionId)}/interrupt`, { method: "POST", signal }) }
+  async prompt(input: PromptInput, signal?: AbortSignal) { await this.request(`session/${encodeURIComponent(input.sessionId)}/message`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ parts: [{ type: "text", text: input.text }] }), signal }) }
+  async listProviders(signal?: AbortSignal) { const value = await this.request<{ providers?: BackendProvider[] }>("provider", { signal }); return value.providers || [] }
+  async listModels(signal?: AbortSignal) { const providers = await this.listProviders(signal); return providers.flatMap((provider) => (provider.models || []).map((model) => ({ ...model, providerId: model.providerId || provider.id }))) as BackendModel[] }
   subscribe(listener: (event: BackendEvent) => void): BackendEventSubscription { return this.events.subscribe(listener) }
 }
 
