@@ -3,12 +3,6 @@
   "buildCommand": "bun run --cwd packages/app build",
   "outputDirectory": "packages/app/dist",
   "framework": "vite",
-  "rewrites": [
-    {
-      "source": "/api/opencode/:path*",
-      "destination": "/api?__proxy_route=/:path*"
-    }
-  ],
   "functions": {
     "packages/app/api/**/*.ts": {
       "maxDuration": 60
