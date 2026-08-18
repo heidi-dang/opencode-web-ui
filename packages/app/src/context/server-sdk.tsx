@@ -221,7 +221,20 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
       return value
     },
   })
-  let protocol = manager.connect()
+  const waitForConnection = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
+  const connectUntilReady = async (): Promise<ServerProtocol> => {
+    while (!abort.signal.aborted) {
+      try {
+        return await manager.connect()
+      } catch {
+        if (abort.signal.aborted) break
+        await waitForConnection(manager.retryDelay())
+        if (manager.isCircuitOpen()) manager.reset()
+      }
+    }
+    return new Promise<ServerProtocol>(() => {})
+  }
+  const protocol = connectUntilReady()
   const [protocolKind] = createResource(() => protocol)
   const emitter = createGlobalEmitter<{
     [key: string]: ServerEvent
@@ -264,7 +277,7 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
   }
 
   let streamErrorLogged = false
-  const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
+  const wait = waitForConnection
   let attempt: AbortController | undefined
   let run: Promise<void> | undefined
   let started = false
@@ -379,8 +392,7 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
       },
       reconnect() {
         manager.reset()
-        protocol = manager.connect()
-        return protocol
+        return manager.connect()
       },
     },
     url: transportServer.http.url,

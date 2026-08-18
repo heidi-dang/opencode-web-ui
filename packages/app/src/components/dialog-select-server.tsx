@@ -16,12 +16,37 @@ import { useGlobal } from "@/context/global"
 import { useLanguage } from "@/context/language"
 import { usePlatform } from "@/context/platform"
 import { normalizeServerUrl, ServerConnection, useServer } from "@/context/server"
-import { detectServerProtocol } from "@/utils/server-protocol"
 import { type ServerHealth, useCheckServerHealth } from "@/utils/server-health"
 import { useSettings } from "@/context/settings"
 import { useTabs } from "@/context/tabs"
 
 const DEFAULT_USERNAME = "opencode"
+
+function probeErrorMessage(error: string | undefined) {
+  switch (error) {
+    case "AUTH_FAILED":
+      return "Authentication failed. Check the OpenCode server username and password."
+    case "CONNECTION_REFUSED":
+      return "Server unreachable: connection refused."
+    case "CONNECT_TIMEOUT":
+      return "Server unreachable: connection timed out."
+    case "DNS_RESOLUTION_FAILED":
+      return "Server unreachable: DNS resolution failed."
+    case "TLS_ERROR":
+      return "Server unreachable: TLS negotiation failed."
+    case "SERVER_NOT_FOUND":
+      return "OpenCode server health endpoint was not found."
+    case "MALFORMED_HEALTH_RESPONSE":
+    case "PROTOCOL_UNKNOWN":
+      return "Unable to determine the OpenCode API protocol."
+    case "OPENCODE_HEALTH_FAILED":
+      return "OpenCode health check failed."
+    case "SERVER_DISABLED":
+      return "Server is disabled."
+    default:
+      return "Server unreachable."
+  }
+}
 
 interface ServerFormProps {
   value: string
@@ -261,8 +286,8 @@ export function useServerManagementController(options: { onSelect?: () => void; 
         http: { url: normalized },
       }
       if (store.addServer.name.trim()) conn.displayName = store.addServer.name.trim()
+      if (store.addServer.username) conn.http.username = store.addServer.username
       if (store.addServer.password) conn.http.password = store.addServer.password
-      if (store.addServer.password && store.addServer.username) conn.http.username = store.addServer.username
       const response = await fetch("/api/opencode/servers", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -280,6 +305,18 @@ export function useServerManagementController(options: { onSelect?: () => void; 
       }
       conn.http.id = payload.server.id
       conn.http.password = undefined
+      const ready = payload.ready === true && payload.server.state === "READY" && payload.probe?.state === "READY"
+      if (!ready) {
+        server.add(conn, { activate: false })
+        global.servers.refresh()
+        showToast({
+          variant: "error",
+          title: "Server registered but is not ready",
+          description: probeErrorMessage(payload.probe?.error),
+        })
+        setStore("addServer", { showForm: false, error: probeErrorMessage(payload.probe?.error) })
+        return
+      }
       resetAdd()
       if (options.navigateOnAdd === false) {
         server.add(conn)
@@ -316,19 +353,38 @@ export function useServerManagementController(options: { onSelect?: () => void; 
       const conn: ServerConnection.Http = {
         type: "http",
         displayName: name,
-        http: { url: normalized, username, password },
+        http: { url: normalized, username, password: input.original.http.id ? undefined : password, id: input.original.http.id },
       }
-      const result = await checkServerHealth(conn.http)
-      if (!result.healthy) {
-        setStore("editServer", { error: language.t("dialog.server.add.error") })
-        return
-      }
-      if (
-        !settings.general.newLayoutDesigns() &&
-        (await detectServerProtocol(conn.http, platform.fetch ?? globalThis.fetch)) === "v2"
-      ) {
-        setStore("editServer", { error: language.t("dialog.server.add.error") })
-        return
+      if (input.original.http.id) {
+        const patch: Record<string, unknown> = { name, baseUrl: normalized }
+        if (store.editServer.username !== input.original.http.username) patch.username = username
+        if (password) patch.password = password
+        const response = await fetch(`/api/opencode/servers/${encodeURIComponent(input.original.http.id)}`, {
+          method: "PATCH",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(patch),
+        })
+        const payload = await response.json()
+        if (!response.ok || !payload.server?.id) {
+          setStore("editServer", { error: payload.error || language.t("dialog.server.add.error") })
+          return
+        }
+        const healthResponse = await fetch(`/api/opencode/servers/${encodeURIComponent(input.original.http.id)}/health`)
+        const health = await healthResponse.json()
+        const ready = healthResponse.ok && health.state === "READY" && health.protocol
+        if (!ready) {
+          server.add(conn, { activate: false })
+          global.servers.refresh()
+          setStore("editServer", { error: probeErrorMessage(health.error) })
+          return
+        }
+      } else {
+        const result = await checkServerHealth(conn.http)
+        if (!result.healthy) {
+          setStore("editServer", { error: result.error || language.t("dialog.server.add.error") })
+          return
+        }
+        conn.http.password = undefined
       }
       if (normalized === input.original.http.url) {
         server.add(conn)
@@ -548,6 +604,18 @@ export function useServerManagementController(options: { onSelect?: () => void; 
     }
   }
 
+  async function handleRetry(conn: ServerConnection.Any) {
+    if (conn.type !== "http" || !conn.http.id) return
+    try {
+      const response = await fetch(`/api/opencode/servers/${encodeURIComponent(conn.http.id)}/reconnect`, { method: "POST" })
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) throw new Error(probeErrorMessage(payload.error || payload.probe?.error))
+      global.servers.refresh()
+    } catch (err) {
+      showRequestError(language, err)
+    }
+  }
+
   return {
     defaultKey,
     canDefault,
@@ -571,6 +639,7 @@ export function useServerManagementController(options: { onSelect?: () => void; 
     resetForm,
     submitForm,
     handleRemove,
+    handleRetry,
     handleFormChange: () => (isAddMode() ? handleAddChange : handleEditChange),
     handleFormNameChange: () => (isAddMode() ? handleAddNameChange : handleEditNameChange),
     handleFormUsernameChange: () => (isAddMode() ? handleAddUsernameChange : handleEditUsernameChange),
@@ -620,6 +689,11 @@ export function ServerConnectionList(props: { controller: ReturnType<typeof useS
                 }
                 showCredentials
               />
+              <Show when={props.controller.status()[key]?.healthy === false && i.type === "http"}>
+                <Button variant="ghost" size="small" onClick={(event: MouseEvent) => { event.stopPropagation(); void props.controller.handleRetry(i) }}>
+                  Retry
+                </Button>
+              </Show>
               <div class="flex items-center justify-center gap-4 pl-4">
                 <Show when={props.controller.current() && ServerConnection.key(props.controller.current()!) === key}>
                   <Icon name="check" class="h-6" />

@@ -47,7 +47,7 @@ export async function proxyOpenCodeRequest(req: IncomingMessage & { method?: str
     }
     if (registered.password) headers.set("authorization", `Basic ${Buffer.from(`${registered.username || "opencode"}:${registered.password}`).toString("base64")}`)
     const body = method === "GET" || method === "HEAD" ? undefined : req
-    const response = await fetch(upstream, { method, headers, body, duplex: body ? "half" : undefined } as RequestInit & { duplex?: "half" })
+    const response = await fetch(upstream, { method, headers, body, duplex: body ? "half" : undefined } as unknown as RequestInit & { duplex?: "half" })
     res.statusCode = response.status
     response.headers.forEach((value, key) => { if (!HOP_BY_HOP.has(key.toLowerCase()) && key.toLowerCase() !== "www-authenticate") res.setHeader(key, value) })
     if (!response.body) {

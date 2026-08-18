@@ -20,10 +20,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       password: typeof input.password === "string" ? input.password : undefined,
       enabled: input.enabled !== false,
     })
-    const probe = await probeRegisteredServer(server)
-    const updated = await updateServerHealth(server.id, { state: probe.state, protocol: probe.protocol })
+    const probe = await probeRegisteredServer(server.id)
+    const updated = await updateServerHealth(server.id, {
+      state: probe.state,
+      protocol: probe.protocol,
+      reachable: probe.reachable,
+      authenticated: probe.authenticated,
+      healthy: probe.healthy,
+      latencyMs: probe.latencyMs,
+      error: probe.error,
+    })
     return res.status(201).json({
       server: publicServer(updated || server),
+      ready: probe.state === "READY",
       reachability: probe.reachable ? (probe.healthy ? "SERVER_READY" : "SERVER_HEALTH_FAILED") : "SERVER_REGISTERED_BUT_UNREACHABLE",
       probe: { ...probe },
     })

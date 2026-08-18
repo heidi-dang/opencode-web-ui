@@ -5,7 +5,42 @@ import { classifyTailscaleServer, type TailscaleDiagnostics } from "./tailscale"
 import { Accessor, createEffect, onCleanup } from "solid-js"
 import { createStore, reconcile } from "solid-js/store"
 
-export type ServerHealth = { healthy: boolean; version?: string; protocol?: "v1" | "v2"; latencyMs?: number; tailscale?: TailscaleDiagnostics }
+export type ServerHealth = {
+  healthy: boolean
+  version?: string
+  protocol?: "v1" | "v2"
+  latencyMs?: number
+  error?: string
+  reachable?: boolean
+  authenticated?: boolean
+  tailscale?: TailscaleDiagnostics
+}
+
+export function formatServerHealthError(error: string | undefined) {
+  switch (error) {
+    case "AUTH_FAILED":
+      return "Authentication failed. Check the OpenCode server username and password."
+    case "CONNECTION_REFUSED":
+      return "Server unreachable: connection refused."
+    case "CONNECT_TIMEOUT":
+      return "Server unreachable: connection timed out."
+    case "DNS_RESOLUTION_FAILED":
+      return "Server unreachable: DNS resolution failed."
+    case "TLS_ERROR":
+      return "Server unreachable: TLS negotiation failed."
+    case "SERVER_NOT_FOUND":
+      return "OpenCode server health endpoint was not found."
+    case "MALFORMED_HEALTH_RESPONSE":
+    case "PROTOCOL_UNKNOWN":
+      return "Unable to determine the OpenCode API protocol."
+    case "OPENCODE_HEALTH_FAILED":
+      return "OpenCode health check failed."
+    case "SERVER_DISABLED":
+      return "Server is disabled."
+    default:
+      return "Server unreachable."
+  }
+}
 
 interface CheckServerHealthOptions {
   timeoutMs?: number
@@ -73,6 +108,32 @@ export async function checkServerHealth(
   fetch: typeof globalThis.fetch,
   opts?: CheckServerHealthOptions,
 ): Promise<ServerHealth> {
+  if (server.id && typeof window !== "undefined") {
+    const startedAt = Date.now()
+    try {
+      const response = await fetch(`/api/opencode/servers/${encodeURIComponent(server.id)}/health`, { signal: opts?.signal })
+      const payload = (await response.json()) as {
+        healthy?: unknown
+        authenticated?: unknown
+        reachable?: unknown
+        protocol?: "v1" | "v2"
+        latencyMs?: unknown
+        error?: string
+        server?: { state?: string }
+      }
+      return {
+        healthy: payload.healthy === true,
+        authenticated: payload.authenticated === true,
+        reachable: payload.reachable === true,
+        protocol: payload.protocol,
+        latencyMs: typeof payload.latencyMs === "number" ? payload.latencyMs : Date.now() - startedAt,
+        error: payload.error,
+        tailscale: classifyTailscaleServer(server.url),
+      }
+    } catch {
+      return { healthy: false, reachable: false, error: "GATEWAY_UNAVAILABLE", tailscale: classifyTailscaleServer(server.url) }
+    }
+  }
   const startedAt = Date.now()
   const timeout = opts?.signal ? undefined : timeoutSignal(opts?.timeoutMs ?? defaultTimeoutMs)
   const signal = opts?.signal ?? timeout?.signal
@@ -170,5 +231,14 @@ export const useServerHealth = (servers: Accessor<ServerConnection.Any[]>, enabl
     })
   })
 
-  return status
+  return {
+    status,
+    refresh: () => {
+      const list = servers()
+      void Promise.all(list.map(async (conn) => {
+        const result = await checkServerHealth(conn.http)
+        setStatus(ServerConnection.key(conn), result)
+      }))
+    },
+  }
 }

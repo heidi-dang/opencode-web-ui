@@ -12,7 +12,7 @@ import {
 } from "solid-js"
 import { useLanguage } from "@/context/language"
 import { type ServerConnection, serverName } from "@/context/server"
-import type { ServerHealth } from "@/utils/server-health"
+import { formatServerHealthError, type ServerHealth } from "@/utils/server-health"
 
 interface ServerRowProps extends ParentProps {
   conn: ServerConnection.Any
@@ -112,6 +112,9 @@ export function ServerRow(props: ServerRowProps) {
                 {conn().http.password && <span class="text-text-weak">••••••••</span>}
               </div>
             )}
+          </Show>
+          <Show when={props.status?.healthy === false && props.status?.error}>
+            <span class="text-text-critical-base text-12-regular truncate">{formatServerHealthError(props.status?.error)}</span>
           </Show>
         </div>
         {props.children}
