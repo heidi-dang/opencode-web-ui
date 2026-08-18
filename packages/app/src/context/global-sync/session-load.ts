@@ -1,6 +1,7 @@
 import type { SessionApi } from "@opencode-ai/client/promise"
 import { normalizeSessionInfo } from "@/utils/session"
 import type { OpencodeClient, Session } from "@opencode-ai/sdk/v2/client"
+import { normalizeSessionListResponse } from "./response-normalizers"
 
 export type RootSessionLoadResult = {
   data: Session[]
@@ -19,8 +20,9 @@ export async function loadRootSessions(input: {
     limit: input.limit,
     order: "desc",
   })
+  const normalized = normalizeSessionListResponse(result)
   return {
-    data: result.data.map(normalizeSessionInfo),
+    data: normalized.data.map(normalizeSessionInfo),
     limit: input.limit,
     limited: true,
   }
@@ -33,10 +35,12 @@ export async function loadRootSessionsV1(input: {
 }): Promise<RootSessionLoadResult> {
   try {
     const result = await input.client.session.list({ directory: input.directory, roots: true, limit: input.limit })
-    return { data: (result.data ?? []).map(normalizeSessionInfo), limit: input.limit, limited: true }
+    const normalized = normalizeSessionListResponse(result)
+    return { data: normalized.data.map(normalizeSessionInfo), limit: input.limit, limited: true }
   } catch {
     const result = await input.client.session.list({ directory: input.directory, roots: true })
-    return { data: (result.data ?? []).map(normalizeSessionInfo), limit: input.limit, limited: false }
+    const normalized = normalizeSessionListResponse(result)
+    return { data: normalized.data.map(normalizeSessionInfo), limit: input.limit, limited: false }
   }
 }
 

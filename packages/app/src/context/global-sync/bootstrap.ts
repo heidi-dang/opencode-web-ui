@@ -2,7 +2,6 @@ import type {
   Config,
   OpencodeClient,
   Path,
-  PermissionRequest,
   Project,
   ProviderAuthResponse,
   QuestionRequest,
@@ -19,11 +18,9 @@ import type {
   ModelDefaultOutput,
   ProjectCurrentInput,
   ProjectCurrentOutput,
-  ProjectListOutput,
   ReferenceListInput,
   ReferenceListOutput,
   SessionApi,
-  Project as CurrentProject,
 } from "@opencode-ai/client/promise"
 import { showToast } from "@/utils/toast"
 import { getFilename } from "@opencode-ai/core/util/path"
@@ -49,6 +46,7 @@ import { normalizeSessionInfo } from "@/utils/session"
 import type { ServerProtocol } from "@/utils/server-protocol"
 import type { ServerApi } from "@/utils/server"
 import type { ProviderQueryStatus } from "@/hooks/provider-catalog"
+import { normalizeArrayResponse, normalizeProjectListResponse } from "./response-normalizers"
 
 type GlobalStore = {
   ready: boolean
@@ -124,11 +122,11 @@ export const loadGlobalConfigQuery = (scope: ServerScope, sdk: OpencodeClient, p
   })
 
 type ProjectApi = {
-  readonly list: () => Promise<ProjectListOutput>
+  readonly list: () => Promise<unknown>
   readonly current: (input?: ProjectCurrentInput) => Promise<ProjectCurrentOutput>
 }
 export type CurrentProjectApi = {
-  readonly list: () => Promise<Project[]>
+  readonly list: () => Promise<unknown>
   readonly current?: OpencodeClient["project"]["current"]
 }
 
@@ -148,19 +146,19 @@ export const loadProjectsQuery = (
     queryFn: () =>
       retry(async () => {
         const protocolKind = await protocol
-        let projects: Project[] | CurrentProject[]
+        let projects: Project[]
         if (current) {
           try {
             // The current SDK is the canonical project endpoint. Some older
             // servers report the legacy protocol but still expose this route;
             // only fall back after a detected v1 endpoint rejects it.
-            projects = await current.list()
+            projects = normalizeProjectListResponse(await current.list())
           } catch (error) {
             if (protocolKind !== "v1") throw error
-            projects = await api.list()
+            projects = normalizeProjectListResponse(await api.list())
           }
         } else {
-          projects = await api.list()
+          projects = normalizeProjectListResponse(await api.list())
         }
         return projects
           .filter((p) => !!p?.id)
@@ -237,6 +235,12 @@ function groupBySession<T extends { id: string; sessionID: string }>(input: T[])
     if (!list) acc[item.sessionID] = [item]
     return acc
   }, {})
+}
+
+function normalizePermissionList(value: unknown) {
+  return normalizeArrayResponse(value, "permission.list").map((item) =>
+    normalizePermissionRequest(item as Parameters<typeof normalizePermissionRequest>[0]),
+  )
 }
 
 function projectID(directory: string, projects: Project[]) {
@@ -331,8 +335,12 @@ export const loadAgentsQuery = (
     queryKey: [scope, directory, "agents"],
     queryFn: () =>
       retry(async () => {
-        if ((await protocol) === "v1" && legacy) return normalizeAgentList((await legacy.app.agents()).data ?? [])
-        return sdk.list({ location: { directory } }).then((result) => normalizeAgentList(result.data))
+        if ((await protocol) === "v1" && legacy) {
+          return normalizeAgentList(normalizeArrayResponse(await legacy.app.agents(), "agent.list") as AgentListOutput["data"])
+        }
+        return sdk.list({ location: { directory } }).then((result) =>
+          normalizeAgentList(normalizeArrayResponse(result, "agent.list") as AgentListOutput["data"]),
+        )
       }),
   })
 
@@ -344,20 +352,35 @@ export const loadCommands = (
 ): Promise<CommandInfo[]> =>
   retry(async () => {
     if ((await protocol) === "v1" && legacy) {
-      return ((await legacy.command.list()).data ?? []).map((command) => {
-        const [providerID, id] = command.model?.split("/") ?? []
-        return {
-          name: command.name,
-          template: command.template,
-          description: command.description,
-          agent: command.agent,
-          model: providerID && id ? { providerID, id } : undefined,
-          subtask: command.subtask,
-          // source: command.source === "skill" ? undefined : command.source,
-        }
-      })
+      return normalizeArrayResponse<CommandListOutput["data"][number]>(await legacy.command.list(), "command.list").map(
+        (command) => {
+          const model = command.model as unknown
+          const [providerID, id] =
+            typeof model === "string"
+              ? model.split("/")
+              : model && typeof model === "object"
+                ? [
+                    typeof (model as { providerID?: unknown }).providerID === "string"
+                      ? (model as { providerID: string }).providerID
+                      : undefined,
+                    typeof (model as { id?: unknown }).id === "string" ? (model as { id: string }).id : undefined,
+                  ]
+                : []
+          return {
+            name: command.name,
+            template: command.template,
+            description: command.description,
+            agent: command.agent,
+            model: providerID && id ? { providerID, id } : undefined,
+            subtask: command.subtask,
+            // source: command.source === "skill" ? undefined : command.source,
+          }
+        },
+      )
     }
-    return api.list({ location: { directory } }).then((result) => result.data)
+    return api
+      .list({ location: { directory } })
+      .then((result) => normalizeArrayResponse<CommandInfo>(result, "command.list"))
   })
 
 export const loadPathQuery = (
@@ -386,8 +409,13 @@ export const loadReferencesQuery = (
     queryKey: [scope, directory, "references"] as const,
     queryFn: () =>
       retry(async () => {
-        if ((await protocol) === "v1" && legacy) return (await legacy.v2.reference.list()).data?.data ?? []
-        return api.list({ location: { directory } }).then((result) => result.data)
+        if ((await protocol) === "v1" && legacy) {
+          const result = await legacy.v2.reference.list()
+          return normalizeArrayResponse<ReferenceInfo>(result.data, "reference.list")
+        }
+        return api
+          .list({ location: { directory } })
+          .then((result) => normalizeArrayResponse<ReferenceInfo>(result, "reference.list"))
       }),
   })
 
@@ -508,10 +536,12 @@ export async function bootstrapDirectory(input: {
       () =>
         retry(() =>
           (async () => {
-            if ((await input.protocol) === "v1") return (await input.sdk.permission.list()).data ?? []
+            if ((await input.protocol) === "v1") {
+              return normalizePermissionList(await input.sdk.permission.list())
+            }
             return input.api.permission.request
               .list({ location: { directory: input.directory } })
-              .then((result) => result.data.map(normalizePermissionRequest))
+              .then((result) => normalizePermissionList(result))
           })().then((permissions) => {
             const ids = permissions.map((permission) => permission.sessionID)
             const grouped = groupBySession(
@@ -544,10 +574,12 @@ export async function bootstrapDirectory(input: {
       () =>
         retry(() =>
           (async () => {
-            if ((await input.protocol) === "v1") return (await input.sdk.question.list()).data ?? []
+            if ((await input.protocol) === "v1") {
+              return normalizeArrayResponse<QuestionRequest>(await input.sdk.question.list(), "question.list")
+            }
             return input.api.question.request
               .list({ location: { directory: input.directory } })
-              .then((result) => result.data)
+              .then((result) => normalizeArrayResponse<QuestionRequest>(result, "question.list"))
           })().then((questions) => {
             const ids = questions.map((question) => question.sessionID)
             const grouped = groupBySession(

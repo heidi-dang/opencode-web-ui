@@ -1,6 +1,15 @@
 import type { ServerApi } from "./server"
 import type { ServerProtocol } from "./server-protocol"
-import type { AgentPartInput, FilePartInput, OpencodeClient, Session, TextPartInput } from "@opencode-ai/sdk/v2/client"
+import type {
+  AgentPartInput,
+  FilePartInput,
+  OpencodeClient,
+  PromptAgentAttachment,
+  PromptInput,
+  PromptInputFileAttachment,
+  Session,
+  TextPartInput,
+} from "@opencode-ai/sdk/v2/client"
 import type {
   Project,
   ProjectCurrent,
@@ -49,6 +58,7 @@ type LegacyLocation = { directory?: string }
 type CompatibleInput = {
   protocol: Promise<ServerProtocol>
   current: ServerApi
+  currentV2: LegacyClient
   legacy: LegacyFor
   directory?: string
 }
@@ -83,12 +93,84 @@ function sessionInfo(session: Session): SessionInfo {
   }
 }
 
+export type V2PromptRequest = {
+  sessionID: string
+  id?: string
+  prompt: PromptInput
+  delivery?: "steer" | "queue"
+  resume?: boolean
+}
+
+/**
+ * Convert the app's protocol-neutral prompt input to the generated v2 schema.
+ * Model, agent, and variant are session state in v2 and are selected through
+ * the session APIs; they are intentionally not emitted as unsupported prompt
+ * fields. Text, file attachments, agent mentions, delivery, and resume are
+ * all represented by the v2 request below.
+ */
+export function serializeV2Prompt(value: SessionPromptInput & LegacyPrompt): V2PromptRequest {
+  const files: PromptInputFileAttachment[] | undefined = value.files?.map((file) => ({
+    uri: file.uri,
+    name: file.name,
+    source: file.mention
+      ? { text: file.mention.text, start: file.mention.start, end: file.mention.end }
+      : undefined,
+  }))
+  const agents: PromptAgentAttachment[] | undefined = value.agents?.map((agent) => ({
+    name: agent.name,
+    source: agent.mention
+      ? { text: agent.mention.text, start: agent.mention.start, end: agent.mention.end }
+      : undefined,
+  }))
+
+  return {
+    sessionID: value.sessionID,
+    id: value.id ?? undefined,
+    prompt: {
+      text: value.text,
+      files: files?.length ? files : undefined,
+      agents: agents?.length ? agents : undefined,
+    },
+    delivery: value.delivery ?? undefined,
+    resume: value.resume ?? undefined,
+  }
+}
+
+function admittedPrompt(result: unknown, value: SessionPromptInput & LegacyPrompt): SessionPromptOutput {
+  const data = result && typeof result === "object" && "data" in result ? result.data : result
+  const admitted = data && typeof data === "object" ? data : undefined
+  const admittedValue = admitted as { admittedSeq?: number; timeCreated?: number; delivery?: "steer" | "queue" } | undefined
+  return {
+    admittedSeq: admittedValue?.admittedSeq ?? 0,
+    id: value.id ?? "",
+    sessionID: value.sessionID,
+    timeCreated: admittedValue?.timeCreated ?? Date.now(),
+    type: "user",
+    data: { text: value.text },
+    delivery: admittedValue?.delivery ?? value.delivery ?? "steer",
+  }
+}
+
+function createV2Api(input: CompatibleInput): ServerApi {
+  return {
+    ...input.current,
+    session: {
+      ...input.current.session,
+      async prompt(value: SessionPromptInput & LegacyPrompt) {
+        const result = await input.currentV2.v2.session.prompt(serializeV2Prompt(value))
+        return admittedPrompt(result, value)
+      },
+    },
+  }
+}
+
 export function createCompatibleApi(input: CompatibleInput): CompatibleApi {
   const v1 = createV1Api(input)
+  const v2 = createV2Api(input)
   return lazyApi(
     input.protocol.then((protocol) => {
       if (protocol === "v1") return v1
-      if (protocol === "v2") return input.current
+      if (protocol === "v2") return v2
       throw new Error("Unable to determine the OpenCode API protocol")
     }),
     input.current,
@@ -368,7 +450,7 @@ function createV1Api(input: CompatibleInput): CompatibleApi {
         return located(result.data ?? [], value?.location)
       },
       async find(value: Parameters<ServerApi["file"]["find"]>[0]) {
-        const result = await legacy(value.location).find.files({
+        const result = await legacy(directory(value.location)).find.files({
           query: value.query,
           dirs: value.type === undefined ? undefined : value.type === "directory" ? "true" : "false",
           limit: value.limit,
@@ -498,7 +580,7 @@ function createV1Api(input: CompatibleInput): CompatibleApi {
     permission: {
       ...input.current.permission,
       async reply(value: Parameters<ServerApi["permission"]["reply"]>[0] & { location?: { directory?: string } }) {
-        await legacy(value.location).permission.respond({
+        await legacy(directory(value.location)).permission.respond({
           sessionID: value.sessionID,
           permissionID: value.requestID,
           response: value.reply,

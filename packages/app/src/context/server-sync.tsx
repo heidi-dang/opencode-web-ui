@@ -4,6 +4,7 @@ import type {
   Path,
   Project,
   ProviderAuthResponse,
+  LspStatus,
   SessionStatus,
 } from "@opencode-ai/sdk/v2/client"
 import { showToast } from "@/utils/toast"
@@ -66,6 +67,7 @@ import type {
 import { toggleMcp } from "./global-sync/mcp"
 import { createServerSession, type ServerSession } from "./server-session"
 import { resolveProviderQueryState, type ProviderQueryStatus } from "@/hooks/provider-catalog"
+import { normalizeArrayResponse } from "./global-sync/response-normalizers"
 
 type GlobalStore = {
   ready: boolean
@@ -133,7 +135,11 @@ export const loadMcpQuery = (
       if ((await protocol) === "v1" && legacy) return (await legacy.mcp.status()).data ?? {}
       return api
         .list({ location: { directory } })
-        .then((result) => Object.fromEntries(result.data.map((server) => [server.name, server.status])))
+        .then((result) =>
+          Object.fromEntries(
+            normalizeArrayResponse<McpServer>(result, "mcp.list").map((server) => [server.name, server.status]),
+          ),
+        )
     },
   })
 
@@ -172,7 +178,7 @@ export const loadMcpResourcesQuery = (
 export const loadLspQuery = (scope: ServerScope, directory: string, sdk: OpencodeClient) =>
   queryOptions({
     queryKey: [scope, directory, "lsp"] as const,
-    queryFn: () => sdk.lsp.status().then((r) => r.data ?? []),
+    queryFn: () => sdk.lsp.status().then((result) => normalizeArrayResponse<LspStatus>(result, "lsp.status")),
   })
 
 export const loadActiveSessionsQuery = (

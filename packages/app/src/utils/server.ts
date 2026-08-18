@@ -49,56 +49,6 @@ export function fetchForServer(server: ServerConnection.HttpBase, fetcher: typeo
   }) as typeof globalThis.fetch
 }
 
-function fetchWithV2PromptContract(fetcher: typeof globalThis.fetch) {
-  return (async (input: RequestInfo | URL, init?: RequestInit) => {
-    const request = new Request(input, init)
-    const url = new URL(request.url)
-    if (request.method !== "POST" || !/^\/api\/session\/[^/]+\/prompt$/.test(url.pathname)) {
-      return fetcher(input, init)
-    }
-
-    let body: unknown
-    try {
-      body = JSON.parse(await request.text())
-    } catch {
-      return fetcher(input, init)
-    }
-
-    if (!body || typeof body !== "object" || "prompt" in body || !("text" in body)) {
-      return fetcher(input, init)
-    }
-
-    const value = body as {
-      id?: string
-      text: string
-      files?: unknown
-      agents?: unknown
-      delivery?: string
-      resume?: boolean
-    }
-    const next = {
-      id: value.id,
-      prompt: {
-        text: value.text,
-        files: value.files,
-        agents: value.agents,
-      },
-      delivery: value.delivery,
-      resume: value.resume,
-    }
-    const headers = new Headers(request.headers)
-    headers.set("content-type", "application/json")
-    return fetcher(
-      new Request(request.url, {
-        method: request.method,
-        headers,
-        body: JSON.stringify(next),
-        signal: request.signal,
-      }),
-    )
-  }) as typeof globalThis.fetch
-}
-
 export function createSdkForServer({
   server,
   ...config
@@ -129,7 +79,7 @@ export function createApiForServer(input: {
 }): OpenCodeClient {
   return OpenCode.make({
     baseUrl: input.server.url,
-    fetch: fetchWithV2PromptContract(fetchForServer(input.server, input.fetch)),
+    fetch: fetchForServer(input.server, input.fetch),
     headers: input.server.password
       ? {
           Authorization: `Basic ${authTokenFromCredentials({

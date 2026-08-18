@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { createApiForServer, createSdkForServer } from "./server"
-import { createCompatibleApi } from "./server-compat"
+import { createCompatibleApi, serializeV2Prompt } from "./server-compat"
 
 function setup(
   protocol: "v1" | "v2" | Promise<"v1" | "v2">,
@@ -47,6 +47,7 @@ function setup(
   const api = createCompatibleApi({
     protocol: typeof protocol === "string" ? Promise.resolve(protocol) : protocol,
     current: createApiForServer({ server, fetch: fetcher }),
+    currentV2: createSdkForServer({ server, fetch: fetcher, throwOnError: true }),
     legacy: legacyFactory ?? ((directory) => createSdkForServer({ server, fetch: fetcher, directory, throwOnError: true })),
     directory: "/repo",
   })
@@ -54,6 +55,38 @@ function setup(
 }
 
 describe("createCompatibleApi", () => {
+  test("serializes every supported v2 prompt field at its schema level", () => {
+    expect(
+      serializeV2Prompt({
+        sessionID: "ses_1",
+        id: "msg_1",
+        text: "hello @src/index.ts",
+        files: [
+          { uri: "file:///repo/src/index.ts", name: "index.ts", mention: { text: "@src/index.ts", start: 6, end: 19 } },
+        ],
+        agents: [{ name: "build", mention: { text: "@build", start: 6, end: 12 } }],
+        delivery: "queue",
+        resume: false,
+      }),
+    ).toEqual({
+      sessionID: "ses_1",
+      id: "msg_1",
+      prompt: {
+        text: "hello @src/index.ts",
+        files: [
+          {
+            uri: "file:///repo/src/index.ts",
+            name: "index.ts",
+            source: { text: "@src/index.ts", start: 6, end: 19 },
+          },
+        ],
+        agents: [{ name: "build", source: { text: "@build", start: 6, end: 12 } }],
+      },
+      delivery: "queue",
+      resume: false,
+    })
+  })
+
   /*
   test("routes V1 archive through the legacy session update", async () => {
     const { api, requests } = setup("v1")

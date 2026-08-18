@@ -379,7 +379,7 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
       throwOnError: true,
       directory,
     })
-  const api = createCompatibleApi({ protocol, current: currentApi, legacy })
+  const api = createCompatibleApi({ protocol, current: currentApi, currentV2: sdk, legacy })
 
   return {
     server,
@@ -472,6 +472,7 @@ function createDirSdkContext(directory: string, serverSDK: ServerSDKBase) {
     api: createCompatibleApi({
       protocol: serverSDK.protocol,
       current: serverSDK.currentApi,
+      currentV2: client,
       legacy: (next) => serverSDK.createClient({ directory: next ?? directory, throwOnError: true }),
       directory,
     }),

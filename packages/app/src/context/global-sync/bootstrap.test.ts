@@ -344,7 +344,11 @@ describe("query keys", () => {
           },
         } as unknown as ProjectApi,
         {
-          list: async () => [{ id: "v2", worktree: "/v2", time: { created: 1, updated: 1 }, sandboxes: [] }],
+          list: async () => ({
+            data: [{ id: "v2", worktree: "/v2", time: { created: 1, updated: 1 }, sandboxes: [] }],
+            request: {},
+            response: {},
+          }),
         } as unknown as CurrentProjectApi,
         Promise.resolve("v2"),
       ),
