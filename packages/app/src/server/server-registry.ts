@@ -98,9 +98,12 @@ function fromConfig(value: { id: string; baseUrl: string; name?: string; enabled
 
 let writeQueue = Promise.resolve()
 let cached: RegistryFile | undefined
+let cachedPath: string | undefined
 
 async function load(): Promise<RegistryFile> {
-  if (cached) return cached
+  const path = storagePath()
+  if (cached && cachedPath === path) return cached
+  cachedPath = path
   const seeded = configServers()
   try {
     const value = JSON.parse(await readFile(storagePath(), "utf8")) as RegistryFile
@@ -243,7 +246,7 @@ type ProbeResponse =
   | { kind: "malformed" }
   | { kind: "network"; error: ProbeFailure }
 
-export async function probeRegisteredServer(serverOrId: RegisteredServer | string, timeoutMs = 5000): Promise<ServerProbeResult> {
+export async function probeRegisteredServer(serverOrId: RegisteredServer | string, timeoutMs = 5000, signal?: AbortSignal): Promise<ServerProbeResult> {
   const started = Date.now()
   const server = typeof serverOrId === "string" ? await getServer(serverOrId) : serverOrId
   const serverId = typeof serverOrId === "string" ? serverOrId : serverOrId.id
@@ -262,7 +265,7 @@ export async function probeRegisteredServer(serverOrId: RegisteredServer | strin
     try {
       response = await fetch(new URL(`${base.pathname.replace(/\/$/, "")}${path}`, base.origin), {
         headers,
-        signal: AbortSignal.timeout(timeoutMs),
+        signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]) : AbortSignal.timeout(timeoutMs),
       })
     } catch (error) {
       return { kind: "network", error: classifyNetworkFailure(error) }
@@ -317,4 +320,5 @@ export async function updateServerHealth(id: string, health: Pick<RegisteredServ
 export function resetRegistryForTests() {
   process.env.CONTROL_PLANE_LEGACY_TEST_MODE = "1"
   cached = undefined
+  cachedPath = undefined
 }
