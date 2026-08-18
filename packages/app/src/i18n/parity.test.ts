@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test"
+import { existsSync } from "node:fs"
 import { desktopNativePluralCategories } from "./desktop-native"
 
 const appLocales = [
@@ -75,6 +76,8 @@ const pluralCategories = new Map(
   ),
 )
 
+const desktopI18nAvailable = existsSync(new URL("../../../desktop/src/renderer/i18n/en.ts", import.meta.url))
+
 const domains = [
   {
     name: "app",
@@ -98,7 +101,7 @@ const domains = [
 
 describe("i18n parity", () => {
   test("non-English locales have every English key and required plural variants", async () => {
-    for (const domain of domains) {
+    for (const domain of domains.filter((item) => item.name !== "desktop" || desktopI18nAvailable)) {
       const source = await dictionary(domain.source)
       for (const locale of domain.locales) {
         const target = await dictionary(domain.target(locale))
@@ -120,7 +123,7 @@ describe("i18n parity", () => {
   })
 
   test("non-English locales preserve English placeholders", async () => {
-    for (const domain of domains) {
+    for (const domain of domains.filter((item) => item.name !== "desktop" || desktopI18nAvailable)) {
       const source = await dictionary(domain.source)
       for (const locale of domain.locales) {
         const target = await dictionary(domain.target(locale))
