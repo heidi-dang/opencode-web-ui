@@ -346,8 +346,7 @@ export const loadReferencesQuery = (
       retry(async () => {
         if ((await protocol) === "v1" && legacy) return (await legacy.v2.reference.list()).data?.data ?? []
         return api.list({ location: { directory } }).then((result) => result.data)
-      }).catch(() => []),
-    placeholderData: [],
+      }),
   })
 
 export async function bootstrapDirectory(input: {
