@@ -25,6 +25,7 @@ export const projectID = "proj_timeline_stability"
 export const sessionID = "ses_timeline_stability"
 export const userID = "msg_1000_timeline_user"
 export const assistantID = "msg_1001_timeline_assistant"
+export const fixtureServerID = "e2e-timeline-stability-server"
 export const title = "Timeline visual stability"
 export const model = { providerID: "opencode", modelID: "claude-opus-4-6", variant: "max" }
 
@@ -103,6 +104,10 @@ export async function setupTimeline(
     deviceScaleFactor?: number
     seedHistory?: boolean
     protocol?: "v1" | "v2"
+    onPrompt?: (input: { sessionID: string; body: unknown }) => void | Promise<void>
+    onInterrupt?: (input: { sessionID: string; body: unknown }) => void | Promise<void>
+    activeSessions?: () => Record<string, unknown>
+    pageMessages?: (sessionID: string, limit: number, before?: string) => { items: unknown[]; cursor?: string }
   } = {},
 ) {
   const fixtureServer = `http://e2e.test:${process.env.PLAYWRIGHT_SERVER_PORT ?? "4096"}`
@@ -127,9 +132,10 @@ export async function setupTimeline(
     provider: provider(),
     sessions,
     sessionStatus: { [sessionID]: initialStatus },
-    pageMessages: () => ({
-      items: messages,
-    }),
+    onPrompt: input.onPrompt,
+    onInterrupt: input.onInterrupt,
+    activeSessions: input.activeSessions,
+    pageMessages: input.pageMessages ?? (() => ({ items: messages })),
   })
   await page.addInitScript((settings) => {
     localStorage.setItem(
@@ -153,9 +159,22 @@ export async function setupTimeline(
       localStorage.setItem("opencode.global.dat:language", JSON.stringify({ locale }))
     }, input.locale)
   }
-  await page.addInitScript((server) => {
+  await page.addInitScript(({ server, id }) => {
     localStorage.setItem("opencode.settings.dat:defaultServerUrl", server)
-  }, fixtureServer)
+    // AppInterface receives the default URL from the browser platform, but
+    // ServerSDKProvider resolves its connection from the registered server
+    // fleet. Seed the same persisted registry shape production uses so this
+    // fixture exercises the real ServerProvider -> ServerSDKProvider chain.
+    localStorage.setItem(
+      "opencode.global.dat:server.v4",
+      JSON.stringify({
+        list: [{ type: "http", http: { id, url: server } }],
+        projects: {},
+        lastProject: {},
+        recentlyClosed: {},
+      }),
+    )
+  }, { server: fixtureServer, id: fixtureServerID })
   if (input.reducedMotion) await page.emulateMedia({ reducedMotion: "reduce" })
   await page.setViewportSize(input.viewport ?? { width: 1400, height: 900 })
   if (input.deviceScaleFactor) {
