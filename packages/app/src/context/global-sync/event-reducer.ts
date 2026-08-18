@@ -34,6 +34,8 @@ const SESSION_CONTENT_EVENTS = new Set([
   "question.rejected",
 ])
 
+const compareMessage = (a: Message, b: Message) => a.time.created - b.time.created || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+
 export function applyGlobalEvent(input: {
   event: { type: string; properties?: unknown }
   project: Project[]
@@ -282,16 +284,17 @@ export function applyDirectoryEvent(input: {
         input.setStore("message", info.sessionID, [info])
         break
       }
-      const result = Binary.search(messages, info.id, (m) => m.id)
-      if (result.found) {
-        input.setStore("message", info.sessionID, result.index, reconcile(info))
+      const existingIndex = messages.findIndex((message) => message.id === info.id)
+      if (existingIndex !== -1) {
+        input.setStore("message", info.sessionID, existingIndex, reconcile(info))
         break
       }
+      const insertIndex = messages.findIndex((message) => compareMessage(message, info) > 0)
       input.setStore(
         "message",
         info.sessionID,
         produce((draft) => {
-          draft.splice(result.index, 0, info)
+          draft.splice(insertIndex === -1 ? draft.length : insertIndex, 0, info)
         }),
       )
       break
@@ -302,8 +305,8 @@ export function applyDirectoryEvent(input: {
         produce((draft) => {
           const messages = draft.message[props.sessionID]
           if (messages) {
-            const result = Binary.search(messages, props.messageID, (m) => m.id)
-            if (result.found) messages.splice(result.index, 1)
+            const index = messages.findIndex((message) => message.id === props.messageID)
+            if (index !== -1) messages.splice(index, 1)
           }
           const parts = draft.part[props.messageID]
           if (parts) {
