@@ -9,7 +9,8 @@ export async function importLegacyRegistry(db: Database) {
   if (state?.value === "DATABASE_PRIMARY") return { imported: false, state: "DATABASE_PRIMARY" as const }
 
   const servers = await listServers()
-  return db.transaction(() => {
+  try {
+    return db.transaction(() => {
     const current = db.query("SELECT value FROM control_plane_meta WHERE key='registry_migration'").get() as { value?: string } | null
     if (current?.value === "DATABASE_PRIMARY") return { imported: false, state: "DATABASE_PRIMARY" as const }
 
@@ -23,5 +24,9 @@ export async function importLegacyRegistry(db: Database) {
     }
     db.query("UPDATE control_plane_meta SET value='DATABASE_PRIMARY', updated_at=? WHERE key='registry_migration'").run(Date.now())
     return { imported: true, state: "DATABASE_PRIMARY" as const, count: servers.length }
-  })()
+    })()
+  } catch (error) {
+    db.query("UPDATE control_plane_meta SET value='IMPORT_FAILED', updated_at=? WHERE key='registry_migration'").run(Date.now())
+    throw error
+  }
 }
