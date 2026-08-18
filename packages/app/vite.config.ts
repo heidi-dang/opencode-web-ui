@@ -22,6 +22,8 @@ const universalServerProxy = {
   name: "opencode-universal-proxy",
   configureServer(server: { middlewares: { use: (handler: (req: any, res: any, next: () => void) => void) => void }; ssrLoadModule: (id: string) => Promise<{ handleOpenCodeProxy: (req: any, res: any, next: () => void) => void }> }) {
     server.middlewares.use((req, res, next) => {
+      const pathname = req.url ? new URL(req.url, "http://localhost").pathname : ""
+      if (!pathname.startsWith("/api/opencode/")) return next()
       void server.ssrLoadModule("/src/server/proxy.ts").then(({ handleOpenCodeProxy }) => handleOpenCodeProxy(req, res, next))
     })
   },
