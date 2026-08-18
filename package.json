@@ -6,7 +6,7 @@
   "type": "module",
   "packageManager": "bun@1.3.14",
   "scripts": {
-    "dev": "bun run proxy & bun --cwd packages/app dev",
+    "dev": "bun --cwd packages/app dev",
     "proxy": "bun run scripts/opencode-proxy.ts",
     "build": "bun run --cwd packages/app build",
     "serve": "bun --cwd packages/app serve",
