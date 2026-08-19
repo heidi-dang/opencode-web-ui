@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { createProductionApp, nodeResponse } from "./production-server"
+import { createProductionApp, createProductionServerOptions, nodeResponse } from "./production-server"
 
 const app = createProductionApp()
 
@@ -39,5 +39,11 @@ describe("production Web UI server", () => {
     response.end("{}")
 
     expect((await committedHeaders).get("content-type")).toBe("application/json; charset=utf-8")
+  })
+
+  test("disables Bun's default idle timeout for long-lived SSE responses", () => {
+    const options = createProductionServerOptions(app, "127.0.0.1", 3000)
+
+    expect(options.idleTimeout).toBe(0)
   })
 })

@@ -164,12 +164,24 @@ export function createProductionApp() {
   return app
 }
 
+export function createProductionServerOptions(app: Hono, hostname: string, port: number) {
+  return {
+    hostname,
+    port,
+    // Bun defaults idle connections to 10 seconds. The event endpoint is a
+    // deliberately long-lived SSE response and must remain open while the
+    // upstream is quiet between heartbeats/events.
+    idleTimeout: 0,
+    fetch: app.fetch,
+  }
+}
+
 export async function startProductionServer() {
   const hostname = process.env.WEBUI_BIND_HOST || "127.0.0.1"
   const port = Number(process.env.WEBUI_PORT || process.env.PORT || 3000)
   if (!Number.isInteger(port) || port < 1 || port > 65_535) throw new Error("INVALID_WEBUI_PORT")
   const app = createProductionApp()
-  const server = Bun.serve({ hostname, port, fetch: app.fetch })
+  const server = Bun.serve(createProductionServerOptions(app, hostname, port))
   runtimeLogger.info("application.start", {
     version: process.env.WEBUI_COMMIT_SHA || "unknown",
     environment: process.env.NODE_ENV || "production",
