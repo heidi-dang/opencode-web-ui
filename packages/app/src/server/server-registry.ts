@@ -2,7 +2,7 @@ import { createHash, randomBytes } from "node:crypto"
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises"
 import { dirname, join } from "node:path"
 import { deletePrimaryBackend, getPrimaryBackend, getPrimaryCredentials, insertPrimaryBackend, isDatabasePrimary, updatePrimaryBackend, updatePrimaryHealth } from "./control-plane/repositories/backend-repository"
-import { assertNetworkPolicy } from "./backend/network"
+import { validateBackendDestination } from "./backend/network"
 
 export type ServerState = "REGISTERED" | "READY" | "UNHEALTHY" | "AUTH_FAILED"
 export type ServerProtocol = "v1" | "v2"
@@ -257,7 +257,7 @@ export async function probeRegisteredServer(serverOrId: RegisteredServer | strin
   if (!server.enabled) {
     return { serverId, reachable: false, authenticated: false, healthy: false, state: "UNHEALTHY", latencyMs: Date.now() - started, error: "SERVER_DISABLED" }
   }
-  const base = assertNetworkPolicy(server.baseUrl)
+  const base = await validateBackendDestination(server.baseUrl)
   const headers = server.password !== undefined
     ? { Authorization: `Basic ${Buffer.from(`${server.username || "opencode"}:${server.password}`).toString("base64")}` }
     : undefined
@@ -267,6 +267,7 @@ export async function probeRegisteredServer(serverOrId: RegisteredServer | strin
       response = await fetch(new URL(`${base.pathname.replace(/\/$/, "")}${path}`, base.origin), {
         headers,
         signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]) : AbortSignal.timeout(timeoutMs),
+        redirect: "manual",
       })
     } catch (error) {
       return { kind: "network", error: classifyNetworkFailure(error) }

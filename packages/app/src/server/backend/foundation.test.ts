@@ -7,7 +7,7 @@ import type { BackendHealth } from "./domain"
 import { AgentBackendManager } from "./manager"
 import { EventHub } from "./event-hub"
 import { CircuitBreaker } from "./circuit-breaker"
-import { assertNetworkPolicy, normalizeBackendEndpoint } from "./network"
+import { assertNetworkPolicy, isPrivateAddress, normalizeBackendEndpoint, validateBackendDestination } from "./network"
 import { assertImmutableBackendIdentity } from "./domain"
 import { resetRegistryForTests } from "../server-registry"
 import { isDatabasePrimary } from "../control-plane/repositories/backend-repository"
@@ -133,6 +133,58 @@ describe("control server foundation", () => {
       expect(assertNetworkPolicy("http://100.97.224.96:4096/api/health").hostname).toBe("100.97.224.96")
       expect(() => assertNetworkPolicy("http://100.97.224.97:4096")).toThrow("PRIVATE_NETWORK_NOT_ALLOWED")
       expect(assertNetworkPolicy("https://example.test").hostname).toBe("example.test")
+    } finally {
+      if (previous === undefined) delete process.env.OPENCODE_ALLOWED_SERVERS
+      else process.env.OPENCODE_ALLOWED_SERVERS = previous
+    }
+  })
+  test("rejects private and mixed DNS answers before any upstream request", async () => {
+    const lookup = async (hostname: string) => {
+      if (hostname === "private.example") return [{ address: "10.20.30.40", family: 4 }]
+      if (hostname === "mixed.example") return [{ address: "93.184.216.34", family: 4 }, { address: "192.168.1.8", family: 4 }]
+      return [{ address: "93.184.216.34", family: 4 }]
+    }
+    await expect(validateBackendDestination("http://private.example:4096", { lookup })).rejects.toThrow("PRIVATE_NETWORK_NOT_ALLOWED")
+    await expect(validateBackendDestination("http://mixed.example:4096", { lookup })).rejects.toThrow("PRIVATE_NETWORK_NOT_ALLOWED")
+    await expect(validateBackendDestination("http://public.example:4096", { lookup })).resolves.toBeInstanceOf(URL)
+  })
+
+  test("recognizes loopback, link-local, ULA, and IPv4-mapped private addresses", () => {
+    expect(isPrivateAddress("127.0.0.1")).toBe(true)
+    expect(isPrivateAddress("::1")).toBe(true)
+    expect(isPrivateAddress("fc00::1")).toBe(true)
+    expect(isPrivateAddress("fe80::1")).toBe(true)
+    expect(isPrivateAddress("::ffff:127.0.0.1")).toBe(true)
+    expect(isPrivateAddress("93.184.216.34")).toBe(false)
+  })
+
+  test.serial("enables SQLite foreign keys and cascades backend-owned records", async () => {
+    const directory = await mkdtemp(join(process.env.TMPDIR || "/tmp", "opencode-control-plane-fk-"))
+    const filename = join(directory, "control-plane.sqlite")
+    const db = openControlPlaneDatabase(filename)
+    try {
+      migrateControlPlaneDatabase(db)
+      expect((db.query("PRAGMA foreign_keys").get() as { foreign_keys: number }).foreign_keys).toBe(1)
+      const now = Date.now()
+      db.query("INSERT INTO agent_backends (id,type,name,endpoint,enabled,state,capabilities,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?)").run("backend-fk", "opencode", "Fixture", "https://fixture.example", 1, "READY", "{}", now, now)
+      db.query("INSERT INTO backend_credentials (backend_id,version,updated_at) VALUES (?,?,?)").run("backend-fk", 1, now)
+      db.query("INSERT INTO backend_health (backend_id,reachable,authenticated,healthy,checked_at) VALUES (?,?,?,?,?)").run("backend-fk", 1, 1, 1, now)
+      db.query("INSERT INTO workspaces (id,backend_id,created_at,updated_at) VALUES (?,?,?,?)").run("workspace-fk", "backend-fk", now, now)
+      db.query("INSERT INTO session_index (backend_id,session_id,updated_at) VALUES (?,?,?)").run("backend-fk", "session-fk", now)
+      db.query("DELETE FROM agent_backends WHERE id=?").run("backend-fk")
+      for (const table of ["backend_credentials", "backend_health", "workspaces", "session_index"]) expect((db.query(`SELECT COUNT(*) AS count FROM ${table}`).get() as { count: number }).count).toBe(0)
+    } finally {
+      db.close()
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
+  test("allows an exact configured private origin but rejects other private destinations", async () => {
+    const previous = process.env.OPENCODE_ALLOWED_SERVERS
+    process.env.OPENCODE_ALLOWED_SERVERS = "http://100.97.224.96:4096"
+    try {
+      await expect(validateBackendDestination("http://100.97.224.96:4096", { lookup: async () => [{ address: "100.97.224.96", family: 4 }] })).resolves.toBeInstanceOf(URL)
+      await expect(validateBackendDestination("http://100.97.224.97:4096", { lookup: async () => [{ address: "100.97.224.97", family: 4 }] })).rejects.toThrow("PRIVATE_NETWORK_NOT_ALLOWED")
     } finally {
       if (previous === undefined) delete process.env.OPENCODE_ALLOWED_SERVERS
       else process.env.OPENCODE_ALLOWED_SERVERS = previous

@@ -52,6 +52,7 @@ describe("server registry", () => {
     process.env.OPENCODE_SERVERS_STORE = `/tmp/opencode-registry-auth-${process.pid}.json`
     delete process.env.OPENCODE_SERVERS_CONFIG
     delete process.env.OPENCODE_ALLOWED_SERVERS
+    process.env.OPENCODE_ALLOWED_SERVERS = "https://auth.example"
     resetRegistryForTests()
     const server = await registerServer({ baseUrl: "https://auth.example", username: "user", password: "password" })
     const originalFetch = globalThis.fetch
@@ -68,6 +69,26 @@ describe("server registry", () => {
         error: "AUTH_FAILED",
       })
       expect(result.protocol).toBeUndefined()
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
+  test("uses manual redirects for health probes", async () => {
+    process.env.OPENCODE_SERVERS_STORE = `/tmp/opencode-registry-redirect-${process.pid}.json`
+    delete process.env.OPENCODE_SERVERS_CONFIG
+    process.env.OPENCODE_ALLOWED_SERVERS = "https://redirect.example"
+    resetRegistryForTests()
+    const server = await registerServer({ baseUrl: "https://redirect.example" })
+    const originalFetch = globalThis.fetch
+    let redirect: RequestRedirect | undefined
+    globalThis.fetch = (async (_input, init) => {
+      redirect = init?.redirect
+      return new Response(null, { status: 404 })
+    }) as unknown as typeof fetch
+    try {
+      await probeRegisteredServer(server)
+      expect(redirect).toBe("manual")
     } finally {
       globalThis.fetch = originalFetch
     }

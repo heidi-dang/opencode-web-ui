@@ -1,7 +1,7 @@
 import { agentBackendManager } from "../backend/manager"
 import { getServer, publicServer, updateServerHealth, registerServer as registerLegacyServer, updateServer as updateLegacyServer, deleteServer as deleteLegacyServer, type RegisteredServer } from "../server-registry"
 import { deletePrimaryBackend, insertPrimaryBackend, isDatabasePrimary, updatePrimaryBackend, updatePrimaryHealth } from "../control-plane/repositories/backend-repository"
-import { normalizeBackendEndpoint } from "../backend/network"
+import { normalizeBackendEndpoint, validateBackendDestination } from "../backend/network"
 import { runtimeLogger } from "../observability/logger"
 
 export function deriveBackendState(health: Pick<RegisteredServer, "healthy" | "reachable" | "authenticated">): RegisteredServer["state"] {
@@ -31,13 +31,14 @@ export async function registerBackend(input: { name?: string; baseUrl: string; u
   runtimeLogger.info("backend.register.start", { endpoint: input.baseUrl, enabled: input.enabled !== false, authConfigured: Boolean(input.username || input.password) })
   try {
     if (isDatabasePrimary()) {
-      const endpoint = normalizeBackendEndpoint(input.baseUrl)
+      const endpoint = (await validateBackendDestination(input.baseUrl)).toString().replace(/\/$/, "")
       const id = `srv_${crypto.randomUUID()}`
       if (!insertPrimaryBackend({ id, name: input.name?.trim() || new URL(endpoint).hostname, endpoint, enabled: input.enabled !== false, username: input.username, password: input.password })) throw new Error("DUPLICATE_SERVER_URL")
       const result = (await listBackendDescriptors()).find((backend) => backend.id === id)
       runtimeLogger.info("backend.register.complete", { backendId: id, endpoint, durationMs: Date.now() - started })
       return result
     }
+    await validateBackendDestination(input.baseUrl)
     const server = await registerLegacyServer(input)
     runtimeLogger.info("backend.register.complete", { backendId: server.id, endpoint: server.baseUrl, durationMs: Date.now() - started, storage: "legacy" })
     return server
@@ -52,13 +53,15 @@ export async function updateBackend(id: string, input: { name?: string; baseUrl?
   runtimeLogger.info("backend.update.start", { backendId: id, changedFields: Object.entries(input).filter(([, value]) => value !== undefined).map(([key]) => key) })
   try {
     if (isDatabasePrimary()) {
-      const updated = updatePrimaryBackend(id, { name: input.name, endpoint: input.baseUrl ? normalizeBackendEndpoint(input.baseUrl) : undefined, enabled: input.enabled, username: input.username, password: input.password })
+      const endpoint = input.baseUrl ? (await validateBackendDestination(input.baseUrl)).toString().replace(/\/$/, "") : undefined
+      const updated = updatePrimaryBackend(id, { name: input.name, endpoint, enabled: input.enabled, username: input.username, password: input.password })
       if (!updated) return undefined
       await agentBackendManager.invalidate(id)
       const result = (await listBackendDescriptors()).find((backend) => backend.id === id)
       runtimeLogger.info("backend.update.complete", { backendId: id, endpoint: input.baseUrl, durationMs: Date.now() - started })
       return result
     }
+    if (input.baseUrl) await validateBackendDestination(input.baseUrl)
     const result = await updateLegacyServer(id, input)
     runtimeLogger.info("backend.update.complete", { backendId: id, endpoint: result?.baseUrl, durationMs: Date.now() - started, storage: "legacy" })
     return result
