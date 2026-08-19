@@ -9,6 +9,7 @@ import { base64Encode } from "@opencode-ai/core/util/encode"
 import { defaultTitle, titleNumber } from "./terminal-title"
 import { Persist, persisted, removePersisted } from "@/utils/persist"
 import { ScopedKey, ServerScope, type ServerScope as ServerScopeValue } from "@/utils/server-scope"
+import { clientDiagnostics } from "@/utils/client-diagnostics"
 
 export type LocalPTY = {
   id: string
@@ -269,6 +270,7 @@ function createWorkspaceTerminalSession(
         if (currentIndex >= 0) setStore("all", currentIndex, previous)
       }
       console.error("Failed to update terminal", error)
+      void clientDiagnostics.report("terminal.error", { operation: "update", errorCode: error instanceof Error ? error.name : "TERMINAL_UPDATE_FAILED" })
     })
   }
 
@@ -288,6 +290,7 @@ function createWorkspaceTerminalSession(
       ).data
     })().catch((error: unknown) => {
       console.error("Failed to clone terminal", error)
+      void clientDiagnostics.report("terminal.error", { operation: "clone", errorCode: error instanceof Error ? error.name : "TERMINAL_CLONE_FAILED" })
       return undefined
     })
     if (!data?.id) return
@@ -354,6 +357,7 @@ function createWorkspaceTerminalSession(
         .catch((error: unknown) => {
           if (focusRequest !== undefined) cancelFocus(focusRequest)
           console.error("Failed to create terminal", error)
+          void clientDiagnostics.report("terminal.error", { operation: "create", errorCode: error instanceof Error ? error.name : "TERMINAL_CREATE_FAILED" })
         })
     },
     update(pty: Partial<LocalPTY> & { id: string }) {
@@ -439,6 +443,7 @@ function createWorkspaceTerminalSession(
           : sdk.api.pty.remove({ ptyID: id, location })
       await removePromise.catch((error: unknown) => {
         console.error("Failed to close terminal", error)
+        void clientDiagnostics.report("terminal.error", { operation: "close", errorCode: error instanceof Error ? error.name : "TERMINAL_CLOSE_FAILED" })
       })
     },
     move(id: string, to: number) {

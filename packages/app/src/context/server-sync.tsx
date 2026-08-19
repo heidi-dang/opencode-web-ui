@@ -48,6 +48,7 @@ import { createDirSyncContext } from "./directory-sync"
 import { createSimpleContext } from "@opencode-ai/ui/context"
 import { NormalizedProviderListResponse } from "@opencode-ai/session-ui/context"
 import { createRefCountMap } from "@/utils/refcount"
+import { clientDiagnostics } from "@/utils/client-diagnostics"
 import { useGlobal } from "./global"
 import { ServerConnection, useServer } from "./server"
 import { retry } from "@opencode-ai/core/util/retry"
@@ -372,6 +373,11 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
           serverId: ServerConnection.key(serverSDK.server),
           errorCount: result.errors.length,
         })
+        void clientDiagnostics.report("session.reconciliation_error", {
+          backendId: ServerConnection.key(serverSDK.server),
+          operation: "active_sessions",
+          errorCode: "ACTIVE_SESSION_RECONCILIATION_FAILED",
+        })
       }
       const state = serverSDK.connection.snapshot.state
       if (state === "STATE_RESYNCING" || state === "STREAM_READY") serverSDK.connection.markSynchronized()
@@ -380,6 +386,11 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
         console.error("[global-sdk] active session resync failed", {
           serverId: ServerConnection.key(serverSDK.server),
           error: formatServerError(error, language.t),
+        })
+        void clientDiagnostics.report("session.resync_error", {
+          backendId: ServerConnection.key(serverSDK.server),
+          operation: "active_sessions",
+          errorCode: error instanceof Error ? error.name : "ACTIVE_SESSION_RESYNC_FAILED",
         })
       })
       .finally(() => {
@@ -590,6 +601,10 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
       }),
     ).catch((err) => {
       console.error("Failed to load sessions", err)
+      void clientDiagnostics.report("sessions.load_error", {
+        operation: "sessions",
+        errorCode: err instanceof Error ? err.name : "SESSION_LIST_FAILED",
+      })
       const project = getFilename(directory)
       showToast({
         variant: "error",
@@ -759,6 +774,12 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
       },
       onEventError: (error) => {
         console.error("[OpenCode event payload]", { code: error.code, eventType: error.eventType })
+        void clientDiagnostics.report("sse.event_payload_error", {
+          backendId: ServerConnection.key(serverSDK.server),
+          operation: "event_dispatch",
+          eventType: error.eventType,
+          errorCode: error.code,
+        })
       },
     })
   })

@@ -37,6 +37,7 @@ import {
   normalizeProviderList,
 } from "./utils"
 import { formatServerError } from "@/utils/server-errors"
+import { clientDiagnostics } from "@/utils/client-diagnostics"
 import { ClientError } from "@opencode-ai/client"
 import { QueryClient, queryOptions } from "@tanstack/solid-query"
 import { loadMcpQuery, loadMcpResourcesQuery } from "../server-sync"
@@ -628,6 +629,10 @@ export async function bootstrapDirectory(input: {
     const slowErrs = errors(await runAll(slow))
     if (slowErrs.length > 0) {
       console.error("Failed to finish bootstrap instance", slowErrs[0])
+      void clientDiagnostics.report("bootstrap.error", {
+        operation: "slow_resources",
+        errorCode: slowErrs[0] instanceof Error ? slowErrs[0].name : "BOOTSTRAP_RESOURCE_FAILED",
+      })
       const project = getFilename(input.directory)
       showToast({
         variant: "error",
