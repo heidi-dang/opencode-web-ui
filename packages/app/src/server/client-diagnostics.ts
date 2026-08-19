@@ -5,7 +5,7 @@ const MAX_BODY_BYTES = 16 * 1024
 const MAX_STRING_LENGTH = 1_024
 const MAX_STACK_LENGTH = 2_048
 const ALLOWED_LEVELS = new Set(["trace", "debug", "info", "warn", "error"])
-const SAFE_KEYS = new Set(["timestamp", "level", "event", "message", "stack", "route", "requestId", "backendId", "sessionId", "projectId", "protocol", "method", "status", "operation", "errorCode", "userAgent"])
+const SAFE_KEYS = new Set(["timestamp", "level", "event", "message", "stack", "route", "requestId", "backendId", "sessionId", "projectId", "protocol", "method", "status", "operation", "eventType", "eventId", "sequence", "durationMs", "errorCode", "userAgent"])
 const SENSITIVE_TEXT = /\b(prompt|message|content|text|part|attachment|file|body|cookie|password|token|authorization|secret|credential)\b/i
 
 export type ClientDiagnostic = {
@@ -23,6 +23,10 @@ export type ClientDiagnostic = {
   method?: string
   status?: number
   operation?: string
+  eventType?: string
+  eventId?: string
+  sequence?: number
+  durationMs?: number
   errorCode?: string
   userAgent?: string
 }
@@ -62,6 +66,7 @@ export function sanitizeClientDiagnostic(value: unknown): ClientDiagnostic | und
     if (key === "message") output.message = safeText(item, MAX_STRING_LENGTH)
     else if (key === "stack") output.stack = safeStack(item)
     else if (key === "status" && typeof item === "number" && Number.isInteger(item) && item >= 100 && item <= 599) output.status = item
+    else if ((key === "sequence" || key === "durationMs") && typeof item === "number" && Number.isFinite(item) && item >= 0) output[key] = Math.min(item, 86_400_000)
     else if (key === "route" && typeof item === "string" && item.startsWith("/") && !item.includes("?")) output.route = bounded(item, 512)
     else if (key === "timestamp" || key === "requestId" || key === "backendId" || key === "sessionId" || key === "projectId" || key === "protocol" || key === "method" || key === "operation" || key === "errorCode" || key === "userAgent") {
       const safe = bounded(item, key === "userAgent" ? 512 : MAX_STRING_LENGTH)

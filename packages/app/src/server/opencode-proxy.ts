@@ -28,7 +28,21 @@ export async function proxyOpenCodeRequest(req: IncomingMessage & { method?: str
   const requestRoute = incoming.pathname.replace(/^\/api\/opencode(?:\/api\/opencode)?/, "") || "/"
   const method = req.method || "GET"
   const streaming = requestRoute.includes("event") || requestRoute.includes("stream")
-  const logFields = { method, route: requestRoute, streaming }
+  const sessionID = requestRoute.match(/\/session\/([^/]+)/)?.[1]
+  const operation = requestRoute.includes("/prompt")
+    ? "prompt"
+    : requestRoute.includes("/interrupt")
+      ? "interrupt"
+      : requestRoute.includes("/project")
+        ? "projects"
+        : requestRoute.includes("/session")
+          ? "sessions"
+          : requestRoute.includes("/provider")
+            ? "providers"
+            : requestRoute.includes("/model")
+              ? "models"
+              : "gateway"
+  const logFields = { method, route: requestRoute, operation, sessionId: sessionID, streaming }
   const onRequestAbort = () => {
     runtimeLogger.warn("gateway.client_disconnect", { ...logFields, reason: "request_aborted" })
     upstreamAbort.abort()
@@ -115,6 +129,12 @@ export async function proxyOpenCodeRequest(req: IncomingMessage & { method?: str
     }
     res.statusCode = response.status
     runtimeLogger.debug("gateway.response", { ...logFields, backendId: registered.id, protocol: registered.protocol, status: response.status, responseType: response.headers.get("content-type") || undefined })
+    if (operation === "prompt" && response.status >= 200 && response.status < 300) {
+      runtimeLogger.info("prompt.admission", { ...logFields, backendId: registered.id, protocol: registered.protocol, status: response.status })
+    }
+    if (operation === "interrupt" && response.status >= 200 && response.status < 300) {
+      runtimeLogger.info("interrupt.acknowledged", { ...logFields, backendId: registered.id, protocol: registered.protocol, status: response.status })
+    }
     response.headers.forEach((value, key) => { if (!HOP_BY_HOP.has(key.toLowerCase()) && key.toLowerCase() !== "www-authenticate") res.setHeader(key, value) })
     if (!response.body) {
       upstreamFinished = true
@@ -140,6 +160,5 @@ export async function proxyOpenCodeRequest(req: IncomingMessage & { method?: str
     removeListeners()
     if (!upstreamFinished) upstreamAbort.abort()
     await reader?.cancel().catch(() => undefined)
-    if (upstreamFinished) runtimeLogger.trace("gateway.complete", { ...logFields, durationMs: Date.now() - started })
   }
 }

@@ -1,7 +1,7 @@
 type ClientDiagnosticFields = Record<string, unknown>
 type ClientDiagnosticsOptions = { enabled: boolean; fetcher?: typeof fetch; now?: () => number }
 
-const ALLOWED_KEYS = new Set(["timestamp", "message", "stack", "route", "requestId", "backendId", "sessionId", "projectId", "protocol", "method", "status", "operation", "errorCode", "userAgent"])
+const ALLOWED_KEYS = new Set(["timestamp", "message", "stack", "route", "requestId", "backendId", "sessionId", "projectId", "protocol", "method", "status", "operation", "eventType", "eventId", "sequence", "durationMs", "errorCode", "userAgent"])
 const SENSITIVE_TEXT = /\b(prompt|message|content|text|part|attachment|file|body|cookie|password|token|authorization|secret|credential)\b/i
 const MAX_EVENTS = 20
 const WINDOW_MS = 60_000
@@ -27,6 +27,8 @@ function safeFields(fields: ClientDiagnosticFields) {
       if (stack) result[key] = SENSITIVE_TEXT.test(stack) ? "client stack redacted" : stack.split("\n").slice(1).join("\n")
     } else if (key === "status") {
       if (typeof value === "number" && Number.isInteger(value)) result[key] = value
+    } else if (key === "sequence" || key === "durationMs") {
+      if (typeof value === "number" && Number.isFinite(value) && value >= 0) result[key] = Math.min(value, 86_400_000)
     } else {
       const safe = bounded(value, key === "userAgent" ? 512 : 1_024)
       if (safe) result[key] = key === "route" ? safe.split("?")[0] : safe
@@ -44,6 +46,12 @@ function errorFields(reason: unknown) {
   return { message: reason }
 }
 
+function levelForEvent(event: string) {
+  if (event === "window.error" || event === "window.unhandledrejection" || event.includes("error") || event.includes("failure")) return "error"
+  if (event.includes("reconnect") || event.includes("quarantined")) return "warn"
+  return "info"
+}
+
 export function createClientDiagnostics(options: ClientDiagnosticsOptions) {
   const fetcher = options.fetcher || fetch
   const now = options.now || Date.now
@@ -58,7 +66,7 @@ export function createClientDiagnostics(options: ClientDiagnosticsOptions) {
     if (sent >= MAX_EVENTS || sending) return
     sent++
     sending = true
-    const payload = { timestamp: new Date(current).toISOString(), level: "error", event, route: typeof location === "undefined" ? undefined : location.pathname, userAgent: typeof navigator === "undefined" ? undefined : navigator.userAgent, ...safeFields(fields) }
+    const payload = { timestamp: new Date(current).toISOString(), level: levelForEvent(event), event, route: typeof location === "undefined" ? undefined : location.pathname, userAgent: typeof navigator === "undefined" ? undefined : navigator.userAgent, ...safeFields(fields) }
     try {
       await fetcher("/api/debug/client-events", { method: "POST", headers: { "content-type": "application/json", accept: "application/json" }, body: JSON.stringify(payload), keepalive: true })
     } catch {

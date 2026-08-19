@@ -339,13 +339,13 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
         output,
         (event) => emitter.emit(event.directory, event.payload),
         (error, event) => {
-              console.error("[global-sdk] event dispatch failed", {
+          console.error("[global-sdk] event dispatch failed", {
             serverId: transportServer.http.id,
             type: event.payload.type,
             eventId: event.payload.id,
-                error: error instanceof Error ? error.message : "unknown event error",
-              })
-              void clientDiagnostics.report("sse.event_dispatch_error", { backendId: transportServer.http.id, errorCode: error instanceof Error ? error.name : "EVENT_DISPATCH_ERROR" })
+            error: error instanceof Error ? error.message : "unknown event error",
+          })
+          void clientDiagnostics.report("sse.event_dispatch_error", { backendId: transportServer.http.id, errorCode: error instanceof Error ? error.name : "EVENT_DISPATCH_ERROR" })
         },
       )
     })
@@ -390,8 +390,14 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
                 ? (await eventSdk.v2.event.subscribe({ signal: attempt.signal })).stream
                 : (() => {
                     throw new Error("Unable to determine the OpenCode event protocol")
-                  })()
+                })()
           manager.markStreamReady()
+          void clientDiagnostics.report("sse.connect.ready", {
+            backendId: transportServer.http.id,
+            protocol: kind,
+            operation: "event_stream",
+          })
+          let firstEvent = true
           let yielded = Date.now()
           for await (const event of events) {
             try {
@@ -400,6 +406,16 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
               if (legacy && event.payload.type === "sync") continue
               const directory = legacy ? (event.directory ?? "global") : (event.location?.directory ?? "global")
               const payload = legacy ? (event.payload as Event) : adaptServerEvent(event)
+              if (firstEvent) {
+                firstEvent = false
+                void clientDiagnostics.report("sse.first_event", {
+                  backendId: transportServer.http.id,
+                  protocol: kind,
+                  operation: "event_stream",
+                  eventType: payload.type,
+                  eventId: payload.id,
+                })
+              }
               if (enqueueServerEvent(queue, { directory, payload })) schedule()
             } catch (error) {
               console.error("[global-sdk] event quarantined", {

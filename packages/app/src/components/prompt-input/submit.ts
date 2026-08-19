@@ -23,6 +23,7 @@ import { createPromptSubmissionState } from "./submission-state"
 import { normalizeSessionInfo } from "@/utils/session"
 import { Event } from "@opencode-ai/schema/event"
 import { blobDataUrl } from "@/utils/draft-store"
+import { clientDiagnostics } from "@/utils/client-diagnostics"
 
 type PendingPrompt = {
   abort: AbortController
@@ -74,6 +75,12 @@ const draftText = (prompt: Prompt) => prompt.map((part) => ("content" in part ? 
 
 const draftImages = (prompt: Prompt) => prompt.filter((part): part is ImageAttachmentPart => part.type === "image")
 
+const errorCode = (error: unknown) => {
+  if (error instanceof Error && error.name) return error.name
+  if (error && typeof error === "object" && "name" in error && typeof error.name === "string") return error.name
+  return "PROMPT_REQUEST_FAILED"
+}
+
 export async function sendFollowupDraft(input: FollowupSendInput) {
   const text = draftText(input.draft.prompt)
   const images = draftImages(input.draft.prompt)
@@ -97,6 +104,12 @@ export async function sendFollowupDraft(input: FollowupSendInput) {
   const cmd = head?.startsWith("/") ? head.slice(1) : undefined
   if (cmd && input.sync.data.command.find((item) => item.name === cmd)) {
     setBusy()
+    void clientDiagnostics.report("prompt.start", {
+      sessionId: input.draft.sessionID,
+      operation: "command",
+      providerId: input.draft.model.providerID,
+      modelId: input.draft.model.modelID,
+    })
     try {
       if (!(await wait())) {
         setIdle()
@@ -122,9 +135,11 @@ export async function sendFollowupDraft(input: FollowupSendInput) {
           })),
         ),
       })
+      void clientDiagnostics.report("prompt.completed", { sessionId: input.draft.sessionID, operation: "command" })
       return true
     } catch (err) {
       setIdle()
+      void clientDiagnostics.report("prompt.error", { sessionId: input.draft.sessionID, operation: "command", errorCode: errorCode(err) })
       throw err
     }
   }
@@ -176,6 +191,13 @@ export async function sendFollowupDraft(input: FollowupSendInput) {
   })
 
   try {
+    void clientDiagnostics.report("prompt.start", {
+      sessionId: input.draft.sessionID,
+      operation: "prompt",
+      providerId: input.draft.model.providerID,
+      modelId: input.draft.model.modelID,
+      agentId: input.draft.agent,
+    })
     if (!(await wait())) {
       batch(() => {
         setIdle()
@@ -216,12 +238,20 @@ export async function sendFollowupDraft(input: FollowupSendInput) {
           : [],
       ),
     })
+    void clientDiagnostics.report("prompt.admission", {
+      sessionId: input.draft.sessionID,
+      operation: "prompt",
+      providerId: input.draft.model.providerID,
+      modelId: input.draft.model.modelID,
+      agentId: input.draft.agent,
+    })
     return true
   } catch (err) {
     batch(() => {
       setIdle()
       remove()
     })
+    void clientDiagnostics.report("prompt.error", { sessionId: input.draft.sessionID, operation: "prompt", errorCode: errorCode(err) })
     throw err
   }
 }
@@ -293,12 +323,14 @@ export function createPromptSubmit(input: PromptSubmitInput) {
       queued.abort.abort()
       queued.cleanup()
       pending.delete(key)
+      void clientDiagnostics.report("prompt.interrupted", { sessionId: sessionID, operation: "pending_submission" })
       return Promise.resolve()
     }
 
     if (!input.working()) return Promise.resolve()
 
     setInterrupting(true)
+    void clientDiagnostics.report("interrupt.start", { sessionId: sessionID, operation: "interrupt" })
     interruptRequest = (async () => {
       try {
         await interruptSession({
@@ -306,7 +338,9 @@ export function createPromptSubmit(input: PromptSubmitInput) {
           interrupt: () => sdk().api.session.interrupt({ sessionID }),
           resync: () => serverSync().session.resync(sessionID),
         })
+        void clientDiagnostics.report("prompt.interrupted", { sessionId: sessionID, operation: "interrupt" })
       } catch (err) {
+        void clientDiagnostics.report("interrupt.error", { sessionId: sessionID, operation: "interrupt", errorCode: errorCode(err) })
         showToast({
           variant: "error",
           title: language.t("prompt.action.stop"),
