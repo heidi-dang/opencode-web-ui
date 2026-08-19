@@ -3,7 +3,7 @@ import { CircuitBreaker } from "./circuit-breaker"
 import type { BackendDescriptor } from "./domain"
 import { OpenCodeAdapter } from "./adapters/opencode/adapter"
 import { getServer, listServers } from "../server-registry"
-import { listPrimaryBackends } from "../control-plane/repositories/backend-repository"
+import { isDatabasePrimary, listPrimaryBackends } from "../control-plane/repositories/backend-repository"
 import { runtimeLogger } from "../observability/logger"
 
 export class AgentBackendManager {
@@ -11,7 +11,7 @@ export class AgentBackendManager {
   private readonly pendingInstances = new Map<string, Promise<AgentBackend>>()
   private readonly circuits = new Map<string, CircuitBreaker>()
   private readonly healthProbes = new Map<string, Promise<Awaited<ReturnType<AgentBackend["health"]>>>>()
-  async list(): Promise<BackendDescriptor[]> { const primary = listPrimaryBackends(); if (primary.length) return primary; const servers = await listServers(); return Promise.all(servers.map(async (server) => (await this.get(server.id)).descriptor)) }
+  async list(): Promise<BackendDescriptor[]> { if (isDatabasePrimary()) return listPrimaryBackends(); const servers = await listServers(); return Promise.all(servers.map(async (server) => (await this.get(server.id)).descriptor)) }
   async get(id: string) {
     const existing = this.instances.get(id)
     if (existing) { runtimeLogger.debug("runtime.reuse", { backendId: id, runtimeCount: this.instances.size, pendingRuntimeCount: this.pendingInstances.size }); return existing }

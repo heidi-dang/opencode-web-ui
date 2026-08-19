@@ -2,12 +2,15 @@ import { describe, expect, test } from "bun:test"
 import { mkdtemp, rm, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 import { encryptCredential, decryptCredential } from "../control-plane/encryption/credentials"
+import { migrateControlPlaneDatabase, openControlPlaneDatabase } from "../control-plane/database/client"
 import type { BackendHealth } from "./domain"
 import { AgentBackendManager } from "./manager"
 import { EventHub } from "./event-hub"
 import { CircuitBreaker } from "./circuit-breaker"
 import { assertNetworkPolicy, normalizeBackendEndpoint } from "./network"
 import { assertImmutableBackendIdentity } from "./domain"
+import { resetRegistryForTests } from "../server-registry"
+import { isDatabasePrimary } from "../control-plane/repositories/backend-repository"
 
 describe("control server foundation", () => {
   async function withLegacyBackend<T>(run: (manager: AgentBackendManager, id: string) => Promise<T>) {
@@ -37,6 +40,42 @@ describe("control server foundation", () => {
       expect(first).toBe(second)
       expect(manager.metrics().runtimes).toBe(1)
     })
+  })
+
+  test.serial("does not fall back to stale legacy servers when the primary registry is empty", async () => {
+    const directory = await mkdtemp(join(process.env.TMPDIR || "/tmp", "opencode-empty-primary-registry-"))
+    const filename = join(directory, "control-plane.sqlite")
+    const legacyStore = join(directory, "legacy-registry.json")
+    const previousDb = process.env.CONTROL_PLANE_DB
+    const previousStore = process.env.OPENCODE_SERVERS_STORE
+    const previousMode = process.env.CONTROL_PLANE_LEGACY_TEST_MODE
+    const manager = new AgentBackendManager()
+
+    process.env.CONTROL_PLANE_DB = filename
+    process.env.OPENCODE_SERVERS_STORE = legacyStore
+    resetRegistryForTests()
+    delete process.env.CONTROL_PLANE_LEGACY_TEST_MODE
+
+    try {
+      await writeFile(legacyStore, JSON.stringify({ version: 1, servers: [{ id: "deleted-primary-server", name: "Stale", baseUrl: "https://stale.example", enabled: true, managed: "runtime", state: "READY", updatedAt: new Date().toISOString() }] }))
+      const db = openControlPlaneDatabase(filename)
+      migrateControlPlaneDatabase(db)
+      db.query("UPDATE control_plane_meta SET value='DATABASE_PRIMARY', updated_at=? WHERE key='registry_migration'").run(Date.now())
+      db.close()
+
+      expect(isDatabasePrimary()).toBe(true)
+      await expect(manager.list()).resolves.toEqual([])
+    } finally {
+      await manager.invalidate("deleted-primary-server")
+      if (previousDb === undefined) delete process.env.CONTROL_PLANE_DB
+      else process.env.CONTROL_PLANE_DB = previousDb
+      if (previousStore === undefined) delete process.env.OPENCODE_SERVERS_STORE
+      else process.env.OPENCODE_SERVERS_STORE = previousStore
+      if (previousMode === undefined) delete process.env.CONTROL_PLANE_LEGACY_TEST_MODE
+      else process.env.CONTROL_PLANE_LEGACY_TEST_MODE = previousMode
+      resetRegistryForTests()
+      await rm(directory, { recursive: true, force: true })
+    }
   })
 
   test("shares concurrent normal health probes for one backend", async () => {
