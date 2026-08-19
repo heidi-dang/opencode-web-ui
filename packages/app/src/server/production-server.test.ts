@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { createProductionApp } from "./production-server"
+import { createProductionApp, nodeResponse } from "./production-server"
 
 const app = createProductionApp()
 
@@ -27,5 +27,17 @@ describe("production Web UI server", () => {
 
     expect(response.status).toBe(200)
     expect(payload).toHaveProperty("servers")
+  })
+
+  test("does not commit headers before an async handler writes the response", async () => {
+    const { response, responseReady } = nodeResponse()
+    response.setHeader("x-request-id", "req_test")
+    const committedHeaders = responseReady.then((value) => value.headers)
+
+    await Promise.resolve()
+    response.setHeader("content-type", "application/json; charset=utf-8")
+    response.end("{}")
+
+    expect((await committedHeaders).get("content-type")).toBe("application/json; charset=utf-8")
   })
 })

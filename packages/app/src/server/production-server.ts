@@ -80,7 +80,7 @@ function nodeRequest(request: Request): IncomingMessage & { method: string; url:
   return req
 }
 
-function nodeResponse() {
+export function nodeResponse() {
   let controller: ReadableStreamDefaultController<Uint8Array> | undefined
   let committed = false
   let closed = false
@@ -103,7 +103,6 @@ function nodeResponse() {
     headersSent: false,
     setHeader(name: string, value: string | number | readonly string[]) {
       headers.set(name, Array.isArray(value) ? value.join(", ") : String(value))
-      queueMicrotask(commit)
       return response
     },
     getHeader(name: string) { return headers.get(name) ?? undefined },
