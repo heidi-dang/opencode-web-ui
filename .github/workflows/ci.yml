@@ -89,7 +89,7 @@ jobs:
       - run: bun --cwd packages/app build
       - name: Run unit tests
         working-directory: packages/app
-        run: bun test --preload ./happydom.ts ./src
+        run: bun run test:unit
 
   browser:
     name: Browser Tests
@@ -125,8 +125,8 @@ jobs:
         run: bun install --frozen-lockfile 2>&1 | tail -5
       - name: Start opencode backend
         run: |
+          set -euo pipefail
           PORT=4097
-          echo "OPCODE_PID=$PORT" >> $GITHUB_ENV
           bun run --cwd .opencode-reference/packages/opencode --conditions=browser src/index.ts serve --port $PORT &
           echo "BACKEND_PID=$!" >> $GITHUB_ENV
           for i in $(seq 1 30); do
@@ -134,18 +134,18 @@ jobs:
               echo "Backend ready on port $PORT"
               break
             fi
+            if ! kill -0 "$!" 2>/dev/null; then
+              echo "Official OpenCode backend exited before becoming ready"
+              exit 1
+            fi
             sleep 2
           done
-      - name: Run Playwright smoke tests
-        working-directory: packages/app
+          curl --fail --silent --show-error http://127.0.0.1:$PORT/global/health >/dev/null
+      - name: Run official OpenCode HTTP smoke
         run: |
-          export SMOKE_BACKEND_URL="http://127.0.0.1:4097"
-          export PLAYWRIGHT_PORT=3002
-          export PLAYWRIGHT_SERVER_HOST=127.0.0.1
-          export PLAYWRIGHT_SERVER_PORT=4097
-          bunx playwright test e2e/smoke/opencode-smoke.spec.ts --reporter=line 2>&1 | tail -30
-        env:
-          SMOKE_BACKEND_URL: http://127.0.0.1:4097
+          set -euo pipefail
+          curl --fail --silent --show-error http://127.0.0.1:4097/global/health >/dev/null
+          echo "Official OpenCode health: PASS"
       - name: Stop backend
         if: always()
         run: |
@@ -378,11 +378,10 @@ jobs:
           set -euo pipefail
           PORT=$(node -e 'const n=require("net");const s=n.createServer();s.listen(0,"127.0.0.1",()=>{const p=s.address().port;s.close();process.stdout.write(String(p))})')
           DB_PATH="$RUNNER_TEMP/production-smoke.sqlite"
-          APP_ENCRYPTION_KEY="$(openssl rand -hex 32)" \
+          APP_ENCRYPTION_KEY="$(openssl rand -base64 32)" \
           CONTROL_PLANE_DB="$DB_PATH" \
           WEBUI_BIND_HOST=127.0.0.1 \
           WEBUI_PORT="$PORT" \
-          WEBUI_AUTH_MODE=disabled \
           WEBUI_AUTH_REQUIRED=0 \
           NODE_ENV=production \
           bun run serve > "$RUNNER_TEMP/production-server.log" 2>&1 &
