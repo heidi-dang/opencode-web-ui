@@ -110,6 +110,17 @@ describe("control server foundation", () => {
     })
   })
 
+  test("opens the circuit after repeated unreachable health results", async () => {
+    await withLegacyBackend(async (manager, id) => {
+      const backend = await manager.get(id)
+      backend.health = async () => ({ backendId: id, reachable: false, authenticated: false, healthy: false, latencyMs: 1, checkedAt: new Date().toISOString(), error: "CONNECTION_REFUSED" })
+      await manager.health(id)
+      await manager.health(id)
+      await manager.health(id)
+      await expect(manager.health(id)).rejects.toThrow("BACKEND_CIRCUIT_OPEN")
+    })
+  })
+
   test("encrypts credentials with an authenticated versioned payload", () => { const key = Buffer.alloc(32, 7).toString("base64"); const encrypted = encryptCredential("secret", key); expect(encrypted.startsWith("v1.")).toBe(true); expect(decryptCredential(encrypted, key)).toBe("secret"); expect(() => decryptCredential(encrypted, Buffer.alloc(32, 8).toString("base64"))).toThrow() })
   test("normalizes endpoints and rejects URL credentials", () => { expect(normalizeBackendEndpoint("https://example.test///")).toBe("https://example.test"); expect(() => normalizeBackendEndpoint("https://user:pass@example.test")).toThrow("UNSAFE_SERVER_URL") })
   test("rejects private backend destinations unless the exact origin is allowlisted", () => {

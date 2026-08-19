@@ -57,7 +57,7 @@ export class AgentBackendManager {
     try {
       const result = await backend.health(signal)
       if (result.healthy) circuit.success()
-      else circuit.failure(result.authenticated)
+      else circuit.failure(!result.reachable || result.authenticated)
       const after = circuit.snapshot
       if (before.state !== after.state) runtimeLogger.info(after.state === "OPEN" ? "circuit.open" : "circuit.closed_after_recovery", { backendId: id, previousState: before.state, circuitState: after.state })
       runtimeLogger.debug("health.probe.complete", { backendId: id, recovery, protocol: result.protocol, reachable: result.reachable, authenticated: result.authenticated, healthy: result.healthy, latencyMs: result.latencyMs, circuitState: after.state })
