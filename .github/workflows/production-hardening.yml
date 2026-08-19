@@ -1,0 +1,39 @@
+name: Production Hardening
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main, feat/web-ui-control-server]
+
+concurrency:
+  group: production-hardening-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  hardening:
+    name: Control Server Hardening
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.14
+      - run: bun install --frozen-lockfile
+      - name: Run production-server, SSRF, database, proxy, and diagnostics gates
+        working-directory: packages/app
+        run: >-
+          bun test --conditions=solid --preload ./happydom.ts
+          ./src/server/production-server.test.ts
+          ./src/server/proxy.test.ts
+          ./src/server/client-diagnostics.test.ts
+          ./src/server/backend/foundation.test.ts
+          ./src/server/server-registry.test.ts
+      - name: Verify unified deployment topology
+        run: |
+          test -f deploy/Caddyfile
+          test -f deploy/debug/opencode-proxy.service
+          ! test -e deploy/opencode-proxy.service
+          grep -q '127.0.0.1:3000' deploy/Caddyfile
+          ! grep -q '127.0.0.1:8787' deploy/Caddyfile

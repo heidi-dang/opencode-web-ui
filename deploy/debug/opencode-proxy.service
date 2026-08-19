@@ -1,7 +1,10 @@
 [Unit]
-Description=OpenCode Web UI Bun proxy
+Description=OPTIONAL DEBUG / LEGACY ONLY - OpenCode standalone proxy
 After=network-online.target
 Wants=network-online.target
+
+# Do not enable this unit for normal production Web UI operation. The unified
+# Bun/Hono service owns the browser gateway and control plane.
 
 [Service]
 Type=simple
