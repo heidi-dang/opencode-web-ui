@@ -18,9 +18,11 @@ describe("backend service", () => {
     const directory = await mkdtemp(join(process.env.TMPDIR || "/tmp", "opencode-backend-service-"))
     const previousStore = process.env.OPENCODE_SERVERS_STORE
     const previousMode = process.env.CONTROL_PLANE_LEGACY_TEST_MODE
+    const previousAllowedServers = process.env.OPENCODE_ALLOWED_SERVERS
     const previousFetch = globalThis.fetch
     process.env.OPENCODE_SERVERS_STORE = join(directory, "servers.json")
     process.env.CONTROL_PLANE_LEGACY_TEST_MODE = "1"
+    process.env.OPENCODE_ALLOWED_SERVERS = "https://fixture.example"
     resetRegistryForTests()
     globalThis.fetch = (async () => Response.json({ healthy: true })) as unknown as typeof fetch
     let backendId: string | undefined
@@ -39,6 +41,8 @@ describe("backend service", () => {
       else process.env.OPENCODE_SERVERS_STORE = previousStore
       if (previousMode === undefined) delete process.env.CONTROL_PLANE_LEGACY_TEST_MODE
       else process.env.CONTROL_PLANE_LEGACY_TEST_MODE = previousMode
+      if (previousAllowedServers === undefined) delete process.env.OPENCODE_ALLOWED_SERVERS
+      else process.env.OPENCODE_ALLOWED_SERVERS = previousAllowedServers
       await rm(directory, { recursive: true, force: true })
     }
   })
