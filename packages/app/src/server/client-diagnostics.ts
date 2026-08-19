@@ -132,7 +132,8 @@ export async function handleClientDiagnosticsRequest(req: IncomingMessage, res: 
     }
     runtimeLogger[diagnostic.level]("client." + diagnostic.event, { source: "browser", ...diagnostic })
     res.statusCode = 204
-    return res.end()
+    res.end()
+    return
   } catch (error) {
     const code = error instanceof Error ? error.message : "CLIENT_EVENT_INVALID"
     runtimeLogger.warn("client_diagnostic.rejected", { reason: code })

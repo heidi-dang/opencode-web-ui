@@ -55,7 +55,11 @@ export async function handleControlPlaneRequest(req: IncomingMessage, res: Serve
     }
     if (req.method === "DELETE") {
       const deleted = await deleteBackend(id)
-      if (deleted) { res.statusCode = 204; return res.end() }
+      if (deleted) {
+        res.statusCode = 204
+        res.end()
+        return
+      }
       return sendJson(res, 404, { error: "SERVER_NOT_FOUND" })
     }
     return sendJson(res, 405, { error: "METHOD_NOT_ALLOWED" })

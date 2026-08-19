@@ -8,7 +8,7 @@ const server = {
   endpoint: "http://example.test",
   enabled: true,
   state: "READY" as const,
-  protocol: "v2",
+  protocol: "v2" as const,
   capabilities: { projects: true },
   createdAt: "2026-08-19T00:00:00.000Z",
   updatedAt: "2026-08-19T00:00:00.000Z",

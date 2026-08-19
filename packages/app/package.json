@@ -15,10 +15,10 @@
   "scripts": {
     "typecheck": "tsgo -b",
     "typecheck:e2e": "tsgo -p e2e/tsconfig.json",
-    "start": "bun --bun node_modules/vite/bin/vite.js",
+    "start": "bun run serve",
     "dev": "bun --bun node_modules/vite/bin/vite.js",
     "build": "bun --bun node_modules/vite/bin/vite.js build",
-    "serve": "bun --bun node_modules/vite/bin/vite.js preview",
+    "serve": "bun run src/server/production-server.ts",
     "test": "bun run test:unit && bun run test:browser",
     "test:unit": "bun test --conditions=solid --only-failures --preload ./happydom.ts ./src",
     "test:browser": "bun test --conditions=browser --preload ./happydom.ts ./test-browser",
@@ -49,6 +49,7 @@
   },
   "dependencies": {
     "@corvu/drawer": "catalog:",
+    "hono": "catalog:",
     "@dnd-kit/abstract": "0.5.0",
     "@dnd-kit/dom": "0.5.0",
     "@dnd-kit/helpers": "0.5.0",
