@@ -50,6 +50,11 @@ function redactString(value: string) {
   }
 }
 
+function safeErrorMessage(value: string) {
+  const redacted = redactString(value)
+  return /\b(prompt|message|content|text|part|attachment|file|body)\b/i.test(redacted) ? "error message redacted" : redacted
+}
+
 function sanitize(value: unknown, depth: number, seen: WeakSet<object>): unknown {
   if (depth > MAX_DEPTH) return "[Truncated]"
   if (value === null || value === undefined || typeof value === "boolean" || typeof value === "number") return value
@@ -57,8 +62,8 @@ function sanitize(value: unknown, depth: number, seen: WeakSet<object>): unknown
   if (value instanceof Error) {
     return {
       name: value.name,
-      message: redactString(value.message),
-      ...(value.stack ? { stack: redactString(value.stack) } : {}),
+      message: safeErrorMessage(value.message),
+      ...(value.stack ? { stack: value.stack.split("\n").slice(1, 8).map(redactString).join("\n") } : {}),
     }
   }
   if (typeof value !== "object") return String(value)
@@ -73,6 +78,14 @@ function sanitize(value: unknown, depth: number, seen: WeakSet<object>): unknown
     }
     if (key === "url" || key === "endpoint" || key === "baseUrl" || key === "upstreamUrl") {
       result[key] = typeof item === "string" ? redactString(item) : "[REDACTED]"
+      continue
+    }
+    if ((key === "message" || key === "errorMessage") && typeof item === "string") {
+      result[key] = safeErrorMessage(item)
+      continue
+    }
+    if (key === "stack" && typeof item === "string") {
+      result[key] = item.split("\n").slice(1, 8).map(redactString).join("\n")
       continue
     }
     result[key] = sanitize(item, depth + 1, seen)

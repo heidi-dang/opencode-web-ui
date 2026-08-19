@@ -4,6 +4,7 @@ import { EventHub } from "../../event-hub"
 import { defaultBackendCapabilities, type BackendDescriptor, type BackendHealth, type BackendModel, type BackendProject, type BackendProvider, type BackendSession } from "../../domain"
 import type { AgentBackend, BackendEventSubscription, PromptInput } from "../../agent-backend"
 import type { BackendEvent } from "../../events"
+import { runtimeLogger } from "../../../observability/logger"
 
 export class OpenCodeAdapter implements AgentBackend {
   readonly descriptor: BackendDescriptor
@@ -17,12 +18,17 @@ export class OpenCodeAdapter implements AgentBackend {
   async connect() {
     if (!this.server.enabled) throw new Error("SERVER_DISABLED")
     if (this.eventTask) return
+    runtimeLogger.debug("sse.connect.start", { backendId: this.server.id, protocol: this.server.protocol })
     this.eventAbort = new AbortController()
     this.eventTask = this.consumeEvents(this.eventAbort.signal).catch((error) => {
-      if (!this.eventAbort?.signal.aborted) this.events.publish({ id: `${this.server.id}:event-error:${++this.sequence}`, sequence: this.sequence, backendId: this.server.id, backendType: "opencode", type: "ERROR", timestamp: new Date().toISOString(), payload: { error: error instanceof Error ? error.message : "EVENT_STREAM_FAILED" } })
-    }).finally(() => { this.eventTask = undefined })
+      if (!this.eventAbort?.signal.aborted) {
+        runtimeLogger.error("sse.error", { backendId: this.server.id, error })
+        this.events.publish({ id: `${this.server.id}:event-error:${++this.sequence}`, sequence: this.sequence, backendId: this.server.id, backendType: "opencode", type: "ERROR", timestamp: new Date().toISOString(), payload: { error: error instanceof Error ? error.message : "EVENT_STREAM_FAILED" } })
+      }
+    }).finally(() => { runtimeLogger.debug("sse.disconnect", { backendId: this.server.id, aborted: this.eventAbort?.signal.aborted === true }); this.eventTask = undefined })
   }
   async disconnect() {
+    runtimeLogger.debug("sse.abort", { backendId: this.server.id, reason: "runtime_disconnect" })
     this.eventAbort?.abort()
     await this.eventTask?.catch(() => undefined)
     this.eventAbort = undefined
@@ -30,6 +36,7 @@ export class OpenCodeAdapter implements AgentBackend {
 
   private async consumeEvents(signal: AbortSignal) {
     const response = await this.request<Response>("event", { signal, raw: true })
+    runtimeLogger.debug("sse.connect.ready", { backendId: this.server.id, status: response.status, contentType: response.headers.get("content-type") || undefined })
     if (!response.body) return
     const reader = response.body.getReader()
     const decoder = new TextDecoder()
@@ -44,7 +51,7 @@ export class OpenCodeAdapter implements AgentBackend {
         for (const frame of frames) {
           const data = frame.split(/\r?\n/).filter((line) => line.startsWith("data:")).map((line) => line.slice(5).trim()).join("\n")
           if (!data) continue
-          try { this.publishUpstreamEvent(JSON.parse(data)) } catch { /* ignore malformed SSE frames */ }
+          try { this.publishUpstreamEvent(JSON.parse(data)) } catch (error) { runtimeLogger.warn("sse.event_error", { backendId: this.server.id, error }) }
         }
       }
     } finally { await reader.cancel().catch(() => undefined) }
@@ -58,19 +65,20 @@ export class OpenCodeAdapter implements AgentBackend {
     if (!eventType) return
     const properties = raw.properties && typeof raw.properties === "object" ? raw.properties as Record<string, unknown> : {}
     const sessionId = typeof raw.sessionID === "string" ? raw.sessionID : typeof properties.sessionID === "string" ? properties.sessionID : undefined
+    runtimeLogger.trace("sse.event", { backendId: this.server.id, eventType, sessionId, sequence: this.sequence + 1 })
     this.events.publish({ id: `${this.server.id}:${++this.sequence}`, sequence: this.sequence, backendId: this.server.id, backendType: "opencode", sessionId, type: eventType, timestamp: new Date().toISOString(), payload: value })
   }
   async health(signal?: AbortSignal): Promise<BackendHealth> { if (signal?.aborted) throw new DOMException("The operation was aborted", "AbortError"); const result = await probeRegisteredServer(this.server, 5000, signal); return { backendId: this.server.id, protocol: result.protocol, reachable: result.reachable, authenticated: result.authenticated, healthy: result.healthy, latencyMs: result.latencyMs, error: result.error, checkedAt: new Date().toISOString() } }
   async capabilities() { return this.descriptor.capabilities }
   private async request<T>(path: string, init?: RequestInit & { raw?: boolean }): Promise<T> { const url = assertNetworkPolicy(new URL(path, `${this.server.baseUrl}/`).toString()); const headers = new Headers(init?.headers); headers.delete("authorization"); if (this.server.password) headers.set("authorization", `Basic ${Buffer.from(`${this.server.username || "opencode"}:${this.server.password}`).toString("base64")}`); const { raw, ...requestInit } = init || {}; const response = await fetch(url, { ...requestInit, headers, redirect: "manual" }); if (response.status >= 300 && response.status < 400) throw new Error("BACKEND_REDIRECT_NOT_ALLOWED"); if (!response.ok) throw new Error(`BACKEND_HTTP_${response.status}`); return (raw ? response : response.json()) as T }
-  async listProjects(signal?: AbortSignal) { const value = await this.request<unknown>(this.server.protocol === "v2" ? "project" : "api/project", { signal }); const projects = Array.isArray(value) ? value : (value as { projects?: unknown[] })?.projects; return (projects || []).filter((item): item is Record<string, unknown> => !!item && typeof item === "object").map((item) => ({ id: String(item.id || item.directory || item.name), name: typeof item.name === "string" ? item.name : undefined, directory: typeof item.directory === "string" ? item.directory : undefined })) as BackendProject[] }
-  async listSessions(projectId?: string, signal?: AbortSignal) { const value = await this.request<unknown>(`session${projectId ? `?directory=${encodeURIComponent(projectId)}` : ""}`, { signal }); return (Array.isArray(value) ? value : []) as BackendSession[] }
-  async getSession(sessionId: string, signal?: AbortSignal) { return this.request<BackendSession>(`session/${encodeURIComponent(sessionId)}`, { signal }) }
-  async createSession(projectId?: string, signal?: AbortSignal) { return this.request<BackendSession>("session", { method: "POST", body: JSON.stringify(projectId ? { directory: projectId } : {}), signal }) }
-  async interruptSession(sessionId: string, signal?: AbortSignal) { await this.request(`session/${encodeURIComponent(sessionId)}/interrupt`, { method: "POST", signal }) }
-  async prompt(input: PromptInput, signal?: AbortSignal) { await this.request(`session/${encodeURIComponent(input.sessionId)}/message`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ parts: [{ type: "text", text: input.text }] }), signal }) }
-  async listProviders(signal?: AbortSignal) { const value = await this.request<{ providers?: BackendProvider[] }>("provider", { signal }); return value.providers || [] }
-  async listModels(signal?: AbortSignal) { const providers = await this.listProviders(signal); return providers.flatMap((provider) => (provider.models || []).map((model) => ({ ...model, providerId: model.providerId || provider.id }))) as BackendModel[] }
+  async listProjects(signal?: AbortSignal) { const started = Date.now(); runtimeLogger.debug("opencode.projects.start", { backendId: this.server.id, protocol: this.server.protocol }); try { const value = await this.request<unknown>(this.server.protocol === "v2" ? "project" : "api/project", { signal }); const projects = Array.isArray(value) ? value : (value as { projects?: unknown[] })?.projects; const result = (projects || []).filter((item): item is Record<string, unknown> => !!item && typeof item === "object").map((item) => ({ id: String(item.id || item.directory || item.name), name: typeof item.name === "string" ? item.name : undefined, directory: typeof item.directory === "string" ? item.directory : undefined })) as BackendProject[]; runtimeLogger.debug("opencode.projects.complete", { backendId: this.server.id, count: result.length, durationMs: Date.now() - started }); return result } catch (error) { runtimeLogger.error("opencode.projects.error", { backendId: this.server.id, durationMs: Date.now() - started, error }); throw error } }
+  async listSessions(projectId?: string, signal?: AbortSignal) { const started = Date.now(); runtimeLogger.debug("opencode.sessions.start", { backendId: this.server.id, projectId }); try { const value = await this.request<unknown>(`session${projectId ? `?directory=${encodeURIComponent(projectId)}` : ""}`, { signal }); const result = (Array.isArray(value) ? value : []) as BackendSession[]; runtimeLogger.debug("opencode.sessions.complete", { backendId: this.server.id, projectId, count: result.length, durationMs: Date.now() - started }); return result } catch (error) { runtimeLogger.error("opencode.sessions.error", { backendId: this.server.id, projectId, durationMs: Date.now() - started, error }); throw error } }
+  async getSession(sessionId: string, signal?: AbortSignal) { runtimeLogger.debug("opencode.session.get", { backendId: this.server.id, sessionId }); return this.request<BackendSession>(`session/${encodeURIComponent(sessionId)}`, { signal }) }
+  async createSession(projectId?: string, signal?: AbortSignal) { const started = Date.now(); runtimeLogger.info("opencode.session.create", { backendId: this.server.id, projectId }); try { const result = await this.request<BackendSession>("session", { method: "POST", body: JSON.stringify(projectId ? { directory: projectId } : {}), signal }); runtimeLogger.info("opencode.session.created", { backendId: this.server.id, sessionId: result.id, projectId, durationMs: Date.now() - started }); return result } catch (error) { runtimeLogger.error("opencode.session.create.error", { backendId: this.server.id, projectId, durationMs: Date.now() - started, error }); throw error } }
+  async interruptSession(sessionId: string, signal?: AbortSignal) { runtimeLogger.info("opencode.session.interrupt", { backendId: this.server.id, sessionId }); await this.request(`session/${encodeURIComponent(sessionId)}/interrupt`, { method: "POST", signal }) }
+  async prompt(input: PromptInput, signal?: AbortSignal) { const started = Date.now(); runtimeLogger.info("opencode.prompt.start", { backendId: this.server.id, sessionId: input.sessionId, promptLength: input.text.length }); try { await this.request(`session/${encodeURIComponent(input.sessionId)}/message`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ parts: [{ type: "text", text: input.text }] }), signal }); runtimeLogger.info("opencode.prompt.accepted", { backendId: this.server.id, sessionId: input.sessionId, durationMs: Date.now() - started }) } catch (error) { runtimeLogger.error("opencode.prompt.error", { backendId: this.server.id, sessionId: input.sessionId, durationMs: Date.now() - started, error }); throw error } }
+  async listProviders(signal?: AbortSignal) { const started = Date.now(); runtimeLogger.debug("opencode.providers.start", { backendId: this.server.id }); try { const value = await this.request<{ providers?: BackendProvider[] }>("provider", { signal }); const result = value.providers || []; runtimeLogger.debug("opencode.providers.complete", { backendId: this.server.id, count: result.length, durationMs: Date.now() - started }); return result } catch (error) { runtimeLogger.error("opencode.providers.error", { backendId: this.server.id, durationMs: Date.now() - started, error }); throw error } }
+  async listModels(signal?: AbortSignal) { const started = Date.now(); try { const providers = await this.listProviders(signal); const result = providers.flatMap((provider) => (provider.models || []).map((model) => ({ ...model, providerId: model.providerId || provider.id }))) as BackendModel[]; runtimeLogger.debug("opencode.models.complete", { backendId: this.server.id, count: result.length, durationMs: Date.now() - started }); return result } catch (error) { runtimeLogger.error("opencode.models.error", { backendId: this.server.id, durationMs: Date.now() - started, error }); throw error } }
   subscribe(listener: (event: BackendEvent) => void): BackendEventSubscription { return this.events.subscribe(listener) }
 }
 

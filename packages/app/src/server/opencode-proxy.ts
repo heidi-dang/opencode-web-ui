@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http"
 import { getServer } from "./server-registry"
 import { assertNetworkPolicy } from "./backend/network"
+import { runtimeLogger } from "./observability/logger"
 
 const HOP_BY_HOP = new Set(["connection", "content-encoding", "content-length", "etag", "host", "keep-alive", "transfer-encoding", "upgrade"])
 
@@ -22,9 +23,24 @@ function json(res: ServerResponse, status: number, error: string) {
 
 export async function proxyOpenCodeRequest(req: IncomingMessage & { method?: string; url?: string }, res: ServerResponse): Promise<boolean> {
   const upstreamAbort = new AbortController()
-  const onRequestAbort = () => upstreamAbort.abort()
-  const onResponseClose = () => upstreamAbort.abort()
-  const onResponseError = () => upstreamAbort.abort()
+  const started = Date.now()
+  const incoming = new URL(req.url || "/", `http://${req.headers?.host || "localhost"}`)
+  const requestRoute = incoming.pathname.replace(/^\/api\/opencode(?:\/api\/opencode)?/, "") || "/"
+  const method = req.method || "GET"
+  const streaming = requestRoute.includes("event") || requestRoute.includes("stream")
+  const logFields = { method, route: requestRoute, streaming }
+  const onRequestAbort = () => {
+    runtimeLogger.warn("gateway.client_disconnect", { ...logFields, reason: "request_aborted" })
+    upstreamAbort.abort()
+  }
+  const onResponseClose = () => {
+    if (!upstreamFinished) runtimeLogger.warn("gateway.client_disconnect", { ...logFields, reason: "response_closed" })
+    upstreamAbort.abort()
+  }
+  const onResponseError = () => {
+    runtimeLogger.warn("gateway.client_disconnect", { ...logFields, reason: "response_error" })
+    upstreamAbort.abort()
+  }
   let upstreamFinished = false
   let reader: ReadableStreamDefaultReader<Uint8Array> | undefined
 
@@ -54,17 +70,19 @@ export async function proxyOpenCodeRequest(req: IncomingMessage & { method?: str
   res.once?.("close", onResponseClose)
   res.once?.("error", onResponseError)
   try {
-    const incoming = new URL(req.url || "/", `http://${req.headers?.host || "localhost"}`)
-    const route = incoming.searchParams.get("__proxy_route") || incoming.pathname.replace(/^\/api\/opencode(?:\/api\/opencode)?/, "") || "/"
+    const route = incoming.searchParams.get("__proxy_route") || requestRoute
+    runtimeLogger.debug("gateway.start", { ...logFields, route })
     let origin: URL
     let registered: Awaited<ReturnType<typeof resolveServer>>["server"]
     try {
       const resolved = await resolveServer(incoming)
       origin = assertNetworkPolicy(resolved.baseUrl.toString())
       registered = resolved.server
+      runtimeLogger.debug("gateway.upstream_resolved", { ...logFields, backendId: registered.id, protocol: registered.protocol, upstreamRoute: route })
     } catch (error) {
       const message = error instanceof Error ? error.message : "SERVER_NOT_FOUND"
       const status = message === "SERVER_NOT_FOUND" ? 404 : message === "SERVER_DISABLED" ? 409 : 500
+      runtimeLogger.warn("gateway.redirect_rejected", { ...logFields, status, errorCode: message, error })
       return json(res, status, message) as never
     }
     incoming.searchParams.delete("serverId")
@@ -76,7 +94,6 @@ export async function proxyOpenCodeRequest(req: IncomingMessage & { method?: str
     const upstreamRoute = registered.protocol === "v2" && route === "/api/project" ? "/project" : route
     const upstream = new URL(`${basePath}${upstreamRoute}`, `${origin.origin}/`)
     incoming.searchParams.forEach((value, key) => upstream.searchParams.append(key, value))
-    const method = req.method || "GET"
     const headers = new Headers()
     for (const [key, value] of Object.entries(req.headers || {})) {
       const lower = key.toLowerCase()
@@ -84,6 +101,7 @@ export async function proxyOpenCodeRequest(req: IncomingMessage & { method?: str
     }
     if (registered.password) headers.set("authorization", `Basic ${Buffer.from(`${registered.username || "opencode"}:${registered.password}`).toString("base64")}`)
     const body = method === "GET" || method === "HEAD" ? undefined : req
+    runtimeLogger.debug("gateway.upstream_start", { ...logFields, backendId: registered.id, protocol: registered.protocol, upstreamRoute: upstream.pathname })
     const response = await fetch(upstream, {
       method,
       headers,
@@ -96,6 +114,7 @@ export async function proxyOpenCodeRequest(req: IncomingMessage & { method?: str
       throw new Error("UPSTREAM_REDIRECT_NOT_ALLOWED")
     }
     res.statusCode = response.status
+    runtimeLogger.debug("gateway.response", { ...logFields, backendId: registered.id, protocol: registered.protocol, status: response.status, responseType: response.headers.get("content-type") || undefined })
     response.headers.forEach((value, key) => { if (!HOP_BY_HOP.has(key.toLowerCase()) && key.toLowerCase() !== "www-authenticate") res.setHeader(key, value) })
     if (!response.body) {
       upstreamFinished = true
@@ -110,14 +129,17 @@ export async function proxyOpenCodeRequest(req: IncomingMessage & { method?: str
     }
     upstreamFinished = true
     res.end()
+    runtimeLogger.debug("gateway.complete", { ...logFields, backendId: registered.id, status: response.status, durationMs: Date.now() - started })
     return true
   } catch (error) {
-    if (!upstreamAbort.signal.aborted) console.error("[OpenCode Proxy Error]", error instanceof Error ? error.name : "unknown")
+    if (upstreamAbort.signal.aborted) runtimeLogger.info("gateway.abort", { ...logFields, durationMs: Date.now() - started })
+    else runtimeLogger.error("gateway.upstream_error", { ...logFields, durationMs: Date.now() - started, error })
     if (!res.headersSent) json(res, 502, "UPSTREAM_CONNECTION_FAILED")
     return true
   } finally {
     removeListeners()
     if (!upstreamFinished) upstreamAbort.abort()
     await reader?.cancel().catch(() => undefined)
+    if (upstreamFinished) runtimeLogger.trace("gateway.complete", { ...logFields, durationMs: Date.now() - started })
   }
 }

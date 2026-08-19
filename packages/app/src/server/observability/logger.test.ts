@@ -50,6 +50,17 @@ describe("structured runtime logger", () => {
     expect(logger.serialize(records[0])).toContain("[Circular]")
   })
 
+  test("does not emit prompt-like exception messages", () => {
+    const records: LogRecord[] = []
+    const logger = createLogger({ level: "error", sink: (record) => records.push(record) })
+
+    logger.error("prompt.error", { error: new Error("prompt text: do not emit this private content") })
+
+    const serialized = logger.serialize(records[0])
+    expect(serialized).not.toContain("do not emit this private content")
+    expect(serialized).toContain("message redacted")
+  })
+
   test("accepts only bounded safe request IDs", () => {
     expect(normalizeRequestId("req_manual-123")).toBe("req_manual-123")
     expect(normalizeRequestId("a".repeat(200))).toBeUndefined()

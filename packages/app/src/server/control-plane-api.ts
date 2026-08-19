@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http"
 import { getBootstrap } from "./services/bootstrap-service"
 import { deleteBackend, getBackend, listBackendDescriptors, probeBackend, registerBackend, updateBackend } from "./services/backend-service"
+import { runtimeLogger } from "./observability/logger"
 
 function sendJson(res: ServerResponse, status: number, payload: unknown) {
   res.statusCode = status
@@ -19,6 +20,7 @@ function errorStatus(message: string) {
 }
 
 export async function handleControlPlaneRequest(req: IncomingMessage, res: ServerResponse, pathname: string) {
+  runtimeLogger.debug("control.request", { method: req.method || "GET", route: pathname })
   try {
     if (pathname === "/api/bootstrap" && req.method === "GET") return sendJson(res, 200, await getBootstrap())
     if (pathname === "/api/opencode/servers") {
@@ -56,6 +58,7 @@ export async function handleControlPlaneRequest(req: IncomingMessage, res: Serve
     return sendJson(res, 405, { error: "METHOD_NOT_ALLOWED" })
   } catch (error) {
     const message = error instanceof Error ? error.message : "SERVER_OPERATION_FAILED"
+    runtimeLogger.error("control.request.error", { method: req.method || "GET", route: pathname, errorCode: message, error })
     return sendJson(res, errorStatus(message), { error: message })
   }
 }
