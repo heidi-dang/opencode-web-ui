@@ -8,10 +8,11 @@ export default defineConfig({
     alias: {
       "@": path.resolve(__dirname, "../packages/app/src"),
     },
+    dedupe: ["solid-js", "solid-js/web", "solid-js/store", "@solidjs/router"],
   },
   server: {
     host: "0.0.0.0",
-    port: 3000,
+    port: process.env.PORT ? parseInt(process.env.PORT) : 3000,
   },
   define: {
     "import.meta.env.VITE_APP_RUNTIME": '"review"',
