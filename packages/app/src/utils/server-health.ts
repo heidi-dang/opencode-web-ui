@@ -2,11 +2,13 @@ import { usePlatform } from "@/context/platform"
 import { ServerConnection } from "@/context/server"
 import { authTokenFromCredentials, fetchForServer } from "./server"
 import { classifyTailscaleServer, type TailscaleDiagnostics } from "./tailscale"
+import { parseControlPlaneHealth, type ControlPlaneServerState } from "./control-plane-contract"
 import { Accessor, createEffect, onCleanup } from "solid-js"
 import { createStore, reconcile } from "solid-js/store"
 
 export type ServerHealth = {
   healthy: boolean
+  state?: ControlPlaneServerState
   version?: string
   protocol?: "v1" | "v2"
   latencyMs?: number
@@ -112,17 +114,10 @@ export async function checkServerHealth(
     const startedAt = Date.now()
     try {
       const response = await fetch(`/api/opencode/servers/${encodeURIComponent(server.id)}/health`, { signal: opts?.signal })
-      const payload = (await response.json()) as {
-        healthy?: unknown
-        authenticated?: unknown
-        reachable?: unknown
-        protocol?: "v1" | "v2"
-        latencyMs?: unknown
-        error?: string
-        server?: { state?: string }
-      }
+      const payload = parseControlPlaneHealth(await response.json())
       return {
-        healthy: payload.healthy === true,
+        healthy: payload.healthy === true && response.ok,
+        state: payload.state,
         authenticated: payload.authenticated === true,
         reachable: payload.reachable === true,
         protocol: payload.protocol,

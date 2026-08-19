@@ -3,6 +3,7 @@ import { getBootstrap } from "./services/bootstrap-service"
 import { deleteBackend, getBackend, listBackendDescriptors, probeBackend, registerBackend, updateBackend } from "./services/backend-service"
 import { runtimeLogger } from "./observability/logger"
 import { handleClientDiagnosticsRequest } from "./client-diagnostics"
+import { serializeControlPlaneHealth, serializeRegistration } from "./control-plane-contract"
 
 function sendJson(res: ServerResponse, status: number, payload: unknown) {
   res.statusCode = status
@@ -32,7 +33,7 @@ export async function handleControlPlaneRequest(req: IncomingMessage, res: Serve
       const server = await registerBackend({ name: typeof input.name === "string" ? input.name : undefined, baseUrl: typeof input.baseUrl === "string" ? input.baseUrl : "", username: typeof input.username === "string" ? input.username : undefined, password: typeof input.password === "string" ? input.password : undefined, enabled: input.enabled !== false })
       if (!server) return sendJson(res, 500, { error: "REGISTRATION_FAILED" })
       const result = await probeBackend(server.id)
-      return sendJson(res, 201, { server: result.server, ready: result.health.healthy, reachability: result.health.reachable ? result.health.healthy ? "SERVER_READY" : "SERVER_HEALTH_FAILED" : "SERVER_REGISTERED_BUT_UNREACHABLE", probe: result.health })
+      return sendJson(res, 201, serializeRegistration(result.server, result.health))
     }
     const match = pathname.match(/^\/api\/opencode\/servers\/([^/]+)(?:\/(health|reconnect))?$/)
     if (!match) return false
@@ -41,7 +42,7 @@ export async function handleControlPlaneRequest(req: IncomingMessage, res: Serve
     if (action) {
       if (req.method !== "GET" && req.method !== "POST") return sendJson(res, 405, { error: "METHOD_NOT_ALLOWED" })
       const result = await probeBackend(id, action === "reconnect")
-      return sendJson(res, action === "health" ? 200 : result.health.healthy ? 200 : 502, result)
+      return sendJson(res, action === "health" ? 200 : result.health.healthy ? 200 : 502, serializeControlPlaneHealth(result.server, result.health))
     }
     if (req.method === "GET") {
       const backend = await getBackend(id)

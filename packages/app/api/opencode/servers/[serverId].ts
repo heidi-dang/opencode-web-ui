@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next"
 import { deleteBackend, getBackend, probeBackend, updateBackend } from "@/server/services/backend-service"
+import { serializeControlPlaneHealth } from "@/server/control-plane-contract"
 
 async function requestBody(req: NextApiRequest) {
   if (typeof req.body === "object" && req.body) return req.body
@@ -26,7 +27,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (req.method === "DELETE") return res.status((await deleteBackend(id)) ? 204 : 404).end()
     if (req.method === "POST" && req.url?.includes("/health")) {
       const result = await probeBackend(id, true)
-      return res.status(result.health.healthy ? 200 : 502).json({ server: result.server, ...result.health })
+      return res.status(result.health.healthy ? 200 : 502).json(serializeControlPlaneHealth(result.server, result.health))
     }
     return res.status(405).json({ error: "METHOD_NOT_ALLOWED" })
   } catch (error) {

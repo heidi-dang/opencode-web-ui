@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next"
 import { listBackendDescriptors, probeBackend, registerBackend } from "@/server/services/backend-service"
+import { serializeRegistration } from "@/server/control-plane-contract"
 
 async function body(req: NextApiRequest) {
   if (typeof req.body === "object" && req.body) return req.body
@@ -21,12 +22,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       enabled: input.enabled !== false,
     })
     const result = await probeBackend(server.id)
-    return res.status(201).json({
-      server: result.server,
-      ready: result.health.healthy,
-      reachability: result.health.reachable ? (result.health.healthy ? "SERVER_READY" : "SERVER_HEALTH_FAILED") : "SERVER_REGISTERED_BUT_UNREACHABLE",
-      probe: { ...result.health },
-    })
+    return res.status(201).json(serializeRegistration(result.server, result.health))
   } catch (error) {
     const message = error instanceof Error ? error.message : "REGISTRATION_FAILED"
     const status = ["UNSUPPORTED_URL_SCHEME", "UNSAFE_SERVER_URL", "INVALID_SERVER_URL", "DUPLICATE_SERVER_URL"].includes(message) ? 400 : 500

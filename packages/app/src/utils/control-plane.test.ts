@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { bootstrapToServerConnections, findBootstrapBackend, normalizedBackendUrl } from "./control-plane"
+import { parseControlPlaneHealth, type ControlPlaneHealthResponse } from "./control-plane-contract"
 
 describe("control-plane bootstrap", () => {
   test("maps stable backend ids without credentials", () => {
@@ -23,5 +24,37 @@ describe("control-plane bootstrap", () => {
 
   test("excludes disabled backends from active connections", () => {
     expect(bootstrapToServerConnections({ backends: [{ id: "b-1", endpoint: "http://localhost:4096", enabled: false }] })).toEqual([])
+  })
+})
+
+describe("control-plane health contract", () => {
+  const response: ControlPlaneHealthResponse = {
+    server: {
+      id: "srv-1",
+      name: "Test",
+      endpoint: "http://example.test",
+      enabled: true,
+      state: "READY",
+    },
+    state: "READY",
+    protocol: "v2",
+    reachable: true,
+    authenticated: true,
+    healthy: true,
+    latencyMs: 12,
+    checkedAt: "2026-08-19T00:00:00.000Z",
+  }
+
+  test("accepts the canonical flattened health response", () => {
+    expect(parseControlPlaneHealth(response)).toEqual(response)
+  })
+
+  test("does not turn a malformed health response into an offline backend", () => {
+    expect(parseControlPlaneHealth({ server: response.server, healthy: true })).toMatchObject({
+      error: "CONTROL_PLANE_CONTRACT_INVALID",
+      healthy: false,
+      reachable: false,
+      authenticated: false,
+    })
   })
 })

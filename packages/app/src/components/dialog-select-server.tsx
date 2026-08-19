@@ -43,6 +43,8 @@ function probeErrorMessage(error: string | undefined) {
       return "OpenCode health check failed."
     case "SERVER_DISABLED":
       return "Server is disabled."
+    case "CONTROL_PLANE_CONTRACT_INVALID":
+      return "The Web UI received an invalid server health response."
     default:
       return "Server unreachable."
   }
@@ -305,7 +307,7 @@ export function useServerManagementController(options: { onSelect?: () => void; 
       }
       conn.http.id = payload.server.id
       conn.http.password = undefined
-      const ready = payload.ready === true && payload.server.state === "READY" && payload.probe?.state === "READY"
+      const ready = payload.ready === true && payload.server.state === "READY" && payload.probe?.healthy === true
       if (!ready) {
         server.add(conn, { activate: false })
         global.servers.refresh()
@@ -371,7 +373,7 @@ export function useServerManagementController(options: { onSelect?: () => void; 
         }
         const healthResponse = await fetch(`/api/opencode/servers/${encodeURIComponent(input.original.http.id)}/health`, { method: "POST" })
         const health = await healthResponse.json()
-        const ready = healthResponse.ok && health.state === "READY" && health.protocol
+        const ready = healthResponse.ok && health.state === "READY" && health.healthy === true && !!health.protocol
         if (!ready) {
           server.add(conn, { activate: false })
           global.servers.refresh()
