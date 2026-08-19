@@ -217,7 +217,7 @@ describe("Universal OpenCode Proxy", () => {
     const originalFetch = globalThis.fetch
     let upstreamSignal: AbortSignal | undefined
     globalThis.fetch = mock(async (_url: URL | RequestInfo, init?: RequestInit) => {
-      upstreamSignal = init?.signal
+      upstreamSignal = init?.signal ?? undefined
       return new Response(new ReadableStream({
         start(controller) {
           controller.enqueue(new TextEncoder().encode("blocked"))
