@@ -67,6 +67,7 @@ function validPassword(password: string, passwordHash: string) {
 
 export function validateWebUIAuthConfiguration() {
   const config = configuredAuth()
+  if (process.env.WEBUI_AUTH_REQUIRED === "1" && config.mode === "disabled") throw new Error("WEBUI_AUTH_REQUIRED")
   if (config.mode === "invalid") throw new Error(config.error)
   if (config.mode === "basic" && !decodeHash(config.passwordHash)) throw new Error("WEBUI_AUTH_PASSWORD_HASH_INVALID")
   return config
@@ -74,7 +75,7 @@ export function validateWebUIAuthConfiguration() {
 
 export function authorizeWebUIRequest(headers: Headers | IncomingHttpHeaders) {
   const config = configuredAuth()
-  if (config.mode === "disabled") return { allowed: true as const }
+  if (config.mode === "disabled") return process.env.WEBUI_AUTH_REQUIRED === "1" ? { allowed: false as const, status: 503, error: "AUTH_MISCONFIGURED" } : { allowed: true as const }
   if (config.mode === "invalid") return { allowed: false as const, status: 503, error: "AUTH_MISCONFIGURED" }
   const credentials = basicCredentials(headers)
   if (!credentials || !fixedEqual(credentials.username, config.username) || !validPassword(credentials.password, config.passwordHash)) {

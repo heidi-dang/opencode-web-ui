@@ -74,6 +74,33 @@ describe("production Web UI server", () => {
     }
   })
 
+  test("fails closed when production auth is required but not configured", async () => {
+    const previous = {
+      required: process.env.WEBUI_AUTH_REQUIRED,
+      mode: process.env.WEBUI_AUTH_MODE,
+      username: process.env.WEBUI_AUTH_USERNAME,
+      passwordHash: process.env.WEBUI_AUTH_PASSWORD_HASH,
+    }
+    process.env.WEBUI_AUTH_REQUIRED = "1"
+    delete process.env.WEBUI_AUTH_MODE
+    delete process.env.WEBUI_AUTH_USERNAME
+    delete process.env.WEBUI_AUTH_PASSWORD_HASH
+    try {
+      const response = await createProductionApp().request("http://localhost/")
+      expect(response.status).toBe(503)
+      expect(await response.json()).toEqual({ error: "AUTH_MISCONFIGURED" })
+    } finally {
+      if (previous.required === undefined) delete process.env.WEBUI_AUTH_REQUIRED
+      else process.env.WEBUI_AUTH_REQUIRED = previous.required
+      if (previous.mode === undefined) delete process.env.WEBUI_AUTH_MODE
+      else process.env.WEBUI_AUTH_MODE = previous.mode
+      if (previous.username === undefined) delete process.env.WEBUI_AUTH_USERNAME
+      else process.env.WEBUI_AUTH_USERNAME = previous.username
+      if (previous.passwordHash === undefined) delete process.env.WEBUI_AUTH_PASSWORD_HASH
+      else process.env.WEBUI_AUTH_PASSWORD_HASH = previous.passwordHash
+    }
+  })
+
   test("serves the built SPA and client-side routes", async () => {
     const root = await app.request("http://localhost/")
     const deepLink = await app.request("http://localhost/session/demo")

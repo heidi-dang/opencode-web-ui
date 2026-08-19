@@ -82,7 +82,7 @@ describe("server registry", () => {
     const server = await registerServer({ baseUrl: "https://redirect.example" })
     const originalFetch = globalThis.fetch
     let redirect: RequestRedirect | undefined
-    globalThis.fetch = (async (_input, init) => {
+    globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
       redirect = init?.redirect
       return new Response(null, { status: 404 })
     }) as unknown as typeof fetch
