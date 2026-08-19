@@ -212,4 +212,34 @@ describe("Universal OpenCode Proxy", () => {
       globalThis.fetch = originalFetch
     }
   })
+
+  test("aborts the upstream while the gateway is blocked on drain", async () => {
+    const originalFetch = globalThis.fetch
+    let upstreamSignal: AbortSignal | undefined
+    globalThis.fetch = mock(async (_url: URL | RequestInfo, init?: RequestInit) => {
+      upstreamSignal = init?.signal
+      return new Response(new ReadableStream({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode("blocked"))
+        },
+      }), { status: 200 })
+    }) as unknown as typeof fetch
+    const listeners = new Map<string, () => void>()
+    const res = {
+      ...response(),
+      write() { return false },
+      once(name: string, listener: () => void) { listeners.set(name, listener) },
+      removeListener(name: string) { listeners.delete(name) },
+    }
+    try {
+      const pending = handleOpenCodeProxy(request("/api/opencode/global/event?serverId=srv-api") as any, res as any)
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      expect(upstreamSignal?.aborted).toBe(false)
+      listeners.get("close")?.()
+      await pending
+      expect(upstreamSignal?.aborted).toBe(true)
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
 })

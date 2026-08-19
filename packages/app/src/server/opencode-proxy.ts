@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http"
 import { getServer } from "./server-registry"
 import { validateBackendDestination } from "./backend/network"
 import { runtimeLogger } from "./observability/logger"
+import { controlErrorStatus } from "./http-error-status"
 
 const HOP_BY_HOP = new Set(["connection", "content-encoding", "content-length", "etag", "host", "keep-alive", "transfer-encoding", "upgrade"])
 
@@ -95,7 +96,7 @@ export async function proxyOpenCodeRequest(req: IncomingMessage & { method?: str
       runtimeLogger.debug("gateway.upstream_resolved", { ...logFields, backendId: registered.id, protocol: registered.protocol, upstreamRoute: route })
     } catch (error) {
       const message = error instanceof Error ? error.message : "SERVER_NOT_FOUND"
-      const status = message === "SERVER_NOT_FOUND" ? 404 : message === "SERVER_DISABLED" ? 409 : 500
+      const status = controlErrorStatus(message)
       runtimeLogger.warn("gateway.redirect_rejected", { ...logFields, status, errorCode: message, error })
       return json(res, status, message) as never
     }

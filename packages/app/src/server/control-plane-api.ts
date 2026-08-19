@@ -4,6 +4,7 @@ import { deleteBackend, getBackend, listBackendDescriptors, probeBackend, regist
 import { runtimeLogger } from "./observability/logger"
 import { handleClientDiagnosticsRequest } from "./client-diagnostics"
 import { serializeControlPlaneHealth, serializeRegistration } from "./control-plane-contract"
+import { controlErrorStatus } from "./http-error-status"
 
 function sendJson(res: ServerResponse, status: number, payload: unknown) {
   res.statusCode = status
@@ -15,10 +16,6 @@ async function readJson(req: IncomingMessage) {
   const chunks: Buffer[] = []
   for await (const chunk of req) chunks.push(Buffer.from(chunk))
   return JSON.parse(Buffer.concat(chunks).toString("utf8") || "{}") as Record<string, unknown>
-}
-
-function errorStatus(message: string) {
-  return ["UNSUPPORTED_URL_SCHEME", "UNSAFE_SERVER_URL", "INVALID_SERVER_URL", "DUPLICATE_SERVER_URL"].includes(message) ? 400 : 500
 }
 
 export async function handleControlPlaneRequest(req: IncomingMessage, res: ServerResponse, pathname: string) {
@@ -66,6 +63,6 @@ export async function handleControlPlaneRequest(req: IncomingMessage, res: Serve
   } catch (error) {
     const message = error instanceof Error ? error.message : "SERVER_OPERATION_FAILED"
     runtimeLogger.error("control.request.error", { method: req.method || "GET", route: pathname, errorCode: message, error })
-    return sendJson(res, errorStatus(message), { error: message })
+    return sendJson(res, controlErrorStatus(message), { error: message })
   }
 }
