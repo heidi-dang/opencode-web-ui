@@ -10,6 +10,7 @@ import { dict as en } from "@/i18n/en"
 import { dict as zh } from "@/i18n/zh"
 import pkg from "../package.json"
 import { ServerConnection } from "./context/server"
+import { clientDiagnostics } from "./utils/client-diagnostics"
 
 const DEFAULT_SERVER_URL_KEY = "opencode.settings.dat:defaultServerUrl"
 
@@ -101,6 +102,7 @@ const restart: Platform["restart"] = async () => {
 }
 
 const root = document.getElementById("root")
+clientDiagnostics.install()
 if (!(root instanceof HTMLElement) && import.meta.env.DEV) {
   throw new Error(getRootNotFoundError())
 }

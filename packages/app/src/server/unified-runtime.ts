@@ -36,7 +36,7 @@ export function createUnifiedRuntimeMiddleware(handlers: UnifiedRuntimeHandlers,
   return async (req: Request, res: ServerResponse, next: Next): Promise<void> => {
     const incoming = new URL(req.url || "/", "http://localhost")
     const pathname = incoming.pathname
-    const isControl = pathname === "/api/bootstrap" || pathname === "/api/opencode/servers" || pathname.startsWith("/api/opencode/servers/")
+    const isControl = pathname === "/api/bootstrap" || pathname === "/api/debug/client-events" || pathname === "/api/opencode/servers" || pathname.startsWith("/api/opencode/servers/")
     const isApi = pathname.startsWith("/api/")
     if (!isApi) return next()
 

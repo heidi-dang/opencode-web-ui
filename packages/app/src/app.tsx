@@ -64,6 +64,7 @@ import { ErrorPage } from "./pages/error"
 import { useCheckServerHealth } from "./utils/server-health"
 import { legacySessionHref, legacySessionServer, requireServerKey, sessionHref } from "./utils/session-route"
 import { createSessionLineage } from "@/pages/session/session-lineage"
+import { reportClientDiagnostic } from "@/utils/client-diagnostics"
 
 import { SessionPage, SessionRouteErrorBoundary, TargetSessionRouteContent } from "@/pages/session"
 import { NewHome } from "@/pages/home"
@@ -409,6 +410,7 @@ export function AppBaseProviders(
             <ErrorBoundary
               fallback={(error) => {
                 Sentry.captureException(error)
+                void reportClientDiagnostic("app.error_boundary", { message: error instanceof Error ? error.message : "application error", stack: error instanceof Error ? error.stack : undefined, route: location.pathname })
                 return <ErrorPage error={error} />
               }}
             >

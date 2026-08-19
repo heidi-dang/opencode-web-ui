@@ -1,4 +1,5 @@
 import type { ServerConnection } from "@/context/server"
+import { clientDiagnostics } from "@/utils/client-diagnostics"
 
 export type BootstrapBackend = {
   id: string
@@ -55,7 +56,15 @@ export function findBootstrapBackend(response: BootstrapResponse, url: string) {
 }
 
 export async function fetchBootstrap(signal?: AbortSignal): Promise<BootstrapResponse> {
-  const response = await fetch("/api/bootstrap", { headers: { accept: "application/json" }, signal, cache: "no-store" })
-  if (!response.ok) throw new Error(`BOOTSTRAP_HTTP_${response.status}`)
-  return response.json() as Promise<BootstrapResponse>
+  try {
+    const response = await fetch("/api/bootstrap", { headers: { accept: "application/json" }, signal, cache: "no-store" })
+    if (!response.ok) {
+      void clientDiagnostics.reportApiFailure(response, { operation: "bootstrap", route: "/api/bootstrap" })
+      throw new Error(`BOOTSTRAP_HTTP_${response.status}`)
+    }
+    return response.json() as Promise<BootstrapResponse>
+  } catch (error) {
+    void clientDiagnostics.report("bootstrap.error", { message: error instanceof Error ? error.message : "bootstrap failed", stack: error instanceof Error ? error.stack : undefined, route: "/api/bootstrap" })
+    throw error
+  }
 }

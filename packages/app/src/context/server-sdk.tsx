@@ -14,6 +14,7 @@ import { ServerScope } from "@/utils/server-scope"
 import { detectServerProtocol, type ServerProtocol } from "@/utils/server-protocol"
 import { createConnectionManager } from "@/utils/connection-manager"
 import { createCompatibleApi, type CompatibleApi } from "@/utils/server-compat"
+import { clientDiagnostics } from "@/utils/client-diagnostics"
 
 const isAbortError = (error: unknown) =>
   error !== null && typeof error === "object" && "name" in error && error.name === "AbortError"
@@ -338,12 +339,13 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
         output,
         (event) => emitter.emit(event.directory, event.payload),
         (error, event) => {
-          console.error("[global-sdk] event dispatch failed", {
+              console.error("[global-sdk] event dispatch failed", {
             serverId: transportServer.http.id,
             type: event.payload.type,
             eventId: event.payload.id,
-            error: error instanceof Error ? error.message : "unknown event error",
-          })
+                error: error instanceof Error ? error.message : "unknown event error",
+              })
+              void clientDiagnostics.report("sse.event_dispatch_error", { backendId: transportServer.http.id, errorCode: error instanceof Error ? error.name : "EVENT_DISPATCH_ERROR" })
         },
       )
     })
@@ -404,6 +406,7 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
                 serverId: transportServer.http.id,
                 error: error instanceof Error ? error.message : "invalid event payload",
               })
+              void clientDiagnostics.report("sse.event_quarantined", { backendId: transportServer.http.id, errorCode: error instanceof Error ? error.name : "EVENT_PAYLOAD_INVALID" })
               continue
             }
 
@@ -421,6 +424,7 @@ function createServerSdkContextBase(server: ServerConnection.Any, scope: ServerS
               fetch: eventFetch ? "platform" : "webview",
               error: error instanceof Error ? error.message : "unknown stream error",
             })
+            void clientDiagnostics.reportSseFailure({ backendId: transportServer.http.id, errorCode: error instanceof Error ? error.name : "SSE_STREAM_FAILED" })
           }
         } finally {
           abort.signal.removeEventListener("abort", onAbort)

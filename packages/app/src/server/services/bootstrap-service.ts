@@ -27,7 +27,7 @@ export async function getBootstrap() {
     const backends = await agentBackendManager.list()
     const enabledBackendCount = backends.filter((backend) => backend.enabled).length
     runtimeLogger.debug("bootstrap.backends_loaded", { backendCount: backends.length, enabledBackendCount })
-    const result = { backends, activeBackendId: undefined, recentWorkspaces: [], preferences: {}, runtime: { controlPlane: "database-primary", generatedAt: new Date().toISOString(), latencyMs: Date.now() - started } }
+    const result = { backends, activeBackendId: undefined, recentWorkspaces: [], preferences: {}, runtime: { controlPlane: "database-primary", generatedAt: new Date().toISOString(), latencyMs: Date.now() - started, commit: process.env.WEBUI_COMMIT_SHA || process.env.VITE_SENTRY_RELEASE || "unknown", clientTelemetryEnabled: process.env.WEBUI_CLIENT_ERROR_LOGGING === "1" } }
     runtimeLogger.debug("bootstrap.complete", { backendCount: backends.length, enabledBackendCount, durationMs: Date.now() - started })
     return result
   } catch (error) {

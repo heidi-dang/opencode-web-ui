@@ -2,6 +2,7 @@ import { createOpencodeClient } from "@opencode-ai/sdk/v2/client"
 import { OpenCode, type OpenCodeClient } from "@opencode-ai/client/promise"
 import type { ServerConnection } from "@/context/server"
 import { decode64 } from "@/utils/base64"
+import { clientDiagnostics } from "@/utils/client-diagnostics"
 
 export function authTokenFromCredentials(input: { username?: string; password: string }) {
   return btoa(`${input.username ?? "opencode"}:${input.password}`)
@@ -95,14 +96,30 @@ export function fetchForServer(server: ServerConnection.HttpBase, fetcher: typeo
       typeof input === "string" ? input : input instanceof URL ? input.href : input.url,
       serverUrl,
     )
-    if (requestUrl.origin !== serverUrl.origin) return fetcher(input, init)
+    if (requestUrl.origin !== serverUrl.origin) {
+      try {
+        const response = await fetcher(input, init)
+        if (!response.ok) void clientDiagnostics.reportApiFailure(response, { method: init?.method || "GET", route: requestUrl.pathname, backendId: server.id, operation: requestUrl.pathname })
+        return response
+      } catch (error) {
+        void clientDiagnostics.report("api.fetch_error", { message: error instanceof Error ? error.message : "request failed", route: requestUrl.pathname, backendId: server.id, operation: requestUrl.pathname })
+        throw error
+      }
+    }
 
     const proxyUrl = getProxyEndpoint(server.url, requestUrl.pathname, Object.fromEntries(requestUrl.searchParams), server.id)
     const absoluteProxyUrl = /^https?:\/\//.test(proxyUrl)
       ? proxyUrl
       : new URL(proxyUrl, window.location.origin).toString()
     const prepared = await prepareBrowserProxyRequest(input, init, requestUrl.toString(), absoluteProxyUrl)
-    return fetcher(prepared.input, prepared.init)
+    try {
+      const response = await fetcher(prepared.input, prepared.init)
+      if (!response.ok) void clientDiagnostics.reportApiFailure(response, { method: prepared.init.method, route: requestUrl.pathname, backendId: server.id, operation: requestUrl.pathname })
+      return response
+    } catch (error) {
+      void clientDiagnostics.report("api.fetch_error", { message: error instanceof Error ? error.message : "request failed", route: requestUrl.pathname, backendId: server.id, operation: requestUrl.pathname })
+      throw error
+    }
   }) as typeof globalThis.fetch
 }
 
