@@ -27,9 +27,18 @@ import type {
 
 type LegacyClient = OpencodeClient
 type LegacyFor = (directory?: string) => LegacyClient
+export type CompatibleSessionModel = { providerID: string; id: string; variant?: string }
 type CompatibleSessionApi = Omit<
   SessionApi,
-  "prompt" | "command" | "shell" | "compact" | "rename" | "archive" | "remove"
+  | "prompt"
+  | "command"
+  | "shell"
+  | "compact"
+  | "rename"
+  | "archive"
+  | "remove"
+  | "switchModel"
+  | "switchAgent"
 > & {
   prompt: (input: SessionPromptInput & LegacyPrompt) => Promise<SessionPromptOutput>
   command: (input: SessionCommandInput) => Promise<SessionCommandOutput>
@@ -38,6 +47,8 @@ type CompatibleSessionApi = Omit<
   rename: (input: Parameters<SessionApi["rename"]>[0] & LegacyLocation) => ReturnType<SessionApi["rename"]>
   // archive: (input: Parameters<SessionApi["archive"]>[0] & LegacyLocation) => ReturnType<SessionApi["archive"]>
   remove: (input: Parameters<SessionApi["remove"]>[0] & LegacyLocation) => ReturnType<SessionApi["remove"]>
+  switchModel: (input: { sessionID: string; model: CompatibleSessionModel }) => Promise<void>
+  switchAgent: (input: { sessionID: string; agent: string }) => Promise<void>
 }
 type CompatiblePermissionApi = Omit<ServerApi["permission"], "reply"> & {
   reply: (
@@ -156,6 +167,19 @@ function createV2Api(input: CompatibleInput): ServerApi {
     ...input.current,
     session: {
       ...input.current.session,
+      async switchModel(value: { sessionID: string; model: CompatibleSessionModel }) {
+        await input.currentV2.v2.session.switchModel({
+          sessionID: value.sessionID,
+          model: {
+            id: value.model.id,
+            providerID: value.model.providerID,
+            variant: value.model.variant,
+          },
+        })
+      },
+      async switchAgent(value: { sessionID: string; agent: string }) {
+        await input.currentV2.v2.session.switchAgent(value)
+      },
       async prompt(value: SessionPromptInput & LegacyPrompt) {
         const result = await input.currentV2.v2.session.prompt(serializeV2Prompt(value))
         return admittedPrompt(result, value)
@@ -282,6 +306,14 @@ function createV1Api(input: CompatibleInput): CompatibleApi {
       },
       async interrupt(value: Parameters<ServerApi["session"]["interrupt"]>[0]) {
         await legacy().session.abort(value)
+      },
+      async switchModel(_value: { sessionID: string; model: CompatibleSessionModel }) {
+        // V1 carries model selection with each prompt; there is no session-level
+        // switch operation to acknowledge here.
+      },
+      async switchAgent(_value: { sessionID: string; agent: string }) {
+        // V1 carries agent selection with each prompt; there is no session-level
+        // switch operation to acknowledge here.
       },
       async prompt(value: SessionPromptInput & LegacyPrompt) {
         await legacy().session.promptAsync({
@@ -463,6 +495,28 @@ function createV1Api(input: CompatibleInput): CompatibleApi {
     },
     integration: {
       ...input.current.integration,
+      async list(value?: Parameters<ServerApi["integration"]["list"]>[0]) {
+        const [auth, providers] = await Promise.all([
+          legacy(value?.location).provider.auth(),
+          legacy(value?.location).provider.list(),
+        ])
+        const providerData = providers.data
+        const providerList = Array.isArray(providerData) ? providerData : providerData?.all ?? []
+        const connected = new Set(Array.isArray(providerData) ? providerList.map((provider) => provider.id) : providerData?.connected ?? [])
+        return located(
+          Object.entries(auth.data ?? {}).map(([id, methods]) => ({
+            id,
+            name: providerList.find((provider) => provider.id === id)?.name ?? id,
+            methods: methods.map((method) =>
+              method.type === "api"
+                ? { type: "key" as const, label: method.label }
+                : { type: "oauth" as const, id: `${id}-oauth`, label: method.label },
+            ),
+            connections: connected.has(id) ? [{ type: "credential", id, label: id }] : [],
+          })),
+          value?.location,
+        )
+      },
       async get(value: Parameters<ServerApi["integration"]["get"]>[0]) {
         const methods = ((await legacy(value.location).provider.auth()).data?.[value.integrationID] ?? []).map(
           (method, index) =>

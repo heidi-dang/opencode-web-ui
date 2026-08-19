@@ -5,10 +5,13 @@ const emptyObject = new Set(["/global/config", "/config", "/provider/auth", "/mc
 
 export interface MockServerConfig {
   protocol?: "v1" | "v2"
+  agents?: unknown[]
   provider: unknown | (() => unknown)
   integrationMethods?: Record<string, unknown[]>
   onConnectKey?: (input: { integrationID: string; body: unknown }) => void
   onInstanceDispose?: () => void
+  onSwitchModel?: (input: { sessionID: string; body: unknown }) => void | Promise<void>
+  onSwitchAgent?: (input: { sessionID: string; body: unknown }) => void | Promise<void>
   directory: string
   project: unknown
   sessions: ({ id: string } & Record<string, unknown>)[]
@@ -115,9 +118,10 @@ export async function mockOpenCodeServer(page: Page, config: MockServerConfig) {
             modelID: id,
             providerID: provider.id,
             name: typeof current.name === "string" ? current.name : id,
+            family: id,
             capabilities: { tools: true, input: ["text"], output: ["text"] },
             variants: [],
-            time: { released: 1 },
+            time: { released: Date.now() },
             cost: [{ input: 0, output: 0, cache: { read: 0, write: 0 } }],
             status: "active",
             enabled: true,
@@ -135,6 +139,29 @@ export async function mockOpenCodeServer(page: Page, config: MockServerConfig) {
         ? { id: value.default.modelID, providerID: value.default.providerID }
         : null
       return json(route, { location: location(config), data })
+    }
+    if (path === "/api/integration" && route.request().method() === "GET") {
+      const value = (typeof config.provider === "function" ? config.provider() : config.provider) as {
+        all?: Array<{ id: string; name?: string }>
+        connected?: string[]
+      }
+      const methods = config.integrationMethods ?? {}
+      const ids = new Set([...(value.all ?? []).map((provider) => provider.id), ...Object.keys(methods)])
+      const connected = new Set(value.connected ?? [])
+      return json(route, {
+        location: location(config),
+        data: [...ids].map((id) => ({
+          id,
+          name: value.all?.find((provider) => provider.id === id)?.name ?? id,
+          methods: (methods[id] ?? [{ type: "api", label: "API key" }]).map((method) => {
+            const item = method as { type?: string; label?: string; id?: string }
+            if (item.type === "oauth") return { type: "oauth", id: item.id ?? `${id}-oauth`, label: item.label ?? "OAuth" }
+            if (item.type === "env") return { type: "env", names: [] }
+            return { type: "key", label: item.label ?? "API key" }
+          }),
+          connections: connected.has(id) ? [{ type: "credential", id, label: id }] : [],
+        })),
+      })
     }
     if (path === "/provider/auth") return json(route, config.integrationMethods ?? {})
     const legacyAuth = path.match(/^\/auth\/([^/]+)$/)?.[1]
@@ -184,16 +211,17 @@ export async function mockOpenCodeServer(page: Page, config: MockServerConfig) {
     if (path === "/api/agent")
       return json(route, {
         location: location(config),
-        data: [
-          {
-            id: "build",
-            name: "Build",
-            mode: "primary",
-            hidden: false,
-            request: { settings: {}, headers: {}, body: {} },
-            permissions: [],
-          },
-        ],
+        data:
+          config.agents ?? [
+            {
+              id: "build",
+              name: "Build",
+              mode: "primary",
+              hidden: false,
+              request: { settings: {}, headers: {}, body: {} },
+              permissions: [],
+            },
+          ],
       })
     if (path === "/api/command") return json(route, { location: location(config), data: [] })
     if (path === "/api/mcp") return json(route, { location: location(config), data: [] })
@@ -239,6 +267,7 @@ export async function mockOpenCodeServer(page: Page, config: MockServerConfig) {
     if (path === "/api/vcs/status") return json(route, { location: location(config), data: [] })
     if (path === "/api/vcs/diff") return json(route, { location: location(config), data: config.vcsDiff ?? [] })
     if (path === "/api/pty/shells") return json(route, { location: location(config), data: [] })
+    if (path === "/pty/shells") return json(route, [])
     if (/^\/api\/pty\/[^/]+\/connect-token$/.test(path))
       return json(route, { location: location(config), data: { ticket: "e2e-ticket", expires_in: 60 } })
     if (emptyObject.has(path)) return json(route, {})
@@ -299,6 +328,24 @@ export async function mockOpenCodeServer(page: Page, config: MockServerConfig) {
           timeCreated: Date.now(),
         },
       })
+    }
+    const switchModelMatch = path.match(/^\/api\/session\/([^/]+)\/model$/)
+    if (switchModelMatch && route.request().method() === "POST") {
+      try {
+        await config.onSwitchModel?.({ sessionID: switchModelMatch[1]!, body: route.request().postDataJSON() })
+      } catch (error) {
+        return json(route, { error: error instanceof Error ? error.message : "model switch failed" }, undefined, 503)
+      }
+      return route.fulfill({ status: 204, headers: { "access-control-allow-origin": "*" } })
+    }
+    const switchAgentMatch = path.match(/^\/api\/session\/([^/]+)\/agent$/)
+    if (switchAgentMatch && route.request().method() === "POST") {
+      try {
+        await config.onSwitchAgent?.({ sessionID: switchAgentMatch[1]!, body: route.request().postDataJSON() })
+      } catch (error) {
+        return json(route, { error: error instanceof Error ? error.message : "agent switch failed" }, undefined, 503)
+      }
+      return route.fulfill({ status: 204, headers: { "access-control-allow-origin": "*" } })
     }
     const legacyPromptMatch = path.match(/^\/session\/([^/]+)\/prompt_async$/)
     if (legacyPromptMatch && route.request().method() === "POST") {

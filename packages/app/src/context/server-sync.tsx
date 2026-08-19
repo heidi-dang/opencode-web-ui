@@ -442,9 +442,14 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
   const queryClient = useQueryClient()
   const homeSessions = createHomeSessionIndexCache(queryClient, ServerConnection.key(serverSDK.server))
   const refreshProviders = () =>
-    queryClient.refetchQueries({
-      predicate: (query) => query.queryKey[0] === serverSDK.scope && query.queryKey[2] === "providers",
-    })
+    Promise.all([
+      queryClient.refetchQueries({
+        predicate: (query) => query.queryKey[0] === serverSDK.scope && query.queryKey[2] === "providers",
+      }),
+      queryClient.refetchQueries({
+        predicate: (query) => query.queryKey[0] === serverSDK.scope && query.queryKey[2] === "supported-providers",
+      }),
+    ]).then(() => undefined)
 
   let bootedAt = 0
   let bootingRoot = false
@@ -837,8 +842,12 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
       // Invalidate all provider queries so newly configured custom providers
       // appear immediately in the available provider list across all directories.
       queryClient.invalidateQueries({ queryKey: [serverSDK.scope, null, "providers"] })
+      queryClient.invalidateQueries({ queryKey: [serverSDK.scope, undefined, "supported-providers"] })
       queryClient.invalidateQueries({
         predicate: (query) => query.queryKey[0] === serverSDK.scope && query.queryKey[2] === "providers",
+      })
+      queryClient.invalidateQueries({
+        predicate: (query) => query.queryKey[0] === serverSDK.scope && query.queryKey[2] === "supported-providers",
       })
     },
   }))

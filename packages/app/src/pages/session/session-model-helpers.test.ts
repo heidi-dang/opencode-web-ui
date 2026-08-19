@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { UserMessage } from "@opencode-ai/sdk/v2"
-import { resetSessionModel, restorePromptModel, syncPromptModel, syncSessionModel } from "./session-model-helpers"
+import { resetSessionModel, restorePromptModel, serverSessionSelection, syncPromptModel, syncSessionModel } from "./session-model-helpers"
 
 const message = (input?: { agent?: string; model?: UserMessage["model"] }) =>
   ({
@@ -147,5 +147,45 @@ describe("restorePromptModel", () => {
 
     expect(restored).toBe(false)
     expect(calls).toEqual([])
+  })
+})
+
+describe("serverSessionSelection", () => {
+  test("prefers the latest server-confirmed model and agent switch", () => {
+    const selection = serverSessionSelection({
+      info: {
+        agent: "build",
+        model: { id: "model-a", providerID: "provider-a", variant: "balanced" },
+      },
+      messages: [
+        { id: "agent-1", type: "agent-switched", agent: "review", time: { created: 1 } },
+        {
+          id: "model-1",
+          type: "model-switched",
+          model: { id: "model-b", providerID: "provider-b", variant: "fast" },
+          previous: { id: "model-a", providerID: "provider-a" },
+          time: { created: 2 },
+        },
+      ] as never,
+    })
+
+    expect(selection).toEqual({
+      agent: "review",
+      model: { providerID: "provider-b", modelID: "model-b", variant: "fast" },
+      variant: "fast",
+    })
+  })
+
+  test("falls back to authoritative session metadata when no switch event exists", () => {
+    expect(
+      serverSessionSelection({
+        info: { agent: "build", model: { id: "model-a", providerID: "provider-a" } },
+        messages: [],
+      }),
+    ).toEqual({
+      agent: "build",
+      model: { providerID: "provider-a", modelID: "model-a", variant: undefined },
+      variant: null,
+    })
   })
 })

@@ -1,7 +1,7 @@
 import { describe, expect } from "bun:test"
 import { Effect, Fiber, Layer, Random, Ref } from "effect"
 import * as TestClock from "effect/testing/TestClock"
-import { Headers, HttpClient, HttpClientRequest, HttpClientResponse } from "effect/unstable/http"
+import { Headers, HttpClient, HttpClientError, HttpClientRequest, HttpClientResponse } from "effect/unstable/http"
 import { LLM, LLMError } from "../src"
 import { LLMClient, RequestExecutor } from "../src/route"
 import * as OpenAIChat from "../src/protocols/openai-chat"
@@ -454,5 +454,129 @@ describe("RequestExecutor", () => {
       expect(error.reason).toMatchObject({ _tag: "InvalidProviderOutput" })
       expect(yield* Ref.get(attempts)).toBe(1)
     }),
+  )
+
+  it.effect("preserves and classifies an unknown transport cause", () =>
+    Effect.gen(function* () {
+      const executor = yield* RequestExecutor.Service
+      const error = yield* executor.execute(request).pipe(Effect.flip)
+
+      expectLLMError(error)
+      expect(error.reason).toMatchObject({
+        _tag: "Transport",
+        kind: "SOCKET_RESET",
+        message: "Provider transport failed: socket hang up",
+      })
+    }).pipe(
+      Effect.provide(
+        RequestExecutor.layer.pipe(
+          Layer.provide(
+            Layer.succeed(
+              HttpClient.HttpClient,
+              HttpClient.make(() => Effect.fail(new Error("socket hang up") as never)),
+            ),
+          ),
+        ),
+      ),
+    ),
+  )
+
+  it.effect("preserves the cause from an Effect TransportError", () =>
+    Effect.gen(function* () {
+      const executor = yield* RequestExecutor.Service
+      const error = yield* executor.execute(request).pipe(Effect.flip)
+
+      expectLLMError(error)
+      expect(error.reason).toMatchObject({
+        _tag: "Transport",
+        kind: "SOCKET_RESET",
+        message: "Provider transport failed: socket hang up",
+        http: {
+          request: {
+            method: "POST",
+            url: "https://provider.test/v1/chat?api_key=%3Credacted%3E&key=%3Credacted%3E&debug=1",
+          },
+        },
+      })
+    }).pipe(
+      Effect.provide(
+        RequestExecutor.layer.pipe(
+          Layer.provide(
+            Layer.succeed(
+              HttpClient.HttpClient,
+              HttpClient.make((transportRequest) =>
+                Effect.fail(
+                  new HttpClientError.HttpClientError({
+                    reason: new HttpClientError.TransportError({
+                      request: transportRequest,
+                      cause: new Error("socket hang up"),
+                    }),
+                  }),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  )
+
+  for (const [name, cause, kind] of [
+    ["DNS failures", "getaddrinfo ENOTFOUND provider.test", "DNS_FAILURE"],
+    ["connection refusals", "connect ECONNREFUSED 127.0.0.1:443", "CONNECT_REFUSED"],
+    ["connection timeouts", "connect ETIMEDOUT", "CONNECT_TIMEOUT"],
+    ["TLS failures", "certificate has expired", "TLS_FAILURE"],
+    ["response stream resets", "response body: connection reset by peer", "SOCKET_RESET"],
+    ["intentional aborts", "AbortError: The operation was aborted", "ABORTED"],
+  ] as const) {
+    it.effect(`classifies ${name}`, () =>
+      Effect.gen(function* () {
+        const executor = yield* RequestExecutor.Service
+        const error = yield* executor.execute(request).pipe(Effect.flip)
+
+        expectLLMError(error)
+        expect(error.reason).toMatchObject({ _tag: "Transport", kind })
+      }).pipe(
+        Effect.provide(
+          RequestExecutor.layer.pipe(
+            Layer.provide(
+              Layer.succeed(
+                HttpClient.HttpClient,
+                HttpClient.make(() => Effect.fail(new Error(cause) as never)),
+              ),
+            ),
+          ),
+        ),
+      ),
+    )
+  }
+
+  it.effect("redacts credentials from an unknown transport cause", () =>
+    Effect.gen(function* () {
+      const executor = yield* RequestExecutor.Service
+      const error = yield* executor.execute(secretRequest).pipe(Effect.flip)
+
+      expectLLMError(error)
+      expect(error.reason).toMatchObject({ _tag: "Transport" })
+      expect(error.reason.message).toContain("Provider transport failed: fetch")
+      expect(error.reason.message).toContain("api_key=%3Credacted%3E")
+      expect(error.reason.message).not.toContain("query-secret-123")
+      expect(error.reason.message).not.toContain("header-secret-456")
+    }).pipe(
+      Effect.provide(
+        RequestExecutor.layer.pipe(
+          Layer.provide(
+            Layer.succeed(
+              HttpClient.HttpClient,
+              HttpClient.make(() =>
+                Effect.fail(
+                  new Error("fetch https://provider.test/v1/chat?api_key=query-secret-123&debug=1 failed") as never,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
   )
 })

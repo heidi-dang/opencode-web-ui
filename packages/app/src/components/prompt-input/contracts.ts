@@ -22,7 +22,7 @@ export type PromptInputControls = {
     select: (name: string | undefined) => void
   }
   model: {
-    selection: ReturnType<typeof useLocal>["model"]
+    selection: PromptModelSelection
     paid: boolean
     loading: boolean
   }
@@ -39,6 +39,11 @@ export type PromptInputControls = {
       open: () => void
     }
   }
+}
+
+export type PromptModelSelection = ReturnType<typeof useLocal>["model"] & {
+  waitForPending?: () => Promise<boolean>
+  switching?: () => boolean
 }
 
 export interface PromptInputProps {

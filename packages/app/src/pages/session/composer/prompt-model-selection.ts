@@ -1,4 +1,4 @@
-import { batch, createMemo, startTransition } from "solid-js"
+import { batch, createMemo, startTransition, type Accessor } from "solid-js"
 import { useModels } from "@/context/models"
 import type { ModelKey, ModelSelection } from "@/context/local"
 import { cycleModelVariant, getConfiguredAgentVariant, resolveModelVariant } from "@/context/model-variant"
@@ -7,12 +7,26 @@ import { useSDK } from "@/context/sdk"
 import { useSync } from "@/context/sync"
 import { useProviders } from "@/hooks/use-providers"
 import { resolveDefaultModel } from "@/hooks/provider-catalog"
+import { useLanguage } from "@/context/language"
+import { formatServerError } from "@/utils/server-errors"
+import { showToast } from "@/utils/toast"
+import { createSessionSelectionQueue } from "./session-selection-queue"
 
-export function createPromptModelSelection(input: { agent: () => { model?: ModelKey; variant?: string } | undefined }) {
+export type PromptModelSelection = ModelSelection & {
+  waitForPending: () => Promise<boolean>
+  switching: () => boolean
+}
+
+export function createPromptModelSelection(input: {
+  agent: () => { model?: ModelKey; variant?: string } | undefined
+  base?: ModelSelection
+  sessionID?: Accessor<string | undefined>
+}): PromptModelSelection {
   const sdk = useSDK()
   const sync = useSync()
   const models = useModels()
   const prompt = usePrompt()
+  const language = useLanguage()
   const providers = useProviders(() => sdk().directory)
   const connected = createMemo(() => new Set(providers.connected().map((item) => item.id)))
 
@@ -36,8 +50,14 @@ export function createPromptModelSelection(input: { agent: () => { model?: Model
     })[0]
   }
 
+  const baseModel = () => {
+    const item = input.base?.current()
+    if (!item) return
+    return { providerID: item.provider.id, modelID: item.id, variant: input.base?.variant.current() ?? undefined }
+  }
+
   const current = () => {
-    const key = [prompt.model.current(), input.agent()?.model, configured(), recent(), fallback()].find(
+    const key = [baseModel(), prompt.model.current(), input.agent()?.model, configured(), recent(), fallback()].find(
       (item): item is ModelKey => !!item && valid(item),
     )
     if (!key) return
@@ -49,6 +69,40 @@ export function createPromptModelSelection(input: { agent: () => { model?: Model
       .map(models.find)
       .filter((item): item is NonNullable<typeof item> => !!item),
   )
+
+  const commit = (item: ModelKey, options?: { recent?: boolean }) => {
+    const next = { ...item }
+    input.base?.set(next, options)
+    prompt.model.set(next)
+    models.setVisibility(next, true)
+    if (options?.recent) models.recent.push(next)
+    models.variant.set({ providerID: next.providerID, modelID: next.modelID }, next.variant)
+    if (!next.variant) input.base?.variant.set(undefined)
+  }
+
+  const queue = createSessionSelectionQueue<ModelKey>({
+    async apply(item) {
+      const sessionID = input.sessionID?.()
+      if (!sessionID) return
+      await sdk().api.session.switchModel({
+        sessionID,
+        model: {
+          providerID: item.providerID,
+          id: item.modelID,
+          variant: item.variant,
+        },
+      })
+    },
+    commit(item) {
+      commit(item)
+    },
+    onError(error) {
+      showToast({
+        title: language.t("common.requestFailed"),
+        description: formatServerError(error, language.t, language.t("common.requestFailed")),
+      })
+    },
+  })
 
   const selection = {
     ready: models.ready,
@@ -65,15 +119,24 @@ export function createPromptModelSelection(input: { agent: () => { model?: Model
       if (next) selection.set({ providerID: next.provider.id, modelID: next.id })
     },
     set(item: ModelKey | undefined, options?: { recent?: boolean }) {
-      startTransition(() =>
-        batch(() => {
-          prompt.model.set(item ? { ...item, variant: prompt.model.current()?.variant } : undefined)
-          if (!item) return
-          models.setVisibility(item, true)
-          if (options?.recent) models.recent.push(item)
-        }),
-      )
+      if (!item) {
+        startTransition(() => batch(() => prompt.model.set(undefined)))
+        return Promise.resolve(true)
+      }
+
+      const selectedVariant = item.variant ?? input.base?.variant.current() ?? prompt.model.current()?.variant
+      const variants = models.find(item)?.variants
+      const target = {
+        ...item,
+        variant: selectedVariant && variants && selectedVariant in variants ? selectedVariant : undefined,
+      }
+      return queue.set(target).then((success) => {
+        if (success && options?.recent) models.recent.push(target)
+        return success
+      })
     },
+    waitForPending: queue.wait,
+    switching: queue.pending,
     visible: models.visible,
     setVisibility: models.setVisibility,
     variant: {
@@ -87,7 +150,7 @@ export function createPromptModelSelection(input: { agent: () => { model?: Model
         })
       },
       selected() {
-        return prompt.model.current()?.variant
+        return input.base?.variant.selected() ?? prompt.model.current()?.variant
       },
       current() {
         const resolved = resolveModelVariant({
@@ -105,14 +168,12 @@ export function createPromptModelSelection(input: { agent: () => { model?: Model
         return Object.keys(current()?.variants ?? {})
       },
       set(value: string | undefined) {
-        startTransition(() =>
-          batch(() => {
-            const model = current()
-            if (!model) return
-            prompt.model.set({ providerID: model.provider.id, modelID: model.id, variant: value ?? null })
-            models.variant.set({ providerID: model.provider.id, modelID: model.id }, value)
-          }),
-        )
+        const model = current()
+        if (!model) return Promise.resolve(false)
+        return queue.set({ providerID: model.provider.id, modelID: model.id, variant: value }).then((success) => {
+          if (success) models.variant.set({ providerID: model.provider.id, modelID: model.id }, value)
+          return success
+        })
       },
       cycle() {
         const variants = this.list()
@@ -126,7 +187,7 @@ export function createPromptModelSelection(input: { agent: () => { model?: Model
         )
       },
     },
-  } satisfies ModelSelection
+  } satisfies PromptModelSelection
 
   return selection
 }

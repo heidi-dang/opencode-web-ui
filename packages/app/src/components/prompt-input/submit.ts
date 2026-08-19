@@ -277,7 +277,7 @@ type PromptSubmitInput = {
   onQueue?: (draft: FollowupDraft) => void
   onAbort?: () => void
   onSubmit?: () => void
-  model?: ModelSelection
+  model?: ModelSelection & { waitForPending?: () => Promise<boolean> }
 }
 
 export function createPromptSubmit(input: PromptSubmitInput) {
@@ -412,7 +412,8 @@ export function createPromptSubmit(input: PromptSubmitInput) {
       return
     }
 
-    const modelSelection = input.model ?? local.model
+    const modelSelection: ModelSelection & { waitForPending?: () => Promise<boolean> } = input.model ?? local.model
+    if (modelSelection.waitForPending && !(await modelSelection.waitForPending())) return
     const currentModel = modelSelection.current()
     const currentAgent = local.agent.current()
     const variant = modelSelection.variant.current()

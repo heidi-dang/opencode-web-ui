@@ -588,6 +588,72 @@ describe("prompt submit worktree selection", () => {
     })
   })
 
+  test("waits for a pending session model switch before sending", async () => {
+    params = { id: "session-1" }
+    let release!: (value: boolean) => void
+    const model = {
+      current: () => ({ id: "draft-model", provider: { id: "draft-provider" } }),
+      variant: { current: () => "draft-variant" },
+      waitForPending: () => new Promise<boolean>((resolve) => (release = resolve)),
+    } as unknown as ModelSelection & { waitForPending: () => Promise<boolean> }
+    const submit = createPromptSubmit({
+      prompt,
+      info: () => ({ id: "session-1" }),
+      imageAttachments: () => [],
+      commentCount: () => 0,
+      autoAccept: () => false,
+      mode: () => "normal",
+      working: () => false,
+      editor: () => undefined,
+      queueScroll: () => undefined,
+      promptLength: (value) => value.reduce((sum, part) => sum + ("content" in part ? part.content.length : 0), 0),
+      addToHistory: () => undefined,
+      resetHistoryNavigation: () => undefined,
+      setMode: () => undefined,
+      setPopover: () => undefined,
+      model,
+    })
+
+    const result = submit.handleSubmit({ preventDefault: () => undefined } as unknown as Event)
+    await Bun.sleep(0)
+    expect(sentPrompts).toEqual([])
+    release(true)
+    await result
+    await Bun.sleep(0)
+    expect(sentPrompts).toEqual(["/repo/main"])
+  })
+
+  test("does not send when the pending session model switch fails", async () => {
+    params = { id: "session-1" }
+    const model = {
+      current: () => ({ id: "draft-model", provider: { id: "draft-provider" } }),
+      variant: { current: () => "draft-variant" },
+      waitForPending: async () => false,
+    } as unknown as ModelSelection & { waitForPending: () => Promise<boolean> }
+    const submit = createPromptSubmit({
+      prompt,
+      info: () => ({ id: "session-1" }),
+      imageAttachments: () => [],
+      commentCount: () => 0,
+      autoAccept: () => false,
+      mode: () => "normal",
+      working: () => false,
+      editor: () => undefined,
+      queueScroll: () => undefined,
+      promptLength: (value) => value.reduce((sum, part) => sum + ("content" in part ? part.content.length : 0), 0),
+      addToHistory: () => undefined,
+      resetHistoryNavigation: () => undefined,
+      setMode: () => undefined,
+      setPopover: () => undefined,
+      model,
+    })
+
+    await submit.handleSubmit({ preventDefault: () => undefined } as unknown as Event)
+
+    expect(sentPrompts).toEqual([])
+    expect(optimistic).toEqual([])
+  })
+
   test("seeds new sessions before optimistic prompts are added", async () => {
     const submit = createPromptSubmit({
       prompt,

@@ -35,6 +35,7 @@ import { useServerSync } from "@/context/server-sync"
 import { useLanguage } from "@/context/language"
 import { useSettings } from "@/context/settings"
 import { popularProviders, useProviders } from "@/hooks/use-providers"
+import { providerSearchText, useSupportedProviders } from "@/hooks/supported-provider-catalog"
 import { CustomProviderForm } from "./dialog-custom-provider"
 import { decode64 } from "@/utils/base64"
 
@@ -157,7 +158,7 @@ function ProviderPicker(props: {
   const settings = useSettings()
   if (settings.general.newLayoutDesigns())
     return <ProviderPickerV2 directory={props.directory} onSelect={props.onSelect} onPrepare={props.onPrepare} />
-  const providers = useProviders(() => props.directory?.())
+  const supported = useSupportedProviders(() => props.directory?.())
   const language = useLanguage()
   const popularGroup = () => language.t("dialog.provider.group.popular")
   const otherGroup = () => language.t("dialog.provider.group.other")
@@ -170,7 +171,7 @@ function ProviderPicker(props: {
     return undefined
   }
 
-  return (
+  const list = (
     <List
       class="px-3"
       search={{ placeholder: language.t("dialog.provider.search.placeholder"), autofocus: true }}
@@ -179,7 +180,7 @@ function ProviderPicker(props: {
       key={(x) => x?.id}
       items={() => {
         language.locale()
-        return [{ id: CUSTOM_ID, name: customLabel() }, ...providers.all().values()]
+        return [{ id: CUSTOM_ID, name: customLabel() }, ...supported.providers()]
       }}
       filterKeys={["id", "name"]}
       groupBy={(x) => (popularProviders.includes(x.id) ? popularGroup() : otherGroup())}
@@ -222,6 +223,27 @@ function ProviderPicker(props: {
       )}
     </List>
   )
+
+  return (
+    <Show
+      when={supported.status() !== "error"}
+      fallback={
+        <div class="flex flex-col items-center gap-3 p-6 text-center text-14-regular text-text-weak">
+          <div>Unable to load supported providers.</div>
+          <Button variant="secondary" onClick={() => void supported.refresh()}>
+            Retry
+          </Button>
+        </div>
+      }
+    >
+      <Show
+        when={supported.status() !== "loading" || supported.providers().length > 0}
+        fallback={<div class="p-6 text-center text-14-regular text-text-weak">Loading providers…</div>}
+      >
+        {list}
+      </Show>
+    </Show>
+  )
 }
 
 function ProviderPickerV2(props: {
@@ -229,7 +251,7 @@ function ProviderPickerV2(props: {
   onSelect: (provider: string) => void
   onPrepare?: () => void
 }) {
-  const providers = useProviders(() => props.directory?.())
+  const supported = useSupportedProviders(() => props.directory?.())
   const language = useLanguage()
   const [store, setStore] = createStore({
     filter: "",
@@ -241,9 +263,9 @@ function ProviderPickerV2(props: {
   const all = createMemo(() => {
     language.locale()
     const query = store.filter.trim().toLowerCase()
-    const values = [custom(), ...providers.all().values()]
+    const values = [custom(), ...supported.providers()]
     if (!query) return values
-    return values.filter((provider) => `${provider.id} ${provider.name}`.toLowerCase().includes(query))
+    return values.filter((provider) => providerSearchText(provider).includes(query))
   })
   const popular = createMemo(() =>
     all()
@@ -290,7 +312,7 @@ function ProviderPickerV2(props: {
     event.preventDefault()
   }
 
-  return (
+  const list = (
     <div ref={picker} class="flex min-h-0 flex-1 flex-col gap-4" onKeyDown={handleKeyDown}>
       <div class="shrink-0 px-1 pt-px">
         <TextInputV2
@@ -373,6 +395,27 @@ function ProviderPickerV2(props: {
       </div>
     </div>
   )
+
+  return (
+    <Show
+      when={supported.status() !== "error"}
+      fallback={
+        <div class="flex flex-col items-center gap-3 p-6 text-center text-[13px] text-v2-text-text-muted">
+          <div>Unable to load supported providers.</div>
+          <ButtonV2 variant="neutral" onClick={() => void supported.refresh()}>
+            Retry
+          </ButtonV2>
+        </div>
+      }
+    >
+      <Show
+        when={supported.status() !== "loading" || supported.providers().length > 0}
+        fallback={<div class="p-6 text-center text-[13px] text-v2-text-text-muted">Loading providers…</div>}
+      >
+        {list}
+      </Show>
+    </Show>
+  )
 }
 
 function ProviderConnection(props: {
@@ -389,6 +432,7 @@ function ProviderConnection(props: {
   const settings = useSettings()
   const newLayout = settings.general.newLayoutDesigns
   const providers = useProviders(() => props.directory?.())
+  const supported = useSupportedProviders(() => props.directory?.())
   const directory = () => props.directory?.() ?? decode64(params.dir)
   const location = () => {
     const value = directory()
@@ -406,7 +450,10 @@ function ProviderConnection(props: {
   })
 
   const provider = createMemo(
-    () => providers.all().get(props.provider) ?? serverSync().data.provider.all.get(props.provider)!,
+    () =>
+      providers.all().get(props.provider) ??
+      serverSync().data.provider.all.get(props.provider) ??
+      supported.providers().find((item) => item.id === props.provider) ?? { id: props.provider, name: props.provider },
   )
   const fallback = createMemo<ConnectMethod[]>(() => [
     {
@@ -709,9 +756,16 @@ function ProviderConnection(props: {
   })
 
   async function complete() {
-    await serverSync()
-      .refreshProviders()
-      .catch(() => undefined)
+    try {
+      await serverSync().refreshProviders()
+    } catch (error) {
+      showToast({
+        variant: "error",
+        title: language.t("common.requestFailed"),
+        description: error instanceof Error ? error.message : String(error),
+      })
+      return
+    }
     dialog.close()
     showToast({
       variant: "success",

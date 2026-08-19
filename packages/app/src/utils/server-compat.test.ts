@@ -114,6 +114,44 @@ describe("createCompatibleApi", () => {
     expect(calls).toEqual([{ directory: "/home/heidi", path: "." }])
   })
 
+  test("exposes the complete V1 provider auth catalogue separately from connected models", async () => {
+    const { api } = setup(
+      "v1",
+      undefined,
+      () =>
+        ({
+          provider: {
+            auth: async () => ({
+              data: {
+                anthropic: [{ type: "api", label: "API key" }],
+                obscure: [{ type: "oauth", label: "OAuth" }],
+              },
+            }),
+            list: async () => ({
+              data: { all: [], connected: ["anthropic"], default: {} },
+            }),
+          },
+        }) as unknown as ReturnType<typeof createSdkForServer>,
+    )
+
+    const result = await api.integration.list({ location: { directory: "/repo" } })
+
+    expect(result.data).toEqual([
+      {
+        id: "anthropic",
+        name: "anthropic",
+        methods: [{ type: "key", label: "API key" }],
+        connections: [{ type: "credential", id: "anthropic", label: "anthropic" }],
+      },
+      {
+        id: "obscure",
+        name: "obscure",
+        methods: [{ type: "oauth", id: "obscure-oauth", label: "OAuth" }],
+        connections: [],
+      },
+    ])
+  })
+
   test("rejects unknown protocol instead of entering the V1 compatibility layer", async () => {
     const { api } = setup(Promise.resolve("unknown" as never))
     await expect(api.session.list()).rejects.toThrow("Unable to determine the OpenCode API protocol")
@@ -215,6 +253,54 @@ describe("createCompatibleApi", () => {
     await api.session.interrupt({ sessionID: "ses_1" })
 
     expect(calls).toEqual(["ses_1"])
+  })
+
+  test("routes V2 model selection through the session model endpoint", async () => {
+    const { api, requests } = setup("v2")
+
+    await api.session.switchModel({
+      sessionID: "ses_1",
+      model: { providerID: "provider-b", id: "model-b", variant: "fast" },
+    })
+
+    expect(new URL(requests[0]!.url).pathname).toBe("/api/session/ses_1/model")
+    expect(requests[0]!.method).toBe("POST")
+    expect(await requests[0]!.json()).toEqual({
+      model: { providerID: "provider-b", id: "model-b", variant: "fast" },
+    })
+  })
+
+  test("routes V2 agent selection through the session agent endpoint", async () => {
+    const { api, requests } = setup("v2")
+
+    await api.session.switchAgent({ sessionID: "ses_1", agent: "agent-b" })
+
+    expect(new URL(requests[0]!.url).pathname).toBe("/api/session/ses_1/agent")
+    expect(requests[0]!.method).toBe("POST")
+    expect(await requests[0]!.json()).toEqual({ agent: "agent-b" })
+  })
+
+  test("keeps V1 model and agent selection prompt-scoped", async () => {
+    const calls: string[] = []
+    const { api } = setup(
+      "v1",
+      undefined,
+      () =>
+        ({
+          session: {
+            switchModel: async () => calls.push("model"),
+            switchAgent: async () => calls.push("agent"),
+          },
+        }) as unknown as ReturnType<typeof createSdkForServer>,
+    )
+
+    await api.session.switchModel({
+      sessionID: "ses_1",
+      model: { providerID: "provider-b", id: "model-b" },
+    })
+    await api.session.switchAgent({ sessionID: "ses_1", agent: "agent-b" })
+
+    expect(calls).toEqual([])
   })
 
   test("preserves original parts for V1 optimistic reconciliation", async () => {

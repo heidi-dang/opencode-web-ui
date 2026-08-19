@@ -533,7 +533,7 @@ function SessionHeaderV2Actions(props: { state: SessionHeaderV2ActionsState }) {
     <div class="flex items-center gap-2">
       <Show when={props.state.statusVisible}>
         <Tooltip placement="bottom" value={props.state.statusLabel}>
-          <StatusPopoverV2 />
+          <StatusPopoverV2 scope="server" />
         </Tooltip>
       </Show>
       <Show when={props.state.reviewVisible}>

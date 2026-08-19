@@ -68,6 +68,8 @@ const redactHeaders = (headers: Headers.Headers, redactedNames: ReadonlyArray<st
 const redactUrl = (value: string) => {
   if (!URL.canParse(value)) return REDACTED
   const url = new URL(value)
+  if (url.username) url.username = REDACTED
+  if (url.password) url.password = REDACTED
   url.searchParams.forEach((_, key) => {
     if (isSensitiveQueryName(key)) url.searchParams.set(key, REDACTED)
   })
@@ -201,6 +203,71 @@ const responseBody = (body: string | void, request: HttpClientRequest.HttpClient
   return { body: redacted.slice(0, BODY_LIMIT), bodyTruncated: true }
 }
 
+const TRANSPORT_CAUSE_LIMIT = 500
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null
+
+const transportCauseText = (value: unknown, seen = new Set<unknown>(), depth = 0): string | undefined => {
+  if (depth > 4 || value === undefined || value === null || seen.has(value)) return undefined
+  if (typeof value === "string") return value
+  if (typeof value !== "object" && typeof value !== "function") return undefined
+
+  seen.add(value)
+  const record = isRecord(value) ? value : undefined
+
+  // Fetch/undici errors commonly put the useful socket or DNS error in cause,
+  // while Effect errors may expose it through reason. Prefer those nested
+  // details over wrapper text such as "fetch failed".
+  for (const key of ["cause", "reason", "error"]) {
+    const nested = record?.[key]
+    const text = transportCauseText(nested, seen, depth + 1)
+    if (text) return text
+  }
+
+  for (const key of ["description", "message", "code", "name"]) {
+    const candidate = record?.[key]
+    if (typeof candidate === "string" && candidate.length > 0) return candidate
+  }
+
+  return undefined
+}
+
+const redactTransportCause = (value: string, request?: HttpClientRequest.HttpClientRequest) => {
+  let text = value.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim()
+
+  if (request) {
+    for (const secret of secretValues(request)) text = text.split(secret).join(REDACTED)
+  }
+
+  text = text
+    .replace(/((?:authorization|api[-_]?key|access[-_]?token|refresh[-_]?token|secret|credential)\s*[:=]\s*)\S+/gi, `$1${REDACTED}`)
+    .replace(/\b(?:bearer|basic)\s+\S+/gi, (scheme) => `${scheme.split(/\s+/)[0]} ${REDACTED}`)
+    .replace(/https?:\/\/[^\s)]+/gi, (url) => redactUrl(url))
+
+  return text.length > TRANSPORT_CAUSE_LIMIT ? `${text.slice(0, TRANSPORT_CAUSE_LIMIT)}…` : text
+}
+
+const transportKind = (value: string): string => {
+  const text = value.toLowerCase()
+  if (/abort(?:ed|error)|aborted|operation was canceled|cancelled|canceled/.test(text)) return "ABORTED"
+  if (/enotfound|eai_again|getaddrinfo|dns|name or service not known|no such host/.test(text)) return "DNS_FAILURE"
+  if (/econnrefused|connection refused|connect.*refused/.test(text)) return "CONNECT_REFUSED"
+  if (/certificate|cert_|tls|ssl|self[- ]signed|hostname.*match/.test(text)) return "TLS_FAILURE"
+  if (/econnreset|socket hang up|connection reset|broken pipe/.test(text)) return "SOCKET_RESET"
+  if (/timeout|timed out|etimedout/.test(text)) {
+    return /stream|response|read|body|receive/.test(text) ? "REQUEST_TIMEOUT" : "CONNECT_TIMEOUT"
+  }
+  if (/stream|response body|readable|premature eof|unexpected end of/.test(text)) return "STREAM_RESET"
+  return "UNKNOWN_TRANSPORT"
+}
+
+const transportMessage = (cause: unknown, request?: HttpClientRequest.HttpClientRequest) => {
+  const text = transportCauseText(cause)
+  if (!text) return "Provider transport failed"
+  return `Provider transport failed: ${redactTransportCause(text, request)}`
+}
+
 const providerMessage = (status: number, body: { readonly body?: string }) => {
   if (body.body && body.body.length <= 500) return `Provider request failed with HTTP ${status}: ${body.body}`
   return `Provider request failed with HTTP ${status}`
@@ -304,43 +371,55 @@ const statusError =
       })
     })
 
-const toHttpError = (redactedNames: ReadonlyArray<string | RegExp>) => (error: unknown) => {
-  const transportError = (input: {
-    readonly message: string
-    readonly kind?: string | undefined
-    readonly request?: HttpClientRequest.HttpClientRequest | undefined
-  }) =>
-    new LLMError({
-      module: "RequestExecutor",
-      method: "execute",
-      reason: new TransportReason({
-        message: input.message,
-        kind: input.kind,
-        url: input.request ? redactUrl(input.request.url) : undefined,
-        http: input.request ? new HttpContext({ request: requestDetails(input.request, redactedNames) }) : undefined,
-      }),
-    })
+const toHttpError =
+  (redactedNames: ReadonlyArray<string | RegExp>, fallbackRequest?: HttpClientRequest.HttpClientRequest) =>
+  (error: unknown) => {
+    const transportError = (input: {
+      readonly message: string
+      readonly kind?: string | undefined
+      readonly request?: HttpClientRequest.HttpClientRequest | undefined
+    }) =>
+      new LLMError({
+        module: "RequestExecutor",
+        method: "execute",
+        reason: new TransportReason({
+          message: input.message,
+          kind: input.kind,
+          url: input.request ? redactUrl(input.request.url) : undefined,
+          http: input.request ? new HttpContext({ request: requestDetails(input.request, redactedNames) }) : undefined,
+        }),
+      })
 
-  if (Cause.isTimeoutError(error)) {
-    return transportError({ message: error.message, kind: "Timeout" })
-  }
-  if (!HttpClientError.isHttpClientError(error)) {
-    return transportError({ message: "HTTP transport failed" })
-  }
-  const request = "request" in error ? error.request : undefined
-  if (error.reason._tag === "TransportError") {
+    if (Cause.isTimeoutError(error)) {
+      return transportError({
+        message: transportMessage(error, fallbackRequest),
+        kind: "REQUEST_TIMEOUT",
+        request: fallbackRequest,
+      })
+    }
+    if (!HttpClientError.isHttpClientError(error)) {
+      return transportError({
+        message: transportMessage(error, fallbackRequest),
+        kind: transportKind(transportCauseText(error) ?? ""),
+        request: fallbackRequest,
+      })
+    }
+    const request = "request" in error ? error.request : undefined
+    if (error.reason._tag === "TransportError") {
+      const description = transportCauseText(error.reason) ?? ""
+      return transportError({
+        message: transportMessage(error.reason, request),
+        kind: transportKind(description),
+        request,
+      })
+    }
+    const message = transportMessage(error.reason, request)
     return transportError({
-      message: error.reason.description ?? "HTTP transport failed",
+      message,
       kind: error.reason._tag,
       request,
     })
   }
-  return transportError({
-    message: `HTTP transport failed: ${error.reason._tag}`,
-    kind: error.reason._tag,
-    request,
-  })
-}
 
 const retryDelay = (error: LLMError, attempt: number) => {
   if (error.retryAfterMs !== undefined) return Effect.succeed(Math.min(error.retryAfterMs, MAX_DELAY_MS))
@@ -372,7 +451,10 @@ export const layer: Layer.Layer<Service, never, HttpClient.HttpClient> = Layer.e
         const redactedNames = yield* Headers.CurrentRedactedNames
         return yield* http
           .execute(request)
-          .pipe(Effect.mapError(toHttpError(redactedNames)), Effect.flatMap(statusError(request, redactedNames)))
+          .pipe(
+            Effect.mapError(toHttpError(redactedNames, request)),
+            Effect.flatMap(statusError(request, redactedNames)),
+          )
       })
     return Service.of({
       execute: (request) => retryStatusFailures(executeOnce(request)),

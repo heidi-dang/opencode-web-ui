@@ -407,6 +407,18 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
             variant: msg.model?.variant ?? null,
           })
         },
+        reconcile(msg: { sessionID: string; agent?: string; model?: ModelKey; variant?: string | null }) {
+          const session = id()
+          if (!session || msg.sessionID !== session) return
+          const previous = scope()
+          const next = {
+            ...(previous ?? {}),
+            ...(msg.agent === undefined ? {} : { agent: msg.agent }),
+            ...(msg.model === undefined ? {} : { model: msg.model }),
+            ...(msg.variant === undefined ? {} : { variant: msg.variant }),
+          } satisfies State
+          setSaved("session", session, next)
+        },
       },
     }
     return result

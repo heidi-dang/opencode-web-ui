@@ -45,11 +45,15 @@ test("creates a session in a new project, connects OpenCode Go, and selects its 
             },
           },
         },
+        { id: "obscure-ai", name: "Obscure AI", models: {} },
       ],
       connected: connectedGo ? ["opencode", "opencode-go"] : ["opencode"],
       default: { providerID: "opencode", modelID: "free-model" },
     }),
-    integrationMethods: { "opencode-go": [{ type: "api", label: "API key" }] },
+    integrationMethods: {
+      "opencode-go": [{ type: "api", label: "API key" }],
+      "obscure-ai": [{ type: "api", label: "API key" }],
+    },
     onConnectKey: (input) => {
       connections.push(input)
       if (input.integrationID === "opencode-go") pendingGo = true
@@ -65,22 +69,30 @@ test("creates a session in a new project, connects OpenCode Go, and selects its 
   })
   await page.addInitScript(() => {
     localStorage.setItem("settings.v3", JSON.stringify({ general: { newLayoutDesigns: true } }))
-    localStorage.setItem("opencode.global.dat:server", JSON.stringify({ projects: { local: [] } }))
+    localStorage.setItem("opencode.settings.dat:defaultServerUrl", "http://127.0.0.1:4096")
+    localStorage.setItem(
+      "opencode.global.dat:server.v4",
+      JSON.stringify({
+        list: [{ type: "http", http: { id: "model-selection-server", url: "http://127.0.0.1:4096" } }],
+        projects: { "http://127.0.0.1:4096": [] },
+        lastProject: {},
+        recentlyClosed: {},
+      }),
+    )
   })
 
   await page.goto("/")
-  const addProject = page.locator('[data-action="home-add-project-row"]')
-  await expectAppVisible(addProject)
-  await addProject.click()
-  await page.locator("[data-directory-path]").click()
-
-  await page.locator('[data-action="home-new-session"]').click()
+  const newSession = page.getByRole("button", { name: "New session" }).first()
+  await expectAppVisible(newSession)
+  await newSession.click()
   await expectAppVisible(page.locator('[data-component="prompt-input-v2"]'))
 
   const modelControl = page.locator('[data-action="prompt-model"]')
   await modelControl.click()
   await expect(page.locator('[data-section="free-models"]')).toContainText("Free models provided by OpenCode")
 
+  await page.getByText("See 70+ more providers").click()
+  await expect(page.locator('[data-provider-id="obscure-ai"]')).toBeVisible()
   await page.locator('[data-provider-id="opencode-go"]').click()
   await page.locator('[data-input="provider-api-key"]').fill("mock-go-api-key")
   await page.locator('[data-action="provider-connect-submit"]').click()
@@ -91,7 +103,8 @@ test("creates a session in a new project, connects OpenCode Go, and selects its 
   await modelControl.click()
   const goModel = page.locator('[data-option-key="opencode-go:go-model-1"]')
   await expect(goModel).toBeVisible()
-  await goModel.click()
+  await goModel.focus()
+  await goModel.press("Enter")
 
   await expect(modelControl).toContainText("Go Model 1")
 })
