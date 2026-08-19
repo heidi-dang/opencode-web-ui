@@ -129,6 +129,29 @@ describe("normalizeProviderList", () => {
   test("preserves an empty current default", () => {
     expect(normalizeProviderList([] as ProviderListOutput["data"], [], null).defaultModel).toBeNull()
   })
+
+  test("does not turn an unknown release timestamp into an old release date", () => {
+    const result = normalizeProviderList(
+      [{ id: "9router", name: "9router", package: "@ai-sdk/openai-compatible" }] as ProviderListOutput["data"],
+      [
+        {
+          id: "heidi-antigravity",
+          modelID: "heidi-antigravity",
+          providerID: "9router",
+          name: "heidi-antigravity",
+          capabilities: { tools: false, input: [], output: [] },
+          variants: [],
+          time: { released: 0 },
+          cost: [],
+          status: "active",
+          enabled: true,
+          limit: { context: 0, output: 0 },
+        },
+      ] as ModelListOutput["data"],
+    )
+
+    expect(result.all.get("9router")?.models["heidi-antigravity"]?.release_date).toBe("")
+  })
 })
 
 describe("directoryKey", () => {

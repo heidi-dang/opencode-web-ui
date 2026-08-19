@@ -186,7 +186,11 @@ export function normalizeProviderList(
       status: model.status,
       options: model.settings ?? {},
       headers: model.headers ?? {},
-      release_date: new Date(model.time.released).toISOString().slice(0, 10),
+      // OpenCode uses zero when the provider does not know a model's release
+      // date. Keep that value unknown instead of turning it into 1970-01-01;
+      // the model visibility policy intentionally shows models with unknown
+      // release dates, while hiding genuinely old models by default.
+      release_date: model.time.released > 0 ? new Date(model.time.released).toISOString().slice(0, 10) : "",
       variants: Object.fromEntries(model.variants.map((variant) => [variant.id, variant.settings ?? {}])),
     }
   }
