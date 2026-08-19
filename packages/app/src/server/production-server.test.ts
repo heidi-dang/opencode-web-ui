@@ -111,6 +111,30 @@ describe("production Web UI server", () => {
     expect((await committedHeaders).get("content-type")).toBe("application/json; charset=utf-8")
   })
 
+  test("reports bounded stream saturation and emits drain after the consumer reads", async () => {
+    const { response, responseReady } = nodeResponse()
+    const drained = new Promise<void>((resolve) => response.once("drain", resolve))
+    let accepted = 0
+    let saturated = false
+    for (; accepted < 64; accepted++) {
+      if (!response.write(`chunk-${accepted}`)) {
+        saturated = true
+        break
+      }
+    }
+    expect(accepted).toBeGreaterThan(0)
+    expect(saturated).toBe(true)
+
+    const streamResponse = await responseReady
+    const reader = streamResponse.body!.getReader()
+    await reader.read()
+    await drained
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(response.write("resumed")).toBe(false)
+    expect((await reader.read()).done).toBe(false)
+    await reader.cancel()
+  })
+
   test("disables Bun's default idle timeout for long-lived SSE responses", () => {
     const options = createProductionServerOptions(app, "127.0.0.1", 3000)
 

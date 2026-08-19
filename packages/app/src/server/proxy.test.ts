@@ -29,6 +29,7 @@ describe("Universal OpenCode Proxy", () => {
     { id: "srv-api", baseUrl: "https://api.example.test" },
     { id: "srv-base", baseUrl: "https://api.example.test/opencode" },
   ])
+  process.env.OPENCODE_ALLOWED_SERVERS = "https://api.example.test"
   resetRegistryForTests()
 
   test("rejects requests missing the target query parameter", async () => {
@@ -165,6 +166,48 @@ describe("Universal OpenCode Proxy", () => {
       expect(upstreamSignal?.aborted).toBe(true)
       controller?.close()
       await pending
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
+  test("waits for downstream drain before consuming another upstream chunk", async () => {
+    const originalFetch = globalThis.fetch
+    let writes = 0
+    let ended = false
+    let drain: (() => void) | undefined
+    globalThis.fetch = mock(async () => new Response(new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode("first"))
+        controller.enqueue(new TextEncoder().encode("second"))
+        controller.close()
+      },
+    }), { status: 200 })) as unknown as typeof fetch
+    const listeners = new Map<string, () => void>()
+    const res = {
+      ...response(),
+      write(chunk: Uint8Array) {
+        writes++
+        return writes > 1
+      },
+      once(name: string, listener: () => void) {
+        listeners.set(name, listener)
+        if (name === "drain") drain = listener
+      },
+      removeListener(name: string) {
+        listeners.delete(name)
+      },
+      end() { ended = true },
+    }
+    try {
+      const pending = handleOpenCodeProxy(request("/api/opencode/global/event?serverId=srv-api") as any, res as any)
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      expect(writes).toBe(1)
+      expect(ended).toBe(false)
+      drain?.()
+      await pending
+      expect(writes).toBe(2)
+      expect(ended).toBe(true)
     } finally {
       globalThis.fetch = originalFetch
     }

@@ -67,6 +67,7 @@ function nodeRequest(request: Request): IncomingMessage & { method: string; url:
     method: request.method,
     url: `${new URL(request.url).pathname}${new URL(request.url).search}`,
     headers: Object.fromEntries(request.headers.entries()),
+    socket: { remoteAddress: "127.0.0.1" },
     once(event: string, listener: (...args: any[]) => void) {
       const set = listeners.get(event) || new Set()
       set.add(listener)
@@ -90,8 +91,9 @@ export function nodeResponse() {
   const headers = new Headers()
   const stream = new ReadableStream<Uint8Array>({
     start(next) { controller = next },
-    cancel() { emit("close") },
-  })
+    pull() { emit("drain") },
+    cancel() { closed = true; emit("close") },
+  }, { highWaterMark: 16, size: () => 1 })
   const listeners = new Map<string, Set<(...args: any[]) => void>>()
   const emit = (event: string, ...args: any[]) => listeners.get(event)?.forEach((listener) => listener(...args))
   const commit = () => {
@@ -111,8 +113,9 @@ export function nodeResponse() {
       if (closed) return false
       response.headersSent = true
       commit()
+      if ((controller?.desiredSize ?? 0) <= 0) return false
       controller?.enqueue(typeof chunk === "string" ? new TextEncoder().encode(chunk) : new Uint8Array(chunk))
-      return true
+      return (controller?.desiredSize ?? 0) > 0
     },
     end(chunk?: Uint8Array | string) {
       if (closed) return response
