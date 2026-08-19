@@ -88,6 +88,7 @@ describe("active session query", () => {
     expect(await queryClient.fetchQuery(options)).toEqual({ ses_running: { type: "running" } })
     expect(calls).toBe(1)
     expect(options.enabled).toBe(true)
+    expect(options.refetchInterval).toBe(3_000)
     expect([...options.queryKey]).toEqual([ServerScope.local, "activeSessions"])
   })
 

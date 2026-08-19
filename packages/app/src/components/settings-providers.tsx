@@ -12,6 +12,7 @@ import { DialogConnectProvider, useProviderConnectController } from "./dialog-co
 import { DialogCustomProvider } from "./dialog-custom-provider"
 import { SettingsList } from "./settings-list"
 import { SettingsServerPicker, SettingsServerScope } from "./settings-server-picker"
+import { isCustomProviderConfig } from "./custom-provider-auth"
 
 type ProviderSource = "env" | "api" | "config" | "custom"
 type ProviderItem = ReturnType<ReturnType<typeof useProviders>["connected"]>[number]
@@ -90,11 +91,7 @@ const SettingsProvidersContent: Component<{ onBack?: () => void }> = (props) => 
   const note = (id: string) => PROVIDER_NOTES.find((item) => item.match(id))?.key
 
   const isConfigCustom = (providerID: string) => {
-    const provider = serverSync().data.config.provider?.[providerID]
-    if (!provider) return false
-    if (provider.npm !== "@ai-sdk/openai-compatible") return false
-    if (!provider.models || Object.keys(provider.models).length === 0) return false
-    return true
+    return isCustomProviderConfig(serverSync().data.config.provider?.[providerID])
   }
 
   const disableProvider = async (providerID: string, name: string) => {
@@ -177,9 +174,18 @@ const SettingsProvidersContent: Component<{ onBack?: () => void }> = (props) => 
                     <Show
                       when={canDisconnect(item)}
                       fallback={
-                        <span class="text-14-regular text-text-base opacity-0 group-hover:opacity-100 transition-opacity duration-200 pr-3 cursor-default">
-                          {language.t("settings.providers.connected.environmentDescription")}
-                        </span>
+                        <Show
+                          when={isConfigCustom(item.id)}
+                          fallback={
+                            <span class="text-14-regular text-text-base opacity-0 group-hover:opacity-100 transition-opacity duration-200 pr-3 cursor-default">
+                              {language.t("settings.providers.connected.environmentDescription")}
+                            </span>
+                          }
+                        >
+                          <Button size="large" variant="ghost" onClick={() => connect(item.id)}>
+                            {language.t("common.connect")}
+                          </Button>
+                        </Show>
                       }
                     >
                       <Button size="large" variant="ghost" onClick={() => void disconnect(item.id, item.name)}>
@@ -221,7 +227,7 @@ const SettingsProvidersContent: Component<{ onBack?: () => void }> = (props) => 
               )}
             </For>
 
-            <Show when={protocol() === "v1"}>
+            <>
               <div
                 class="flex items-center justify-between gap-4 min-h-16 border-b border-border-weak-base last:border-none flex-wrap py-3"
                 data-component="custom-provider-section"
@@ -247,7 +253,7 @@ const SettingsProvidersContent: Component<{ onBack?: () => void }> = (props) => 
                   {language.t("common.connect")}
                 </Button>
               </div>
-            </Show>
+            </>
           </SettingsList>
 
           <Button

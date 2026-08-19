@@ -36,6 +36,7 @@ function setup(
           delivery: "steer",
         })
       }
+      if (request.method === "DELETE") return Response.json(true)
       if (request.method === "GET" && new URL(request.url).pathname === "/vcs")
         return Response.json(responses?.vcs ?? {})
       if (request.method === "GET") return Response.json([])
@@ -233,6 +234,15 @@ describe("createCompatibleApi", () => {
 
     expect(new URL(requests[0]!.url).pathname).toBe("/api/session/ses_1/interrupt")
     expect(requests[0]!.method).toBe("POST")
+  })
+
+  test("deletes V2 sessions through the compatible legacy session endpoint", async () => {
+    const { api, requests } = setup("v2")
+
+    await api.session.remove({ sessionID: "ses_1" })
+
+    expect(new URL(requests[0]!.url).pathname).toBe("/session/ses_1")
+    expect(requests[0]!.method).toBe("DELETE")
   })
 
   test("routes V1 interruption through the legacy abort API", async () => {

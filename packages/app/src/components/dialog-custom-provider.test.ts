@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { validateCustomProvider } from "./dialog-custom-provider-form"
+import { isCustomProviderConfig, setCustomProviderApiKey } from "./custom-provider-auth"
 
 const t = (key: string) => key
 
@@ -76,5 +77,31 @@ describe("validateCustomProvider", () => {
       key: "provider.custom.error.duplicate",
       value: undefined,
     })
+  })
+})
+
+describe("custom provider authentication", () => {
+  test("recognizes configured OpenAI-compatible providers even without integration metadata", () => {
+    expect(
+      isCustomProviderConfig({
+        npm: "@ai-sdk/openai-compatible",
+        models: { "model-a": { name: "Model A" } },
+      }),
+    ).toBe(true)
+    expect(isCustomProviderConfig({ npm: "@ai-sdk/openai-compatible", models: {} })).toBe(false)
+    expect(isCustomProviderConfig({ npm: "other", models: { "model-a": {} } })).toBe(false)
+  })
+
+  test("stores the key through the server auth API", async () => {
+    const calls: unknown[] = []
+    await setCustomProviderApiKey({
+      providerID: "custom-provider",
+      key: "secret",
+      setAuth: async (input) => {
+        calls.push(input)
+      },
+    })
+
+    expect(calls).toEqual([{ providerID: "custom-provider", auth: { type: "api", key: "secret" } }])
   })
 })

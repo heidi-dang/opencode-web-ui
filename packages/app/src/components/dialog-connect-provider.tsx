@@ -34,6 +34,7 @@ import { useServerSDK } from "@/context/server-sdk"
 import { useServerSync } from "@/context/server-sync"
 import { useLanguage } from "@/context/language"
 import { useSettings } from "@/context/settings"
+import { isCustomProviderConfig, setCustomProviderApiKey } from "./custom-provider-auth"
 import { popularProviders, useProviders } from "@/hooks/use-providers"
 import { providerSearchText, useSupportedProviders } from "@/hooks/supported-provider-catalog"
 import { CustomProviderForm } from "./dialog-custom-provider"
@@ -875,11 +876,20 @@ function ProviderConnection(props: {
       }
 
       setFormStore("error", undefined)
-      await serverSDK().api.integration.connect.key({
-        integrationID: props.provider,
-        location: location(),
-        key: apiKey,
-      })
+      if (isCustomProviderConfig(serverSync().data.config.provider?.[props.provider])) {
+        await setCustomProviderApiKey({
+          providerID: props.provider,
+          key: apiKey,
+          setAuth: (input) => serverSDK().client.auth.set(input),
+        })
+        await serverSDK().client.global.dispose()
+      } else {
+        await serverSDK().api.integration.connect.key({
+          integrationID: props.provider,
+          location: location(),
+          key: apiKey,
+        })
+      }
       await complete()
     }
 

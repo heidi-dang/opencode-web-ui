@@ -13,6 +13,7 @@ import { useServerSDK } from "@/context/server-sdk"
 import { useServerSync } from "@/context/server-sync"
 import { useLanguage } from "@/context/language"
 import { type FormState, headerRow, modelRow, validateCustomProvider } from "./dialog-custom-provider-form"
+import { setCustomProviderApiKey } from "./custom-provider-auth"
 
 type Props = {
   onBack: () => void
@@ -131,17 +132,14 @@ export function CustomProviderForm(props: { autofocus?: boolean } = {}) {
 
   const saveMutation = useMutation(() => ({
     mutationFn: async (result: NonNullable<ReturnType<typeof validate>>) => {
-      if ((await serverSDK().protocol) !== "v1") throw new Error(language.t("provider.custom.unavailable"))
       const disabledProviders = serverSync().data.config.disabled_providers ?? []
       const nextDisabled = disabledProviders.filter((id) => id !== result.providerID)
 
       if (result.key) {
-        await serverSDK().client.auth.set({
+        await setCustomProviderApiKey({
           providerID: result.providerID,
-          auth: {
-            type: "api",
-            key: result.key,
-          },
+          key: result.key,
+          setAuth: (input) => serverSDK().client.auth.set(input),
         })
       }
 

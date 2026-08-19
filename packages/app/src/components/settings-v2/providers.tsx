@@ -12,6 +12,7 @@ import { DialogConnectProvider, useProviderConnectController } from "../dialog-c
 import { DialogCustomProvider } from "../dialog-custom-provider"
 import { SettingsListV2 } from "./parts/list"
 import "./settings-v2.css"
+import { isCustomProviderConfig } from "../custom-provider-auth"
 
 type ProviderSource = "env" | "api" | "config" | "custom"
 type ProviderItem = ReturnType<ReturnType<typeof useProviders>["connected"]>[number]
@@ -87,11 +88,7 @@ export const SettingsProvidersV2: Component<{
   const note = (id: string) => PROVIDER_NOTES.find((item) => item.match(id))?.key
 
   const isConfigCustom = (providerID: string) => {
-    const provider = serverSync().data.config.provider?.[providerID]
-    if (!provider) return false
-    if (provider.npm !== "@ai-sdk/openai-compatible") return false
-    if (!provider.models || Object.keys(provider.models).length === 0) return false
-    return true
+    return isCustomProviderConfig(serverSync().data.config.provider?.[providerID])
   }
 
   const disableProvider = async (providerID: string, name: string) => {
@@ -176,9 +173,18 @@ export const SettingsProvidersV2: Component<{
                     <Show
                       when={canDisconnect(item)}
                       fallback={
-                        <span class="settings-v2-provider-env-hint">
-                          {language.t("settings.providers.connected.environmentDescription")}
-                        </span>
+                        <Show
+                          when={isConfigCustom(item.id)}
+                          fallback={
+                            <span class="settings-v2-provider-env-hint">
+                              {language.t("settings.providers.connected.environmentDescription")}
+                            </span>
+                          }
+                        >
+                          <ButtonV2 size="normal" variant="ghost-muted" onClick={() => connect(item.id)}>
+                            {language.t("common.connect")}
+                          </ButtonV2>
+                        </Show>
                       }
                     >
                       <ButtonV2 size="normal" variant="ghost-muted" onClick={() => void disconnect(item.id, item.name)}>
@@ -224,7 +230,7 @@ export const SettingsProvidersV2: Component<{
               )}
             </For>
 
-            <Show when={protocol() === "v1"}>
+            <>
               <div class="settings-v2-provider-row" data-component="custom-provider-section">
                 <div class="settings-v2-provider-lead">
                   <ProviderIcon
@@ -254,7 +260,7 @@ export const SettingsProvidersV2: Component<{
                   {language.t("common.connect")}
                 </ButtonV2>
               </div>
-            </Show>
+            </>
           </SettingsListV2>
 
           <button type="button" class="settings-v2-providers-view-all" onClick={() => connect()}>

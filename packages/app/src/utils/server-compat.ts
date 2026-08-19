@@ -180,6 +180,15 @@ function createV2Api(input: CompatibleInput): ServerApi {
       async switchAgent(value: { sessionID: string; agent: string }) {
         await input.currentV2.v2.session.switchAgent(value)
       },
+      async remove(value: Parameters<SessionApi["remove"]>[0] & LegacyLocation) {
+        // The current v2 contract does not expose session deletion. OpenCode
+        // keeps this operation on the generated legacy route even when the
+        // session is otherwise driven through v2 APIs.
+        await input.legacy(value.directory).session.delete({
+          sessionID: value.sessionID,
+          directory: value.directory,
+        })
+      },
       async prompt(value: SessionPromptInput & LegacyPrompt) {
         const result = await input.currentV2.v2.session.prompt(serializeV2Prompt(value))
         return admittedPrompt(result, value)

@@ -195,6 +195,10 @@ export const loadActiveSessionsQuery = (
     refetchOnMount: true,
     refetchOnReconnect: true,
     refetchOnWindowFocus: true,
+    // Events are authoritative when available, but active execution can begin
+    // in another browser/client between stream reconnects. Keep this bounded
+    // fallback scoped to the server query instead of relying on stale status.
+    refetchInterval: 3_000,
   })
 
 export function seedActiveSessionStatuses(
