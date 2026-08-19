@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http"
 import { getServer } from "./server-registry"
-import { assertNetworkPolicy } from "./backend/network"
+import { validateBackendDestination } from "./backend/network"
 import { runtimeLogger } from "./observability/logger"
 
 const HOP_BY_HOP = new Set(["connection", "content-encoding", "content-length", "etag", "host", "keep-alive", "transfer-encoding", "upgrade"])
@@ -90,7 +90,7 @@ export async function proxyOpenCodeRequest(req: IncomingMessage & { method?: str
     let registered: Awaited<ReturnType<typeof resolveServer>>["server"]
     try {
       const resolved = await resolveServer(incoming)
-      origin = assertNetworkPolicy(resolved.baseUrl.toString())
+      origin = await validateBackendDestination(resolved.baseUrl.toString())
       registered = resolved.server
       runtimeLogger.debug("gateway.upstream_resolved", { ...logFields, backendId: registered.id, protocol: registered.protocol, upstreamRoute: route })
     } catch (error) {
