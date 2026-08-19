@@ -8,6 +8,7 @@ import { handleOpenCodeProxy } from "./proxy"
 import { createUnifiedRuntimeMiddleware } from "./unified-runtime"
 import { listBackendDescriptors } from "./services/backend-service"
 import { runtimeLogger } from "./observability/logger"
+import { authorizeWebUIRequest, validateWebUIAuthConfiguration } from "./web-ui-auth"
 
 const root = resolve(fileURLToPath(new URL("../../dist", import.meta.url)))
 const runtimeMiddleware = createUnifiedRuntimeMiddleware({ control: handleControlPlaneRequest, gateway: handleOpenCodeProxy })
@@ -158,6 +159,11 @@ async function apiResponse(request: Request) {
 export function createProductionApp() {
   const app = new Hono()
   app.all("*", async (context) => {
+    const authorization = authorizeWebUIRequest(context.req.raw.headers)
+    if (!authorization.allowed) {
+      if (authorization.status === 401) context.header("www-authenticate", "Basic realm=web-ui")
+      return context.json({ error: authorization.error }, authorization.status as 401 | 503)
+    }
     if (new URL(context.req.raw.url).pathname.startsWith("/api/")) return apiResponse(context.req.raw)
     return staticResponse(context.req.raw)
   })
@@ -180,6 +186,7 @@ export async function startProductionServer() {
   const hostname = process.env.WEBUI_BIND_HOST || "127.0.0.1"
   const port = Number(process.env.WEBUI_PORT || process.env.PORT || 3000)
   if (!Number.isInteger(port) || port < 1 || port > 65_535) throw new Error("INVALID_WEBUI_PORT")
+  validateWebUIAuthConfiguration()
   const app = createProductionApp()
   const server = Bun.serve(createProductionServerOptions(app, hostname, port))
   runtimeLogger.info("application.start", {

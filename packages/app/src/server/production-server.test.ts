@@ -4,6 +4,76 @@ import { createProductionApp, createProductionServerOptions, nodeResponse } from
 const app = createProductionApp()
 
 describe("production Web UI server", () => {
+  test("rejects anonymous requests when production basic auth is enabled", async () => {
+    const previous = {
+      mode: process.env.WEBUI_AUTH_MODE,
+      username: process.env.WEBUI_AUTH_USERNAME,
+      passwordHash: process.env.WEBUI_AUTH_PASSWORD_HASH,
+    }
+    process.env.WEBUI_AUTH_MODE = "basic"
+    process.env.WEBUI_AUTH_USERNAME = "operator"
+    process.env.WEBUI_AUTH_PASSWORD_HASH = "scrypt$16384$8$1$test-salt$eYjcyBJhwWVEd3yaEKOow5fvCtWmQjAZsuccH_1rqR4"
+    try {
+      const response = await createProductionApp().request("http://localhost/api/bootstrap")
+      expect(response.status).toBe(401)
+      expect(response.headers.get("www-authenticate")).toBe("Basic realm=web-ui")
+    } finally {
+      if (previous.mode === undefined) delete process.env.WEBUI_AUTH_MODE
+      else process.env.WEBUI_AUTH_MODE = previous.mode
+      if (previous.username === undefined) delete process.env.WEBUI_AUTH_USERNAME
+      else process.env.WEBUI_AUTH_USERNAME = previous.username
+      if (previous.passwordHash === undefined) delete process.env.WEBUI_AUTH_PASSWORD_HASH
+      else process.env.WEBUI_AUTH_PASSWORD_HASH = previous.passwordHash
+    }
+  })
+
+  test("allows only the configured basic-auth credentials", async () => {
+    const previous = {
+      mode: process.env.WEBUI_AUTH_MODE,
+      username: process.env.WEBUI_AUTH_USERNAME,
+      passwordHash: process.env.WEBUI_AUTH_PASSWORD_HASH,
+    }
+    process.env.WEBUI_AUTH_MODE = "basic"
+    process.env.WEBUI_AUTH_USERNAME = "operator"
+    process.env.WEBUI_AUTH_PASSWORD_HASH = "scrypt$16384$8$1$test-salt$eYjcyBJhwWVEd3yaEKOow5fvCtWmQjAZsuccH_1rqR4"
+    try {
+      const wrong = await createProductionApp().request("http://localhost/api/bootstrap", { headers: { authorization: "Basic b3BlcmF0b3I6d3Jvbmc=" } })
+      const right = await createProductionApp().request("http://localhost/api/bootstrap", { headers: { authorization: "Basic b3BlcmF0b3I6c2VjcmV0" } })
+      expect(wrong.status).toBe(401)
+      expect(right.status).not.toBe(401)
+    } finally {
+      if (previous.mode === undefined) delete process.env.WEBUI_AUTH_MODE
+      else process.env.WEBUI_AUTH_MODE = previous.mode
+      if (previous.username === undefined) delete process.env.WEBUI_AUTH_USERNAME
+      else process.env.WEBUI_AUTH_USERNAME = previous.username
+      if (previous.passwordHash === undefined) delete process.env.WEBUI_AUTH_PASSWORD_HASH
+      else process.env.WEBUI_AUTH_PASSWORD_HASH = previous.passwordHash
+    }
+  })
+
+  test("rejects malformed authorization without exposing details", async () => {
+    const previous = {
+      mode: process.env.WEBUI_AUTH_MODE,
+      username: process.env.WEBUI_AUTH_USERNAME,
+      passwordHash: process.env.WEBUI_AUTH_PASSWORD_HASH,
+    }
+    process.env.WEBUI_AUTH_MODE = "basic"
+    process.env.WEBUI_AUTH_USERNAME = "operator"
+    process.env.WEBUI_AUTH_PASSWORD_HASH = "scrypt$16384$8$1$test-salt$eYjcyBJhwWVEd3yaEKOow5fvCtWmQjAZsuccH_1rqR4"
+    try {
+      const response = await createProductionApp().request("http://localhost/api/opencode/servers", { method: "POST", headers: { authorization: "Bearer secret" }, body: "{}" })
+      expect(response.status).toBe(401)
+      expect(await response.json()).toEqual({ error: "AUTH_REQUIRED" })
+    } finally {
+      if (previous.mode === undefined) delete process.env.WEBUI_AUTH_MODE
+      else process.env.WEBUI_AUTH_MODE = previous.mode
+      if (previous.username === undefined) delete process.env.WEBUI_AUTH_USERNAME
+      else process.env.WEBUI_AUTH_USERNAME = previous.username
+      if (previous.passwordHash === undefined) delete process.env.WEBUI_AUTH_PASSWORD_HASH
+      else process.env.WEBUI_AUTH_PASSWORD_HASH = previous.passwordHash
+    }
+  })
+
   test("serves the built SPA and client-side routes", async () => {
     const root = await app.request("http://localhost/")
     const deepLink = await app.request("http://localhost/session/demo")

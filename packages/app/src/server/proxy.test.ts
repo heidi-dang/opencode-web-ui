@@ -47,12 +47,12 @@ describe("Universal OpenCode Proxy", () => {
     expect(res.end).toHaveBeenCalledWith(expect.stringContaining("SERVER_NOT_FOUND"))
   })
 
-  test("forwards the rewritten URL, auth headers, and streams the response", async () => {
+  test("does not forward browser authorization headers to the backend", async () => {
     const originalFetch = globalThis.fetch
     const fetchMock = mock(async (url: URL | RequestInfo, init?: RequestInit) => {
       expect(String(url)).toBe("https://api.example.test/global/health?directory=%2Frepo&project=one")
       expect(init?.headers).toBeInstanceOf(Headers)
-      expect((init?.headers as Headers).get("authorization")).toBe("Bearer secret")
+      expect((init?.headers as Headers).get("authorization")).toBeNull()
       return new Response(new ReadableStream({
         start(controller) {
           controller.enqueue(new TextEncoder().encode("data: ready\n\n"))

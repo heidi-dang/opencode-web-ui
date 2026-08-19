@@ -111,7 +111,7 @@ export async function proxyOpenCodeRequest(req: IncomingMessage & { method?: str
     const headers = new Headers()
     for (const [key, value] of Object.entries(req.headers || {})) {
       const lower = key.toLowerCase()
-      if (!HOP_BY_HOP.has(lower) && lower !== "accept-encoding" && (!registered.password || lower !== "authorization") && value !== undefined) headers.set(key, Array.isArray(value) ? value.join(", ") : value)
+      if (!HOP_BY_HOP.has(lower) && lower !== "accept-encoding" && lower !== "authorization" && value !== undefined) headers.set(key, Array.isArray(value) ? value.join(", ") : value)
     }
     if (registered.password) headers.set("authorization", `Basic ${Buffer.from(`${registered.username || "opencode"}:${registered.password}`).toString("base64")}`)
     const body = method === "GET" || method === "HEAD" ? undefined : req
