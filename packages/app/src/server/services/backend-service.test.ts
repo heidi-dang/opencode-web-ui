@@ -2,10 +2,18 @@ import { describe, expect, test } from "bun:test"
 import { mkdtemp, rm } from "node:fs/promises"
 import { join } from "node:path"
 import { agentBackendManager } from "../backend/manager"
-import { probeBackend, registerBackend } from "./backend-service"
+import { deriveBackendState, probeBackend, registerBackend } from "./backend-service"
 import { resetRegistryForTests } from "../server-registry"
 
 describe("backend service", () => {
+  test("classifies an unreachable backend as unhealthy rather than auth failed", () => {
+    expect(deriveBackendState({ healthy: false, reachable: false, authenticated: false })).toBe("UNHEALTHY")
+  })
+
+  test("classifies a reachable unauthenticated backend as auth failed", () => {
+    expect(deriveBackendState({ healthy: false, reachable: true, authenticated: false })).toBe("AUTH_FAILED")
+  })
+
   test("returns the server descriptor after persisting probe readiness", async () => {
     const directory = await mkdtemp(join(process.env.TMPDIR || "/tmp", "opencode-backend-service-"))
     const previousStore = process.env.OPENCODE_SERVERS_STORE

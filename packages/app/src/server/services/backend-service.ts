@@ -4,6 +4,12 @@ import { deletePrimaryBackend, insertPrimaryBackend, isDatabasePrimary, updatePr
 import { normalizeBackendEndpoint } from "../backend/network"
 import { runtimeLogger } from "../observability/logger"
 
+export function deriveBackendState(health: Pick<RegisteredServer, "healthy" | "reachable" | "authenticated">): RegisteredServer["state"] {
+  if (health.healthy) return "READY"
+  if (!health.reachable) return "UNHEALTHY"
+  return health.authenticated ? "UNHEALTHY" : "AUTH_FAILED"
+}
+
 export async function listBackendDescriptors() {
   try {
     const result = await agentBackendManager.list()
@@ -87,7 +93,7 @@ export async function probeBackend(id: string, recovery = false) {
     const health = await agentBackendManager.health(id, recovery)
     const server = await getServer(id)
     if (!server) throw new Error("SERVER_NOT_FOUND")
-    const state: RegisteredServer["state"] = health.healthy ? "READY" : health.authenticated ? "UNHEALTHY" : "AUTH_FAILED"
+    const state = deriveBackendState(health)
     const update = { state, protocol: health.protocol, reachable: health.reachable, authenticated: health.authenticated, healthy: health.healthy, latencyMs: health.latencyMs, error: health.error as never }
     const updated = isDatabasePrimary() ? (updatePrimaryHealth(id, update), await getServer(id)) : await updateServerHealth(id, update)
     runtimeLogger.debug(recovery ? "health.recovery.complete" : "health.complete", { backendId: id, protocol: health.protocol, reachable: health.reachable, authenticated: health.authenticated, healthy: health.healthy, latencyMs: health.latencyMs, durationMs: Date.now() - started })
