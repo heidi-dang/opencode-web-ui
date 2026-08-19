@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { createClientDiagnosticLimiter, sanitizeClientDiagnostic } from "./client-diagnostics"
+import { clientIdentityKey, createClientDiagnosticLimiter, sanitizeClientDiagnostic } from "./client-diagnostics"
 
 describe("client diagnostic ingestion", () => {
   test("keeps only safe bounded fields and redacts prompt-like messages", () => {
@@ -36,5 +36,14 @@ describe("client diagnostic ingestion", () => {
     expect(limiter.allow("client-a")).toBe(true)
     expect(limiter.allow("client-a")).toBe(false)
     expect(limiter.allow("client-b")).toBe(true)
+  })
+
+  test("isolates trusted forwarded clients and ignores spoofed forwarding headers", () => {
+    const trustedA = clientIdentityKey({ socket: { remoteAddress: "127.0.0.1" }, headers: { "x-forwarded-for": "203.0.113.10" } } as any)
+    const trustedB = clientIdentityKey({ socket: { remoteAddress: "127.0.0.1" }, headers: { "x-forwarded-for": "203.0.113.11" } } as any)
+    const spoofed = clientIdentityKey({ socket: { remoteAddress: "203.0.113.20" }, headers: { "x-forwarded-for": "203.0.113.10" } } as any)
+    const direct = clientIdentityKey({ socket: { remoteAddress: "203.0.113.20" }, headers: {} } as any)
+    expect(trustedA).not.toBe(trustedB)
+    expect(spoofed).toBe(direct)
   })
 })

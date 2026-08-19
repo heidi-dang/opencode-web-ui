@@ -1,4 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http"
+import { createHash } from "node:crypto"
+import { isIP } from "node:net"
 import { runtimeLogger } from "./observability/logger"
 
 const MAX_BODY_BYTES = 16 * 1024
@@ -96,6 +98,26 @@ export function createClientDiagnosticLimiter(options: { maxEvents: number; wind
 
 const limiter = createClientDiagnosticLimiter({ maxEvents: 30, windowMs: 60_000 })
 
+function header(req: IncomingMessage, name: string) {
+  const value = req.headers?.[name]
+  return Array.isArray(value) ? value[0] : value
+}
+
+function trustedProxy(peer: string | undefined) {
+  if (!peer) return false
+  const configured = (process.env.WEBUI_TRUSTED_PROXY || "127.0.0.1").split(",").map((value) => value.trim()).filter(Boolean)
+  return configured.includes(peer)
+}
+
+export function clientIdentityKey(req: IncomingMessage) {
+  const peer = req.socket?.remoteAddress
+  const forwarded = header(req, "x-forwarded-for")?.split(",")[0]?.trim()
+  if (trustedProxy(peer) && forwarded && isIP(forwarded)) return `forwarded:${forwarded}`
+  if (peer && isIP(peer)) return `peer:${peer}`
+  const fallback = [header(req, "user-agent") || "unknown-agent", header(req, "accept-language") || "unknown-language"].join("|")
+  return `fallback:${createHash("sha256").update(fallback).digest("hex").slice(0, 24)}`
+}
+
 function json(res: ServerResponse, status: number, payload: unknown) {
   res.statusCode = status
   res.setHeader("content-type", "application/json; charset=utf-8")
@@ -117,7 +139,7 @@ async function readBoundedBody(req: IncomingMessage) {
 export async function handleClientDiagnosticsRequest(req: IncomingMessage, res: ServerResponse) {
   if (process.env.WEBUI_CLIENT_ERROR_LOGGING !== "1") return false
   if (req.method !== "POST") return json(res, 405, { error: "METHOD_NOT_ALLOWED" })
-  const clientKey = req.socket?.remoteAddress || "unknown"
+  const clientKey = clientIdentityKey(req)
   if (!limiter.allow(clientKey)) {
     runtimeLogger.warn("client_diagnostic.rate_limited")
     return json(res, 429, { error: "CLIENT_EVENT_RATE_LIMITED" })
