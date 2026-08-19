@@ -52,7 +52,7 @@ export default defineConfig({
   plugins: [desktopPlugin, universalServerProxy, sentry] as any,
   server: {
     host: "0.0.0.0",
-    allowedHosts: true,
+    allowedHosts: ["localhost", "127.0.0.1"],
     port: 3000,
   },
   build: {

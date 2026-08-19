@@ -21,6 +21,7 @@ jobs:
         with:
           bun-version: 1.3.14
       - run: bun install --frozen-lockfile
+      - run: bun --cwd packages/app build
       - name: Run production-server, SSRF, database, proxy, and diagnostics gates
         working-directory: packages/app
         run: >-

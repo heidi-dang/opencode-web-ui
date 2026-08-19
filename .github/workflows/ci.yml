@@ -86,6 +86,7 @@ jobs:
         with:
           bun-version: 1.3.14
       - run: bun install --frozen-lockfile
+      - run: bun --cwd packages/app build
       - name: Run unit tests
         working-directory: packages/app
         run: bun test --preload ./happydom.ts ./src
@@ -374,8 +375,28 @@ jobs:
       - name: Run production network tests with dynamic port
         working-directory: packages/app
         run: |
+          set -euo pipefail
           PORT=$(node -e 'const n=require("net");const s=n.createServer();s.listen(0,"127.0.0.1",()=>{const p=s.address().port;s.close();process.stdout.write(String(p))})')
-          PLAYWRIGHT_PORT=$PORT bunx playwright test --config playwright.config.prod.ts 2>&1
+          DB_PATH="$RUNNER_TEMP/production-smoke.sqlite"
+          APP_ENCRYPTION_KEY="$(openssl rand -hex 32)" \
+          CONTROL_PLANE_DB="$DB_PATH" \
+          WEBUI_BIND_HOST=127.0.0.1 \
+          WEBUI_PORT="$PORT" \
+          WEBUI_AUTH_MODE=disabled \
+          WEBUI_AUTH_REQUIRED=0 \
+          NODE_ENV=production \
+          bun run serve > "$RUNNER_TEMP/production-server.log" 2>&1 &
+          SERVER_PID=$!
+          trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT
+          for i in $(seq 1 60); do
+            if curl --fail --silent --show-error "http://127.0.0.1:$PORT/" >/dev/null; then break; fi
+            if ! kill -0 "$SERVER_PID" 2>/dev/null; then cat "$RUNNER_TEMP/production-server.log"; exit 1; fi
+          done
+          curl --fail --silent --show-error "http://127.0.0.1:$PORT/" >/dev/null
+          curl --fail --silent --show-error "http://127.0.0.1:$PORT/api/bootstrap" >/dev/null
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' "http://127.0.0.1:$PORT/@vite/client")" = 404
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' "http://127.0.0.1:$PORT/src/context/server.tsx")" = 404
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' "http://127.0.0.1:$PORT/node_modules/.vite/deps/")" = 404
       - name: Upload Playwright report
         if: failure()
         uses: actions/upload-artifact@v4
