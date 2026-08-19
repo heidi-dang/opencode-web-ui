@@ -55,16 +55,26 @@ async function probeRegisteredGateway(server: ServerConnection.HttpBase, fetch: 
   } catch (error) {
     throw new ServerProtocolError("Gateway returned malformed probe data", error, { code: "MALFORMED_HEALTH_RESPONSE", status: response.status })
   }
-  const reportedError = value && typeof value === "object" && typeof (value as { error?: unknown }).error === "string"
-    ? (value as { error: string }).error
-    : undefined
-  const reportedState = value && typeof value === "object" ? (value as { state?: unknown }).state : undefined
+  const payload = value && typeof value === "object" ? value as {
+    error?: unknown
+    state?: unknown
+    protocol?: unknown
+    server?: { state?: unknown; protocol?: unknown; error?: unknown }
+    health?: { state?: unknown; protocol?: unknown; error?: unknown }
+  } : undefined
+  // The control-plane health route returns `{ server, health }`, while older
+  // gateway deployments returned the health fields at the top level. Accept
+  // both shapes so a healthy registered backend is not rejected by the browser
+  // protocol detector.
+  const reportedError = [payload?.error, payload?.server?.error, payload?.health?.error].find((item): item is string => typeof item === "string" && item.trim().length > 0)
+  const reportedState = payload?.state ?? payload?.server?.state ?? payload?.health?.state
   if (!response.ok || reportedError || reportedState !== "READY") {
     const code = reportedError || (response.status === 401 || response.status === 403 ? "AUTH_FAILED" : "OPENCODE_HEALTH_FAILED")
     throw new ServerProtocolError(`Gateway probe failed: ${code}`, value, { code, status: response.status })
   }
-  if (value && typeof value === "object" && ((value as { protocol?: unknown }).protocol === "v1" || (value as { protocol?: unknown }).protocol === "v2")) {
-    return (value as { protocol: ServerProtocol }).protocol
+  const protocol = payload?.protocol ?? payload?.server?.protocol ?? payload?.health?.protocol
+  if (protocol === "v1" || protocol === "v2") {
+    return protocol
   }
   return "unknown" as const
 }

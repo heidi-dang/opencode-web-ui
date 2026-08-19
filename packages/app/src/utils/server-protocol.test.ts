@@ -64,6 +64,27 @@ describe("detectServerProtocol", () => {
     }
   })
 
+  test("accepts the control-plane health response shape for registered browser servers", async () => {
+    const previous = globalThis.window
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      value: { location: { origin: "https://web.example.test" } },
+    })
+    const fetcher = mockFetch(() =>
+      Promise.resolve(
+        json({
+          server: { state: "READY", protocol: "v2" },
+          health: { healthy: true, authenticated: true, reachable: true, protocol: "v2" },
+        }),
+      ),
+    )
+    try {
+      await expect(detectServerProtocol({ ...server, id: "srv_health_shape" }, fetcher)).resolves.toBe("v2")
+    } finally {
+      Object.defineProperty(globalThis, "window", { configurable: true, value: previous })
+    }
+  })
+
   test("surfaces a registered gateway 401 as AUTH_FAILED", async () => {
     const previous = globalThis.window
     Object.defineProperty(globalThis, "window", {
