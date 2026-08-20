@@ -1,5 +1,3 @@
-import { useServerSDK } from "@/context/server-sdk"
-import { createSimpleContext } from "@opencode-ai/ui/context"
 import { type Accessor, createEffect, onCleanup } from "solid-js"
 import { createStore, reconcile } from "solid-js/store"
 import type { AgentExecutionEvent } from "./contracts"
@@ -46,11 +44,3 @@ export function createReactiveSessionWorkspaceOwner(input: {
     timeline: () => state.timeline,
   }
 }
-
-export const { use: useSessionWorkspace, provider: SessionWorkspaceProvider } = createSimpleContext({
-  name: "SessionWorkspace",
-  init: (props: { directory: Accessor<string>; sessionID: Accessor<string> }) => {
-    const serverSDK = useServerSDK()
-    return createReactiveSessionWorkspaceOwner({ source: serverSDK, ...props })
-  },
-})

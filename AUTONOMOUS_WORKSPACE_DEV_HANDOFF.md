@@ -2,7 +2,7 @@
 
 ## Runtime ownership
 
-Use the existing `ServerSDK`, `server-sync`, session reducer, VCS/review state, provider/model state, and terminal context. The workspace is mounted in `pages/session.tsx` under `SessionWorkspaceProvider` and is disabled by default. Enabling it wraps the existing conversation/composer and reuses the existing terminal panel; it does not replace or duplicate those systems.
+Use the existing `ServerSDK`, `server-sync`, session reducer, VCS/review state, provider/model state, and terminal context. The workspace is mounted in `pages/session.tsx` under the active session page owner and is disabled by default. The controller is instantiated directly in that owner; there is no autonomous-workspace context provider or second global bridge. Enabling it wraps the existing conversation/composer and reuses the existing terminal panel; it does not replace or duplicate those systems.
 
 The controller scope is `(serverID, directory, sessionID)`. It listens through the already normalized `ServerSDK.event` path and is cleaned up when the active session scope changes or is disposed. Do not add `EventSource`, raw SSE parsing, global runtime buffers, or a second terminal/diff store.
 
@@ -11,7 +11,7 @@ The controller scope is `(serverID, directory, sessionID)`. It listens through t
 ```text
 OpenCode event/session/message/VCS/terminal APIs
   -> ServerSDK + server-sync/session reducer
-  -> SessionWorkspaceProvider
+  -> active session page owner
   -> session-workspace-lifecycle
   -> createSessionWorkspaceController
   -> contracts/selectors
@@ -55,3 +55,18 @@ The branch’s `APP_ENCRYPTION_DISABLED=1` and encryption-key behavior are separ
 4. Check console/network errors and confirm no global workspace event singleton, fabricated telemetry, hardcoded visible strings, or persisted runtime truth remains.
 
 Current capabilities are LIVE or DERIVED only where listed above. Unsupported agent hierarchy and destructive review actions remain UNAVAILABLE/FUTURE.
+
+## Connected acceptance matrix
+
+| Area | Result | Evidence |
+| --- | --- | --- |
+| Connected backend | PASS (local) | Authenticated real OpenCode 1.18.18, v2, `127.0.0.1:4096`, project `/`; `100.97.224.96:4096` was TCP-refused in this environment. |
+| Workspace mount and real prompt | PASS | Production Bun build served the SPA; real prompt response rendered after the session route transition. |
+| Timeline, lineage, Usage/Activity | PASS (smoke) | Views mounted and rendered from scoped state; no fabricated metrics were introduced. |
+| Review/diff | PENDING | Test project has no Git repository, so no authoritative diff was available. |
+| Terminal | PENDING | No-Git test project did not provide a safe PTY acceptance target. |
+| Interrupt/reconnect | PENDING | Needs controlled long-running generation/network interruption. |
+| Persistence/reload | PASS (smoke) | Bootstrap settlement now gates first-run setup; fresh contexts did not show the setup dialog over an already registered backend, and workspace navigation remained available after reload. |
+| Chromium | PASS (smoke) | Installed repository Playwright Chromium and completed connected prompt/workspace flow. |
+| WebKit/mobile/tablet | PASS (smoke) | Connected prompt/workspace flow passed in WebKit; phone/tablet/landscape Chromium viewports had no horizontal overflow. WebKit emitted only the existing ResizeObserver lifecycle warning. |
+| Stability/CI | PARTIAL / classified | Visual stability unit tests passed (23/23). Playwright stability uses a synthetic fixture page and did not pass against the production route; the full stability command also exceeds the local 120s web-server timeout because build time is ~11m33s. Both Vercel failures require authenticated Vercel project logs; GitHub status metadata alone does not show a branch-code cause. |

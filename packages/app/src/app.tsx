@@ -624,7 +624,7 @@ export function AppInterface(props: {
       // A persisted/registered server is already usable. The setup dialog is
       // only a first-run affordance; opening it after hydration obscures the
       // active route and prevents its server-scoped stream from starting.
-      if (!server.ready() || opened || server.list.length > 0) return
+      if (!server.ready() || !server.bootstrapReady() || opened || server.list.length > 0) return
       opened = true
       void import("@/components/dialog-select-server").then(({ DialogSelectServer }) => {
         void dialog.show(() => <DialogSelectServer />)

@@ -1,10 +1,12 @@
 import { describe, expect, test } from "bun:test"
+import { createRoot } from "solid-js"
 import type { ServerEvent } from "@/context/server-sdk"
 import type { ConnectionSnapshot } from "@/utils/connection-manager"
 import {
   createSessionWorkspaceLifecycle,
   type SessionWorkspaceRuntimeSource,
 } from "./session-workspace-lifecycle"
+import { createReactiveSessionWorkspaceOwner } from "./session-workspace-context"
 
 type EventOf<Type extends ServerEvent["type"]> = Extract<ServerEvent, { type: Type }>
 type RuntimeEvent = { name: string; details: ServerEvent }
@@ -69,6 +71,26 @@ function createRuntimeSource(serverID: string) {
 }
 
 describe("session workspace lifecycle owner", () => {
+  test("can be owned directly by the active session scope", () => {
+    const runtime = createRuntimeSource("srv-a")
+    let owner: ReturnType<typeof createReactiveSessionWorkspaceOwner> | undefined
+    let disposeRoot!: () => void
+
+    createRoot((dispose) => {
+      disposeRoot = dispose
+      owner = createReactiveSessionWorkspaceOwner({
+        source: () => runtime.source,
+        directory: () => "/repo-a",
+        sessionID: () => "ses-a",
+      })
+    })
+
+    expect(owner?.scope()).toEqual({ serverID: "srv-a", directory: "/repo-a", sessionID: "ses-a" })
+
+    disposeRoot()
+    expect(runtime.listenerCounts()).toEqual({ events: 0, connections: 0 })
+  })
+
   test("rejects a runtime source from another server before subscribing", () => {
     const runtime = createRuntimeSource("srv-b")
 

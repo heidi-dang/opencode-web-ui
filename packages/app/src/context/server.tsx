@@ -426,6 +426,11 @@ export const { use: useServer, provider: ServerProvider } = createSimpleContext(
 
     return {
       ready: isReady,
+      // `ready` only describes persisted browser-state hydration. Bootstrap
+      // is a separate asynchronous source of truth for the control-plane
+      // registry, so consumers must not treat an empty list as first-run
+      // until that request has settled.
+      bootstrapReady: () => bootstrap.state !== "pending",
       isLocal,
       get key() {
         return state.active

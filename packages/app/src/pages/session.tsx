@@ -103,11 +103,10 @@ import { legacySessionHref, requireServerKey, sessionHref } from "@/utils/sessio
 import { useUsageExceededDialogs } from "./session/usage-exceeded-dialogs"
 import { createSessionOwnership } from "./session/session-ownership"
 import { createSessionLineage } from "./session/session-lineage"
-import { SessionWorkspaceProvider } from "@/features/autonomous-workspace/session-workspace-context"
 import { AutonomousWorkspace, WorkspaceModeToggle } from "@/features/autonomous-workspace/workspace-shell"
 import { contextUsageFromMessage, workspaceChangeFromDiff, type SessionLineageSnapshot } from "@/features/autonomous-workspace/contracts"
 import { loadWorkspacePreference, saveWorkspacePreference, type WorkspaceView } from "@/features/autonomous-workspace/workspace-preferences"
-import { useSessionWorkspace } from "@/features/autonomous-workspace/session-workspace-context"
+import { createReactiveSessionWorkspaceOwner } from "@/features/autonomous-workspace/session-workspace-context"
 
 type FollowupItem = FollowupDraft & { id: string }
 type FollowupEdit = Pick<FollowupItem, "id" | "prompt" | "context">
@@ -320,16 +319,12 @@ function MarkSessionNotificationsViewed(props: { sessionID?: () => string | unde
 }
 
 function SessionProviders(props: ParentProps) {
-  const params = useParams<{ id?: string }>()
-  const sdk = useSDK()
   return (
     <TerminalProvider>
       <FileProvider>
         <PromptProvider>
           <CommentsProvider>
-            <SessionWorkspaceProvider directory={() => sdk().directory} sessionID={() => params.id ?? ""}>
-              {props.children}
-            </SessionWorkspaceProvider>
+            {props.children}
           </CommentsProvider>
         </PromptProvider>
       </FileProvider>
@@ -378,11 +373,19 @@ export default function Page() {
   const comments = useComments()
   const command = useCommand()
   const terminal = useTerminal()
-  const workspace = useSessionWorkspace()
   const [searchParams, setSearchParams] = useSearchParams<{ prompt?: string }>()
   const location = useLocation()
   const navigate = useNavigate()
   const { params, sessionKey, workspaceKey, tabs, view } = useSessionLayout()
+  // The workspace controller is owned by this session page's Solid owner. A
+  // context provider here would evaluate its child through the nested session
+  // providers before the context is installed, which can crash the route when
+  // the first prompt transitions from draft to a real session.
+  const workspace = createReactiveSessionWorkspaceOwner({
+    source: serverSDK,
+    directory: () => sdk().directory,
+    sessionID: () => params.id ?? "",
+  })
   const reviewMode = () => view().review.mode() ?? "git"
   const reviewFile = () => view().review.file()
   const sessionOwnership = createSessionOwnership(sessionKey)
@@ -423,18 +426,6 @@ export default function Page() {
     const messages = sync().data.message[id] ?? []
     return contextUsageFromMessage([...messages].reverse().find((message) => message.role === "assistant"))
   })
-  const workspaceChanges = createMemo(() =>
-    reviewDiffs().flatMap((diff) => {
-      if (typeof diff.file !== "string" || diff.file.length === 0) return []
-      return [workspaceChangeFromDiff({ ...diff, file: diff.file })]
-    }),
-  )
-  const workspaceTerminal = createMemo(() => {
-    if (!terminalOpen()) return undefined
-    if (newSessionDesign()) return <TerminalPanelV2 stacked={desktopV2PanelLayout().stacked} />
-    return <TerminalPanel />
-  })
-
   createEffect(() => {
     if (!prompt.ready()) return
     untrack(() => {
@@ -578,6 +569,11 @@ export default function Page() {
       files: desktopFileTreeOpen(),
     }),
   )
+  const workspaceTerminal = createMemo(() => {
+    if (!terminalOpen()) return undefined
+    if (newSessionDesign()) return <TerminalPanelV2 stacked={desktopV2PanelLayout().stacked} />
+    return <TerminalPanel />
+  })
 
   function normalizeTab(tab: string) {
     if (!tab.startsWith("file://")) return tab
@@ -803,6 +799,12 @@ export default function Page() {
     if (reviewMode() === "git" || reviewMode() === "branch") return !vcsQuery.isPending
     return true
   }
+  const workspaceChanges = createMemo(() =>
+    reviewDiffs().flatMap((diff) => {
+      if (typeof diff.file !== "string" || diff.file.length === 0) return []
+      return [workspaceChangeFromDiff({ ...diff, file: diff.file })]
+    }),
+  )
   const loadReviewDiff = async (file: string, version?: number): Promise<VcsFileDiff | undefined> => {
     const mode = vcsMode()
     if (!mode) return

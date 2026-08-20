@@ -7,13 +7,13 @@ The autonomous workspace is an opt-in view of the existing session route. It doe
 ```text
 OpenCode ServerSDK event stream
   -> existing server-sync/session reconciliation
-  -> SessionWorkspaceProvider (active session scope)
+  -> active Page/session owner
   -> SessionWorkspaceController (bounded derived timeline)
   -> workspace selectors/contracts
   -> v0 presentation components
 ```
 
-The controller is created for `(serverID, directory, sessionID)` and is disposed with that session scope. A reconnect/resync clears transient timeline entries; authoritative session, message, review, model, and terminal state remains owned by the existing application stores.
+The controller is created directly by the mounted session page for `(serverID, directory, sessionID)` and is disposed with that Solid session owner. It does not require a nested context provider, which avoids evaluating the session page before the provider boundary exists during draft-to-session navigation. A reconnect/resync clears transient timeline entries; authoritative session, message, review, model, and terminal state remains owned by the existing application stores.
 
 ## Verified data flow
 
@@ -54,4 +54,19 @@ The workspace toggle is opt-in and disabled by default. `workspace-preferences.t
 
 Focused controller, lifecycle, contract, preference, i18n, and browser presentation tests cover scope isolation, identity/dedupe, ordering, replay/reset/disposal, bounded retention, lineage failure states, safe metrics/diffs, invalid persistence, and localized rendering. The full app unit, browser, stability, typecheck, build, and real-backend E2E gates remain the final acceptance work for this branch.
 
-Frontend phase: the mounted workspace keeps conversation primary and adds a responsive, touch-scrollable view switcher for lineage, timeline, changes/review, and context. Active and failed timeline cards are emphasized without fabricated progress; review rows expose long paths through accessible labels and titles; unavailable telemetry remains intentional. Browser QA reached the local preview, but no OpenCode server/session was configured, so backend-mounted visual states remain to be exercised in the integrated environment. Focused app typecheck and autonomous-workspace unit validation pass.
+Frontend phase: the mounted workspace keeps conversation primary and adds a responsive, touch-scrollable view switcher for lineage, timeline, changes/review, and context. Active and failed timeline cards are emphasized without fabricated progress; review rows expose long paths through accessible labels and titles; unavailable telemetry remains intentional.
+
+## Connected acceptance matrix
+
+| Area | Result | Evidence |
+| --- | --- | --- |
+| Connected backend | PASS (local) | Real authenticated OpenCode 1.18.18 at `127.0.0.1:4096`, protocol v2, project `/`; the requested Tailscale target refused TCP during this run. |
+| Mounted workspace | PASS | Production Bun server on an isolated port; real session prompt rendered and workspace toggle mounted without route error. |
+| Live streaming | PASS | Real prompt admitted through the gateway and assistant response rendered. |
+| Timeline / lineage / Usage-Activity tabs | PASS (smoke) | Workspace views rendered from the connected session; no console/page errors. Extended burn-in remains environment-dependent. |
+| Diff/review | PENDING | No safe repository-backed change was available in the `/`/No Git test project. |
+| Terminal | PENDING | Existing PTY was not exercised in the no-Git project. |
+| Interrupt / reconnect | PENDING | Requires a long-running real generation or controlled network interruption. |
+| Persistence / reload | PASS (smoke) | Fresh-context bootstrap no longer opens the setup modal before the registry settles; workspace navigation remained available after reload. |
+| Chromium / WebKit / mobile | PASS (smoke) | Connected real prompt/workspace flows passed in Chromium and WebKit; phone/tablet/landscape viewports had no horizontal overflow. WebKit reported only the existing ResizeObserver lifecycle warning. |
+| Stability / CI | PARTIAL / classified | Visual stability unit tests passed (23/23); Playwright stability requires its synthetic fixture page and did not start against the production route. Full `test:stability` also exceeds the local 120s web-server timeout because the build takes ~11m33s. Vercel red checks require authenticated project access for logs. |
