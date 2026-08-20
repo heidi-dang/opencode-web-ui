@@ -104,6 +104,10 @@ import { useUsageExceededDialogs } from "./session/usage-exceeded-dialogs"
 import { createSessionOwnership } from "./session/session-ownership"
 import { createSessionLineage } from "./session/session-lineage"
 import { SessionWorkspaceProvider } from "@/features/autonomous-workspace/session-workspace-context"
+import { AutonomousWorkspace, WorkspaceModeToggle } from "@/features/autonomous-workspace/workspace-shell"
+import { contextUsageFromMessage, workspaceChangeFromDiff, type SessionLineageSnapshot } from "@/features/autonomous-workspace/contracts"
+import { loadWorkspacePreference, saveWorkspacePreference, type WorkspaceView } from "@/features/autonomous-workspace/workspace-preferences"
+import { useSessionWorkspace } from "@/features/autonomous-workspace/session-workspace-context"
 
 type FollowupItem = FollowupDraft & { id: string }
 type FollowupEdit = Pick<FollowupItem, "id" | "prompt" | "context">
@@ -323,13 +327,9 @@ function SessionProviders(props: ParentProps) {
       <FileProvider>
         <PromptProvider>
           <CommentsProvider>
-            <Show when={params.id} fallback={props.children}>
-              {(sessionID) => (
-                <SessionWorkspaceProvider directory={() => sdk().directory} sessionID={sessionID}>
-                  {props.children}
-                </SessionWorkspaceProvider>
-              )}
-            </Show>
+            <SessionWorkspaceProvider directory={() => sdk().directory} sessionID={() => params.id ?? ""}>
+              {props.children}
+            </SessionWorkspaceProvider>
           </CommentsProvider>
         </PromptProvider>
       </FileProvider>
@@ -378,6 +378,7 @@ export default function Page() {
   const comments = useComments()
   const command = useCommand()
   const terminal = useTerminal()
+  const workspace = useSessionWorkspace()
   const [searchParams, setSearchParams] = useSearchParams<{ prompt?: string }>()
   const location = useLocation()
   const navigate = useNavigate()
@@ -386,6 +387,53 @@ export default function Page() {
   const reviewFile = () => view().review.file()
   const sessionOwnership = createSessionOwnership(sessionKey)
   const newSessionDesign = createMemo(() => settings.general.newLayoutDesigns())
+  const workspacePreferenceScope = createMemo(() => ({ serverID: serverSDK().scope, directory: sdk().directory }))
+  const [workspacePreference, setWorkspacePreference] = createSignal(loadWorkspacePreference(workspacePreferenceScope()))
+  createEffect(on(workspacePreferenceScope, (scope) => setWorkspacePreference(loadWorkspacePreference(scope)), { defer: true }))
+  const workspaceEnabled = createMemo(() => workspacePreference()?.enabled === true)
+  const workspaceView = createMemo<WorkspaceView>(() => workspacePreference()?.view ?? "conversation")
+  const updateWorkspacePreference = (patch: Partial<NonNullable<ReturnType<typeof loadWorkspacePreference>>>) => {
+    const next = { ...workspacePreference(), version: 1 as const, ...patch }
+    saveWorkspacePreference(workspacePreferenceScope(), next)
+    setWorkspacePreference(next)
+  }
+  const toggleWorkspace = () => updateWorkspacePreference({ enabled: !workspaceEnabled() })
+
+  const workspaceLineage = createMemo<SessionLineageSnapshot[]>(() => {
+    const currentID = params.id
+    if (!currentID) return []
+    const current = sync().session.get(currentID)
+    const sessions = sync().data.session.filter((session) => session.directory === sdk().directory)
+    const all = current && !sessions.some((session) => session.id === current.id) ? [...sessions, current] : sessions
+    return all.map((session) => ({
+      id: session.id,
+      parentId: session.parentID,
+      label: session.title || session.id,
+      relation: session.id === currentID
+        ? "current"
+        : session.parentID && all.some((candidate) => candidate.id === session.parentID)
+          ? "derived"
+          : "unavailable",
+      model: session.model ? { providerID: session.model.providerID, modelID: session.model.id } : undefined,
+    }))
+  })
+  const workspaceUsage = createMemo(() => {
+    const id = params.id
+    if (!id) return undefined
+    const messages = sync().data.message[id] ?? []
+    return contextUsageFromMessage([...messages].reverse().find((message) => message.role === "assistant"))
+  })
+  const workspaceChanges = createMemo(() =>
+    reviewDiffs().flatMap((diff) => {
+      if (typeof diff.file !== "string" || diff.file.length === 0) return []
+      return [workspaceChangeFromDiff({ ...diff, file: diff.file })]
+    }),
+  )
+  const workspaceTerminal = createMemo(() => {
+    if (!terminalOpen()) return undefined
+    if (newSessionDesign()) return <TerminalPanelV2 stacked={desktopV2PanelLayout().stacked} />
+    return <TerminalPanel />
+  })
 
   createEffect(() => {
     if (!prompt.ready()) return
@@ -2299,9 +2347,32 @@ export default function Page() {
     </>
   )
 
+  const sessionPanel = createMemo(() => {
+    if (!workspaceEnabled()) return sessionPanelContent()
+    return (
+      <AutonomousWorkspace
+        lineage={workspaceLineage}
+        events={workspace.timeline}
+        changes={workspaceChanges}
+        changesLoading={() => !reviewReady()}
+        onSelectChange={(change) => focusReviewDiff(change.file)}
+        usage={workspaceUsage}
+        view={workspaceView}
+        onViewChange={(view) => updateWorkspacePreference({ view })}
+        conversation={sessionPanelContent()}
+        terminal={workspaceTerminal()}
+      />
+    )
+  })
+
   return (
     <SessionRouteFrame>
       <SessionHeader />
+      <Show when={params.id}>
+        <div class="flex shrink-0 justify-end px-3 py-1 md:px-5">
+          <WorkspaceModeToggle enabled={workspaceEnabled} onToggle={toggleWorkspace} />
+        </div>
+      </Show>
       <div
         ref={panelRow}
         class="flex-1 min-h-0 flex flex-col md:flex-row"
@@ -2325,13 +2396,15 @@ export default function Page() {
             <Show when={sessionPanelKey()} keyed>
               {(_) => (
                 <SessionPanelFrame newLayout raised={!!params.id}>
-                  <ErrorBoundary fallback={sessionErrorFallback}>{sessionPanelContent()}</ErrorBoundary>
+                  <ErrorBoundary fallback={sessionErrorFallback}>
+                    {sessionPanel()}
+                  </ErrorBoundary>
                 </SessionPanelFrame>
               )}
             </Show>
           ) : (
             <SessionPanelFrame newLayout={false} raised={!!params.id}>
-              {sessionPanelContent()}
+              {sessionPanel()}
             </SessionPanelFrame>
           )}
 
@@ -2373,7 +2446,7 @@ export default function Page() {
           </Suspense>
         </Show>
         <Show when={newSessionDesign()}>
-          <Show when={isDesktop() ? desktopV2PanelLayout().visible : terminalOpen()}>
+              <Show when={!workspaceEnabled() && (isDesktop() ? desktopV2PanelLayout().visible : terminalOpen())}>
             <div class="min-w-0 h-full flex flex-1 flex-col">
               <Show when={isDesktop() && (desktopV2ReviewOpen() || desktopFileTreeOpen())}>
                 <div class="min-h-0 flex-1">
@@ -2437,7 +2510,7 @@ export default function Page() {
       </div>
 
       <Show when={!newSessionDesign()}>
-        <TerminalPanel />
+              <Show when={!workspaceEnabled()}><TerminalPanel /></Show>
       </Show>
     </SessionRouteFrame>
   )
