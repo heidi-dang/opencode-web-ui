@@ -209,6 +209,15 @@ export function createSessionWorkspaceController(
       listeners.add(listener)
       return () => listeners.delete(listener)
     },
+    reset() {
+      if (disposed) return false
+      const changed = events.size > 0
+      events.clear()
+      replayIDs.clear()
+      replayOrder.length = 0
+      if (changed) notify()
+      return changed
+    },
     dispose() {
       if (disposed) return
       disposed = true

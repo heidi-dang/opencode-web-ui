@@ -103,6 +103,7 @@ import { legacySessionHref, requireServerKey, sessionHref } from "@/utils/sessio
 import { useUsageExceededDialogs } from "./session/usage-exceeded-dialogs"
 import { createSessionOwnership } from "./session/session-ownership"
 import { createSessionLineage } from "./session/session-lineage"
+import { SessionWorkspaceProvider } from "@/features/autonomous-workspace/session-workspace-context"
 
 type FollowupItem = FollowupDraft & { id: string }
 type FollowupEdit = Pick<FollowupItem, "id" | "prompt" | "context">
@@ -315,11 +316,21 @@ function MarkSessionNotificationsViewed(props: { sessionID?: () => string | unde
 }
 
 function SessionProviders(props: ParentProps) {
+  const params = useParams<{ id?: string }>()
+  const sdk = useSDK()
   return (
     <TerminalProvider>
       <FileProvider>
         <PromptProvider>
-          <CommentsProvider>{props.children}</CommentsProvider>
+          <CommentsProvider>
+            <Show when={params.id} fallback={props.children}>
+              {(sessionID) => (
+                <SessionWorkspaceProvider directory={() => sdk().directory} sessionID={sessionID}>
+                  {props.children}
+                </SessionWorkspaceProvider>
+              )}
+            </Show>
+          </CommentsProvider>
         </PromptProvider>
       </FileProvider>
     </TerminalProvider>
