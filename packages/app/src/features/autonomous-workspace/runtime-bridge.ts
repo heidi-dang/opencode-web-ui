@@ -18,6 +18,10 @@ export type SessionWorkspaceEventInput = SessionWorkspaceScope & {
 
 type SessionWorkspaceListener = () => void
 type TimelineDefinition = Pick<AgentExecutionEvent, "kind" | "state">
+type FallbackIdentityPolicy = {
+  domain: (properties: Record<string, unknown>) => string | undefined
+  requiresTimestamp?: boolean
+}
 
 const timelineDefinitions: Partial<Record<ServerEvent["type"], TimelineDefinition>> = {
   "session.next.tool.called": { kind: "network", state: "active" },
@@ -47,6 +51,33 @@ const timelineDefinitions: Partial<Record<ServerEvent["type"], TimelineDefinitio
   "session.idle": { kind: "completion", state: "completed" },
 }
 
+const fallbackIdentityPolicies: Partial<Record<ServerEvent["type"], FallbackIdentityPolicy>> = {
+  "session.next.tool.called": { domain: (properties) => text(properties.callID) },
+  "session.next.tool.progress": { domain: (properties) => text(properties.callID) },
+  "session.next.tool.success": { domain: (properties) => text(properties.callID) },
+  "session.next.tool.failed": { domain: (properties) => text(properties.callID) },
+  "session.next.shell.started": { domain: (properties) => text(properties.callID) },
+  "session.next.shell.ended": { domain: (properties) => text(properties.callID) },
+  "session.next.step.started": { domain: (properties) => text(properties.assistantMessageID) },
+  "session.next.step.ended": { domain: (properties) => text(properties.assistantMessageID) },
+  "session.next.step.failed": { domain: (properties) => text(properties.assistantMessageID) },
+  "session.next.agent.switched": { domain: (properties) => text(properties.messageID) },
+  "session.next.model.switched": { domain: (properties) => text(properties.messageID) },
+  "permission.asked": { domain: (properties) => text(properties.id) },
+  "permission.v2.asked": { domain: (properties) => text(properties.id) },
+  "permission.replied": { domain: (properties) => text(properties.requestID) },
+  "permission.v2.replied": { domain: (properties) => text(properties.requestID) },
+  "question.asked": { domain: (properties) => text(properties.id) },
+  "question.v2.asked": { domain: (properties) => text(properties.id) },
+  "question.replied": { domain: (properties) => text(properties.requestID) },
+  "question.v2.replied": { domain: (properties) => text(properties.requestID) },
+  "question.v2.rejected": { domain: (properties) => text(properties.requestID) },
+  "session.next.retried": {
+    domain: (properties) => number(properties.attempt)?.toString(),
+    requiresTimestamp: true,
+  },
+}
+
 const text = (value: unknown) => (typeof value === "string" && value.length > 0 ? value : undefined)
 const number = (value: unknown) => (typeof value === "number" && Number.isFinite(value) ? value : undefined)
 
@@ -64,17 +95,6 @@ function timestamp(event: ServerEvent | IdlessServerEvent) {
   return number(properties?.timestamp) ?? number(properties?.time)
 }
 
-function domainID(event: ServerEvent | IdlessServerEvent) {
-  const properties = record(event.properties)
-  return text(properties?.callID)
-    ?? text(properties?.partID)
-    ?? text(properties?.messageID)
-    ?? text(properties?.assistantMessageID)
-    ?? text(properties?.requestID)
-    ?? text(properties?.id)
-    ?? number(properties?.attempt)?.toString()
-}
-
 function validScope(value: unknown): value is SessionWorkspaceScope {
   const source = record(value)
   return !!source && !!text(source.serverID) && !!text(source.directory) && !!text(source.sessionID)
@@ -88,10 +108,12 @@ function identity(input: SessionWorkspaceEventInput) {
   const officialID = text(input.event.id)
   if (officialID) return officialID
 
+  const policy = fallbackIdentityPolicies[input.event.type]
+  const properties = record(input.event.properties)
+  const domain = policy && properties ? policy.domain(properties) : undefined
   const at = timestamp(input.event)
-  const domain = domainID(input.event)
-  if (at === undefined || !domain) return undefined
-  return JSON.stringify([input.serverID, input.directory, input.sessionID, input.event.type, domain, at])
+  if (!domain || (policy?.requiresTimestamp && at === undefined)) return undefined
+  return JSON.stringify([input.serverID, input.directory, input.sessionID, input.event.type, domain, policy?.requiresTimestamp ? at : undefined])
 }
 
 function compareEvents(left: AgentExecutionEvent, right: AgentExecutionEvent) {

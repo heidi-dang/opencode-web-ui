@@ -68,10 +68,22 @@ const idlessIdle = (sessionID = "ses-a"): IdlessEventOf<"session.idle"> => ({
   properties: { sessionID },
 })
 
-const fileEdited = (): EventOf<"file.edited"> => ({
-  id: "evt-file",
-  type: "file.edited",
-  properties: { file: "src/secret.ts" },
+const sessionlessIdle = () => ({
+  id: "evt-sessionless",
+  type: "session.idle",
+  properties: {},
+} satisfies { id: string; type: "session.idle"; properties: Record<string, unknown> })
+
+const idlessPermissionAsked = (requestID: string, sessionID = "ses-a"): IdlessEventOf<"permission.asked"> => ({
+  type: "permission.asked",
+  properties: {
+    id: requestID,
+    sessionID,
+    permission: "edit",
+    patterns: [],
+    metadata: {},
+    always: [],
+  },
 })
 
 describe("session workspace controller", () => {
@@ -103,7 +115,9 @@ describe("session workspace controller", () => {
 
     // @ts-expect-error directory is required at the controller boundary
     expect(controller.accept(incomplete)).toBe(false)
-    expect(controller.accept(input(fileEdited()))).toBe(false)
+    const malformed = { ...scope(), event: sessionlessIdle() }
+    // @ts-expect-error malformed runtime payload omits the official sessionID
+    expect(controller.accept(malformed)).toBe(false)
     expect(controller.timeline()).toEqual([])
   })
 
@@ -134,6 +148,18 @@ describe("session workspace controller", () => {
 
     expect(controller.accept(input(idlessIdle()))).toBe(false)
     expect(controller.timeline()).toEqual([])
+  })
+
+  test("uses an authoritative permission request id without requiring a timestamp", () => {
+    const controller = createSessionWorkspaceController(scope())
+    let notifications = 0
+    controller.subscribe(() => notifications++)
+
+    expect(controller.accept(input(idlessPermissionAsked("perm-a")))).toBe(true)
+    expect(controller.accept(input(idlessPermissionAsked("perm-a")))).toBe(false)
+
+    expect(notifications).toBe(1)
+    expect(controller.timeline()).toHaveLength(1)
   })
 
   test("orders events by timestamp then official identity and retains the later tied entry", () => {
