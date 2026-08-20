@@ -34,17 +34,17 @@ export function AutonomousWorkspace(props: {
     { id: "context" as const, label: language.t("autonomousWorkspace.views.context") },
   ])
   return <main class="flex min-h-0 flex-1 flex-col bg-background">
-    <header class="flex shrink-0 flex-col gap-3 border-b border-border-weak-base px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-      <div class="flex min-w-0 items-center gap-3">
-        <div class="grid size-8 shrink-0 place-items-center rounded-lg bg-surface-info-weak text-12-emphasis text-text-info" aria-hidden="true">◎</div>
-        <div class="min-w-0"><p class="truncate text-14-emphasis text-text-strong">{language.t("autonomousWorkspace.title")}</p><p class="hidden text-11-regular text-text-weak sm:block">{language.t("autonomousWorkspace.description")}</p></div>
-      </div>
-      <div class="flex min-w-0 items-center gap-2">
+    <header class="flex shrink-0 flex-col gap-3 border-b border-border-weak-base bg-surface-raised-strong px-3 py-3 sm:px-5">
+      <div class="flex min-w-0 items-center justify-between gap-3">
+        <div class="flex min-w-0 items-center gap-3">
+          <div class="grid size-8 shrink-0 place-items-center rounded-lg bg-surface-info-weak text-12-emphasis text-text-info" aria-hidden="true">◎</div>
+          <div class="min-w-0"><p class="truncate text-14-emphasis text-text-strong">{language.t("autonomousWorkspace.title")}</p><p class="hidden text-11-regular text-text-weak sm:block">{language.t("autonomousWorkspace.description")}</p></div>
+        </div>
         <span class="shrink-0 rounded-full bg-surface-base-hover px-2 py-1 font-mono text-11-regular text-text-muted" aria-live="polite">{language.t("autonomousWorkspace.timeline.count", { count: props.events().length })}</span>
-        <nav class="flex min-w-0 flex-1 gap-1 overflow-x-auto" aria-label={language.t("autonomousWorkspace.views.label")}>
-          <For each={views()}>{(item) => <button type="button" aria-current={view() === item.id ? "page" : undefined} class={`shrink-0 rounded-lg px-2.5 py-1.5 text-11-emphasis transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus ${view() === item.id ? "bg-surface-base-hover text-text-strong" : "text-text-muted hover:bg-surface-base-hover hover:text-text-base"}`} onClick={() => setView(item.id)}>{item.label}</button>}</For>
-        </nav>
       </div>
+      <nav class="flex min-w-0 gap-1 overflow-x-auto pb-0.5" role="tablist" aria-label={language.t("autonomousWorkspace.views.label")}>
+        <For each={views()}>{(item) => <button type="button" role="tab" aria-selected={view() === item.id} tabIndex={view() === item.id ? 0 : -1} class={`shrink-0 rounded-lg px-3 py-1.5 text-11-emphasis transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus ${view() === item.id ? "bg-surface-base-hover text-text-strong" : "text-text-muted hover:bg-surface-base-hover hover:text-text-base"}`} onClick={() => setView(item.id)} onKeyDown={(event) => { if (event.key === "ArrowRight" || event.key === "ArrowDown") { event.preventDefault(); const index = views().findIndex((entry) => entry.id === item.id); setView(views()[(index + 1) % views().length].id) } if (event.key === "ArrowLeft" || event.key === "ArrowUp") { event.preventDefault(); const index = views().findIndex((entry) => entry.id === item.id); setView(views()[(index - 1 + views().length) % views().length].id) } }}>{item.label}</button>}</For>
+      </nav>
     </header>
     <div class="min-h-0 flex-1 overflow-auto p-3 sm:p-5"><div class="mx-auto flex min-h-full w-full max-w-[1440px] flex-col gap-4">
       <Show when={view() === "conversation"}>{props.conversation}</Show>
