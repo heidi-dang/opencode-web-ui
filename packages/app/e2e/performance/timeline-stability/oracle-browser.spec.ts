@@ -19,11 +19,11 @@ test("detects blanking caused by ancestor opacity", async ({ page }) => {
   await row.evaluate((element) => {
     element.parentElement!.style.opacity = "0"
   })
-  await page.waitForTimeout(50)
+  await waitForPaint(page)
   await row.evaluate((element) => {
     element.parentElement!.style.opacity = "1"
   })
-  await page.waitForTimeout(50)
+  await waitForPaint(page)
   const trace = await stopVisualProbe<keyof typeof regions>(page)
   const issues = analyzeVisualObservations(
     trace.samples,
@@ -55,11 +55,11 @@ test("detects root opacity when probing descendant opacity", async ({ page }) =>
   await row.evaluate((element) => {
     ;(element as HTMLElement).style.opacity = "0"
   })
-  await page.waitForTimeout(50)
+  await waitForPaint(page)
   await row.evaluate((element) => {
     ;(element as HTMLElement).style.opacity = "1"
   })
-  await page.waitForTimeout(50)
+  await waitForPaint(page)
   const trace = await stopVisualProbe<keyof typeof regions>(page)
   const issues = analyzeVisualObservations(
     trace.samples,
@@ -73,3 +73,12 @@ test("detects root opacity when probing descendant opacity", async ({ page }) =>
 
   expect(issues.some((issue) => issue.includes("blanked between visible frames"))).toBe(true)
 })
+
+async function waitForPaint(page: import("@playwright/test").Page) {
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+      }),
+  )
+}

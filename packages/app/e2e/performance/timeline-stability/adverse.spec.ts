@@ -99,7 +99,10 @@ test.describe("timeline adverse visual stability", () => {
     await page.waitForTimeout(300)
     const trigger = page.locator(`[data-timeline-part-id="${targetID}"] [data-slot="collapsible-trigger"]`)
     await expect(trigger).toBeVisible()
-    await trigger.click()
+    // Virtualized rows may be recycled between actionability checks in WebKit.
+    // Resolve and activate the current DOM node directly after visibility has
+    // been established; this still exercises the component click handler.
+    await trigger.evaluate((element) => (element as HTMLElement).click())
     await expect(trigger).toHaveAttribute("aria-expanded", "true")
 
     await scroller.evaluate((element) => (element.scrollTop = element.scrollHeight))
