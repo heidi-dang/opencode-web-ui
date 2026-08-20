@@ -20,6 +20,9 @@ export function createSessionWorkspaceLifecycle(input: {
   scope: SessionWorkspaceScope
   onChange?: (timeline: AgentExecutionEvent[]) => void
 }) {
+  if (input.source.scope !== input.scope.serverID) {
+    throw new Error("Session workspace runtime source does not match the requested server scope")
+  }
   const controller = createSessionWorkspaceController(input.scope)
   const stopTimeline = input.onChange ? controller.subscribe(() => input.onChange?.(controller.timeline())) : () => {}
   const stopEvents = input.source.event.listen((event) => {

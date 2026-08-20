@@ -69,6 +69,22 @@ function createRuntimeSource(serverID: string) {
 }
 
 describe("session workspace lifecycle owner", () => {
+  test("rejects a runtime source from another server before subscribing", () => {
+    const runtime = createRuntimeSource("srv-b")
+
+    expect(() =>
+      createSessionWorkspaceLifecycle({
+        source: runtime.source,
+        scope: { serverID: "srv-a", directory: "/repo-a", sessionID: "ses-a" },
+      }),
+    ).toThrow()
+    expect(runtime.listenerCounts()).toEqual({ events: 0, connections: 0 })
+    expect(runtime.unsubscribeCounts()).toEqual({ events: 0, connections: 0 })
+
+    runtime.emit("/repo-a", idle("evt-cross-server", "ses-a"))
+    expect(runtime.listenerCounts()).toEqual({ events: 0, connections: 0 })
+  })
+
   test("scopes normalized events, replaces subscriptions on session change, and clears replay on resync", () => {
     const runtime = createRuntimeSource("srv-a")
     const first = createSessionWorkspaceLifecycle({
