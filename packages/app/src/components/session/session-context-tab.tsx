@@ -361,7 +361,8 @@ export function SessionContextTab() {
           </div>
 
           <Show when={activeServiceTab() === "usage"}>
-            <div class="grid grid-cols-2 @[32rem]:grid-cols-4 gap-3 rounded-md border border-border-weak-base bg-surface-base p-3">
+            <div class="grid grid-cols-2 @[32rem]:grid-cols-5 gap-3 rounded-md border border-border-weak-base bg-surface-base p-3">
+              <Stat label="context.stats.model" value={modelLabel()} />
               <Stat label="context.stats.totalTokens" value={formatter().number(ctx()?.total)} />
               <Stat label="context.stats.inputTokens" value={formatter().number(ctx()?.input)} />
               <Stat label="context.stats.outputTokens" value={formatter().number(ctx()?.message.tokens.output)} />
