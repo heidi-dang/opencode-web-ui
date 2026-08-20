@@ -547,14 +547,14 @@ function ConnectionError(props: { onRetry?: () => void; onServerSelected?: (key:
   )
 }
 
-function ServerKey(props: ParentProps) {
-  const server = useServer()
-  return (
-    <Show when={server.key} keyed>
-      {props.children}
-    </Show>
-  )
-}
+  function ServerKey(props: ParentProps) {
+    const server = useServer()
+    return (
+      <Show when={server.current} keyed>
+        {props.children}
+      </Show>
+    )
+  }
 
 export function AppInterface(props: {
   children?: JSX.Element
