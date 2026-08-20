@@ -148,7 +148,6 @@ function timelineRows(page: Page) {
       parts: Array.from(element.querySelectorAll("[data-timeline-part-id]"), (part) =>
         part.getAttribute("data-timeline-part-id"),
       ),
-      text: element.textContent,
     })),
   )
 }

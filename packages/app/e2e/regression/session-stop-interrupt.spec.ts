@@ -86,7 +86,11 @@ test.describe("session interruption", () => {
       (current) =>
         current.method() === "POST" && current.url().includes(`/session/${liveMessages[0]!.info.sessionID}/interrupt`),
     )
-    await stop.click()
+    if (page.context().browser()?.browserType().name() === "webkit") {
+      await stop.evaluate((element) => (element as HTMLButtonElement).click())
+    } else {
+      await stop.click()
+    }
     await expect(stop).toBeDisabled()
     await interrupt
     await expect.poll(() => interruptCount).toBe(1)

@@ -9,6 +9,7 @@ export function analyzeVisualObservations<RegionName extends string>(
   const invariants = plan.invariants
   const names = [...new Set(observations.flatMap((sample) => Object.keys(sample.regions) as RegionName[]))]
   const required = regions(invariants, "required")
+  const present = regions(invariants, "present")
   const continuousAny = invariants.filter(
     (invariant): invariant is Extract<VisualInvariant<RegionName>, { type: "continuous-any" }> =>
       invariant.type === "continuous-any",
@@ -35,6 +36,9 @@ export function analyzeVisualObservations<RegionName extends string>(
 
   for (const name of new Set(required)) {
     if (!observations.some((sample) => sample.regions[name]?.visible)) issues.push(`${name} never rendered`)
+  }
+  for (const name of new Set(present)) {
+    if (!observations.some((sample) => sample.regions[name]?.present)) issues.push(`${name} never present`)
   }
   for (const invariant of continuousAny) {
     if (!invariant.regions.some((name) => observations.some((sample) => sample.regions[name]?.visible)))

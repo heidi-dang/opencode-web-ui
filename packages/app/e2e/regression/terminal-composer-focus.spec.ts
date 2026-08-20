@@ -1,4 +1,4 @@
-import { base64Encode } from "@opencode-ai/core/util/encode"
+import { base64Encode, checksum } from "@opencode-ai/core/util/encode"
 import { expect, test, type Page } from "@playwright/test"
 import { mockOpenCodeServer } from "../utils/mock-server"
 import { deferred } from "../utils/deferred"
@@ -199,23 +199,52 @@ test("focuses a terminal created from the new-terminal button", async ({ page })
   await expect(composer).toBeFocused()
 
   await page.getByRole("button", { name: "New terminal" }).click()
-  await expect(page.getByRole("tab", { name: "Terminal 2" })).toHaveAttribute("aria-selected", "true")
+  await expect
+    .poll(() =>
+      page.getByRole("tab", { name: "Terminal 2" }).evaluateAll((tabs) =>
+        tabs.some((tab) => tab.getAttribute("aria-selected") === "true" && tab.getBoundingClientRect().width > 0),
+      ),
+    )
+    .toBe(true)
   await expect.poll(() => terminal.evaluate((element) => element.contains(document.activeElement))).toBe(true)
 })
 
 function seedCachedTerminal(page: Page) {
+  const normalized = base64Encode(directory)
+  const serverScope = `http://${process.env.PLAYWRIGHT_SERVER_HOST ?? "127.0.0.1"}:${process.env.PLAYWRIGHT_SERVER_PORT ?? "4096"}`
+  const storageNames = [normalized, `${serverScope}\u0000${normalized}`].map((value) => {
+    const head = (value.slice(0, 12) || "workspace").replace(/[^a-zA-Z0-9._-]/g, "-")
+    return `opencode.workspace.${head}.${checksum(value)}.dat:workspace:terminal`
+  })
+  const layoutKeys = ["opencode.global.dat:layout", `opencode.global.dat:${serverScope}\u0000layout`]
   return page.addInitScript(
-    ({ terminalKey, ptyID }) => {
-      localStorage.setItem("opencode.global.dat:layout", JSON.stringify({ terminal: { height: 320, opened: true } }))
+    ({ layoutKeys, terminalKeys, legacyTerminalKey, ptyID }) => {
+      for (const layoutKey of layoutKeys) {
+        localStorage.setItem(layoutKey, JSON.stringify({ terminal: { height: 320, opened: true } }))
+      }
+      for (const terminalKey of terminalKeys) {
+        localStorage.setItem(
+          terminalKey,
+          JSON.stringify({
+            active: ptyID,
+            all: [{ id: ptyID, title: "Terminal 1", titleNumber: 1 }],
+          }),
+        )
+      }
       localStorage.setItem(
-        terminalKey,
+        legacyTerminalKey,
         JSON.stringify({
           active: ptyID,
           all: [{ id: ptyID, title: "Terminal 1", titleNumber: 1 }],
         }),
       )
     },
-    { terminalKey: `${base64Encode(directory)}/terminal.v1`, ptyID },
+    {
+      layoutKeys,
+      terminalKeys: storageNames,
+      legacyTerminalKey: `${base64Encode(directory)}/terminal.v1`,
+      ptyID,
+    },
   )
 }
 

@@ -4,6 +4,7 @@ type RegionSet<RegionName extends string> = readonly RegionName[] | "all"
 
 export type VisualInvariant<RegionName extends string = string> =
   | { type: "required"; regions: readonly RegionName[] }
+  | { type: "present"; regions: readonly RegionName[] }
   | { type: "continuous-any"; regions: readonly RegionName[] }
   | { type: "unique"; regions: readonly RegionName[] }
   | { type: "stable"; regions: readonly RegionName[] }
