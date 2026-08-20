@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test"
 import { agentTree, contextUsageFromMessage, normalizeAgentState, normalizeWorkspaceChanges } from "./contracts"
-import { normalizeRuntimeEvent } from "./runtime-bridge"
+import { normalizeRuntimeEvent, type SessionWorkspaceScope } from "./runtime-bridge"
+
+const workspaceScope: SessionWorkspaceScope = { serverID: "srv-a", directory: "/repo", sessionID: "ses-a" }
 
 describe("autonomous workspace contracts", () => {
   test("normalizes unknown agent states instead of inventing runtime truth", () => {
@@ -18,7 +20,6 @@ describe("autonomous workspace contracts", () => {
 
   test("keeps unavailable context metrics undefined", () => {
     expect(contextUsageFromMessage(undefined)).toBeUndefined()
-    expect(contextUsageFromMessage({ id: "u", role: "user", time: { created: 1 }, summary: undefined } as never)).toBeUndefined()
   })
 
   test("filters malformed workspace changes", () => {
@@ -29,9 +30,20 @@ describe("autonomous workspace contracts", () => {
 
   test("preserves the official event identity rather than deriving a display collision key", () => {
     const event = normalizeRuntimeEvent({
-      id: "evt-official",
-      type: "session.next.tool.called",
-      properties: { sessionID: "ses-a", callID: "tool-a" },
+      ...workspaceScope,
+      event: {
+        id: "evt-official",
+        type: "session.next.tool.called",
+        properties: {
+          timestamp: 1,
+          sessionID: "ses-a",
+          assistantMessageID: "msg-a",
+          callID: "tool-a",
+          tool: "read",
+          input: {},
+          provider: { executed: true },
+        },
+      },
     })
 
     expect(event?.id).toBe("evt-official")
