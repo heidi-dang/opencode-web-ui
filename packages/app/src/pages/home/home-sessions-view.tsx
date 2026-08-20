@@ -508,8 +508,8 @@ function HomeSessionRow(
               class="size-1.5 rounded-full"
             />
             <Show when={active()}>
-              <span>CPU 18%</span>
-              <span>RAM 412 MB</span>
+              <span>Tokens {formatTokenCount(props.record.session.tokens?.input ?? 0)} in / {formatTokenCount(props.record.session.tokens?.output ?? 0)} out</span>
+              <span>Cost {formatCost(props.record.session.cost ?? 0)}</span>
             </Show>
           </div>
         </div>
@@ -539,6 +539,14 @@ function HomeSessionRow(
       </Show>
     </div>
   )
+}
+
+function formatTokenCount(value: number) {
+  return new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 }).format(value)
+}
+
+function formatCost(value: number) {
+  return new Intl.NumberFormat(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 4 }).format(value)
 }
 
 function HomeSessionTitle(props: { title: string; showProjectName: boolean; search?: boolean }) {
