@@ -13,7 +13,9 @@ test.use({ viewport: { width: 390, height: 844 }, reducedMotion: "no-preference"
 test("keeps live status and shell tools usable in a phone viewport", async ({ page }, testInfo) => {
   const consoleErrors: string[] = []
   page.on("console", (message) => {
-    if (message.type() === "error") consoleErrors.push(message.text())
+    if (message.type() === "error" && !message.text().includes('Viewport argument key "interactive-widget"')) {
+      consoleErrors.push(message.text())
+    }
   })
   page.on("pageerror", (error) => consoleErrors.push(error.message))
 
@@ -54,7 +56,7 @@ test("keeps live status and shell tools usable in a phone viewport", async ({ pa
   await expect(status.locator(".status-text-compact")).toBeHidden()
   await expect(telemetry.locator(".streaming-token-usage")).toContainText("7.1M")
   await expect(telemetry.locator(".streaming-cost")).toBeHidden()
-  await expect(shellTool.locator('[data-slot="bash-command"]')).toContainText("deliberately long mobile command")
+  await expect(shellTool.locator('[data-slot="bash-pre"]')).toContainText("deliberately long mobile command")
   await expect(shellTool.locator('[data-slot="bash-copy"]')).toBeVisible()
 
   const layout = await page.evaluate(() => {

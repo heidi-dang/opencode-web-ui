@@ -1,4 +1,15 @@
+import { mkdtempSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import { defineConfig, devices } from "@playwright/test"
+
+// E2E fixtures own their browser-side server registry. Keep the control plane
+// isolated from the checkout's developer database/legacy registry so a stale
+// real backend cannot replace the fixture server during bootstrap.
+const e2eRuntimeDir = mkdtempSync(join(tmpdir(), "opencode-web-ui-e2e-"))
+const e2eControlPlaneDb = join(e2eRuntimeDir, "control-plane.sqlite")
+const e2eLegacyRegistry = join(e2eRuntimeDir, "opencode-servers.json")
+writeFileSync(e2eLegacyRegistry, JSON.stringify({ version: 1, servers: [] }))
 
 const port = Number(process.env.PLAYWRIGHT_PORT ?? 4173)
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? `http://127.0.0.1:${port}`
@@ -28,6 +39,9 @@ export default defineConfig({
     env: {
       VITE_OPENCODE_SERVER_HOST: serverHost,
       VITE_OPENCODE_SERVER_PORT: serverPort,
+      CONTROL_PLANE_DB: e2eControlPlaneDb,
+      OPENCODE_SERVERS_STORE: e2eLegacyRegistry,
+      OPENCODE_SERVERS_CONFIG: "[]",
     },
   },
   use: {

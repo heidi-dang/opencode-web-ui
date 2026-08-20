@@ -130,6 +130,8 @@ export async function setupTimeline(
     retry: input.eventRetry ?? 20,
   })
   await mockOpenCodeServer(page, {
+    serverId: fixtureServerID,
+    serverUrl: fixtureServer,
     protocol: input.protocol,
     agents: input.agents,
     directory,
@@ -184,7 +186,8 @@ export async function setupTimeline(
   }, { server: fixtureServer, id: fixtureServerID })
   if (input.reducedMotion) await page.emulateMedia({ reducedMotion: "reduce" })
   await page.setViewportSize(input.viewport ?? { width: 1400, height: 900 })
-  if (input.deviceScaleFactor) {
+  const chromiumOnly = page.context().browser()?.browserType().name() === "chromium"
+  if (input.deviceScaleFactor && chromiumOnly) {
     const devtools = await page.context().newCDPSession(page)
     const viewport = input.viewport ?? { width: 1400, height: 900 }
     await devtools.send("Emulation.setDeviceMetricsOverride", {
@@ -197,7 +200,7 @@ export async function setupTimeline(
   await page.goto(`/${base64Encode(directory)}/session/${sessionID}`)
   await transport.waitForConnection()
   await expectSessionTitle(page, title)
-  if (input.cpuRate && input.cpuRate > 1) {
+  if (input.cpuRate && input.cpuRate > 1 && chromiumOnly) {
     const devtools = await page.context().newCDPSession(page)
     await devtools.send("Emulation.setCPUThrottlingRate", { rate: input.cpuRate })
   }

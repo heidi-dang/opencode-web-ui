@@ -155,6 +155,16 @@ async function configureServers(page: Page, tabs: { type: "session"; server: str
     ({ serverB, tabs }) => {
       localStorage.setItem("settings.v3", JSON.stringify({ general: { newLayoutDesigns: true } }))
       localStorage.setItem("opencode.global.dat:server", JSON.stringify({ list: [serverB] }))
+      const servers = Array.from(new Set([serverB, ...tabs.map((tab) => tab.server)]))
+      localStorage.setItem(
+        "opencode.global.dat:server.v4",
+        JSON.stringify({
+          list: servers.map((url) => ({ type: "http", http: { id: url, url } })),
+          projects: {},
+          lastProject: {},
+          recentlyClosed: {},
+        }),
+      )
       localStorage.setItem("opencode.window.browser.dat:tabs", JSON.stringify(tabs))
     },
     { serverB, tabs },
@@ -164,15 +174,30 @@ async function configureServers(page: Page, tabs: { type: "session"; server: str
 async function mockServers(page: Page, permissionRequests: string[], permissionResponses: PermissionResponse[] = []) {
   await page.route("**/*", async (route) => {
     const url = new URL(route.request().url())
-    if (url.origin !== serverA && url.origin !== serverB) return route.fallback()
-    const remote = url.origin === serverB
+    if (url.pathname === "/api/bootstrap") {
+      return json(route, {
+        backends: [serverDescriptor(serverA), serverDescriptor(serverB)],
+        activeBackendId: serverB,
+      })
+    }
+    const appPort = new URL(process.env.PLAYWRIGHT_BASE_URL ?? `http://127.0.0.1:${process.env.PLAYWRIGHT_PORT ?? "4173"}`).port
+    const health = url.port === appPort && url.pathname.match(/^\/api\/opencode\/servers\/([^/]+)\/health$/)
+    if (health) {
+      const endpoint = decodeURIComponent(health[1]!)
+      return json(route, { server: serverDescriptor(endpoint), state: "READY", protocol: "v1", reachable: true, authenticated: true, healthy: true, latencyMs: 1, checkedAt: new Date().toISOString() })
+    }
+    const appRequest = url.port === appPort && url.pathname.startsWith("/api/opencode")
+    const origin = appRequest ? url.searchParams.get("serverId") : url.origin
+    const path = appRequest ? url.pathname.slice("/api/opencode".length) || "/" : url.pathname
+    if (origin !== serverA && origin !== serverB) return route.fallback()
+    const remote = origin === serverB
     const directory = remote ? directoryB : directoryA
     const sessions = remote ? [sessionB] : [sessionA, childSessionA]
     const requestDirectory = url.searchParams.get("directory")
-    const response = url.pathname.match(/^\/session\/([^/]+)\/permissions\/([^/]+)$/)
+    const response = path.match(/^\/session\/([^/]+)\/permissions\/([^/]+)$/)
     if (route.request().method() === "POST" && response) {
       permissionResponses.push({
-        origin: url.origin,
+        origin,
         directory: requestDirectory ?? undefined,
         sessionID: response[1]!,
         permissionID: response[2]!,
@@ -181,18 +206,18 @@ async function mockServers(page: Page, permissionRequests: string[], permissionR
       return json(route, true)
     }
     if (requestDirectory && requestDirectory !== directory) return json(route, { name: "InvalidDirectory" }, 500)
-    if (url.pathname === "/global/event" || url.pathname === "/event" || url.pathname === "/api/event")
+    if (path === "/global/event" || path === "/event" || path === "/api/event")
       return sse(route)
-    if (url.pathname === "/global/health") return json(route, { healthy: true })
-    if (url.pathname === "/api/provider" || url.pathname === "/api/model" || url.pathname === "/api/agent")
+    if (path === "/global/health") return json(route, { healthy: true })
+    if (path === "/api/provider" || path === "/api/model" || path === "/api/agent")
       return json(route, { data: [] })
-    if (url.pathname === "/api/model/default") return json(route, { data: null })
-    if (["/api/command", "/api/reference", "/api/permission/request", "/api/question/request"].includes(url.pathname))
+    if (path === "/api/model/default") return json(route, { data: null })
+    if (["/api/command", "/api/reference", "/api/permission/request", "/api/question/request"].includes(path))
       return json(route, { location: { directory }, data: [] })
-    if (url.pathname === "/api/mcp") return json(route, { location: { directory }, data: [] })
-    if (url.pathname === "/api/mcp/resource")
+    if (path === "/api/mcp") return json(route, { location: { directory }, data: [] })
+    if (path === "/api/mcp/resource")
       return json(route, { location: { directory }, data: { resources: [], templates: [] } })
-    if (url.pathname === "/api/project") {
+    if (path === "/api/project") {
       return json(route, [
         {
           id: remote ? sessionB.projectID : "project-server-a",
@@ -203,29 +228,29 @@ async function mockServers(page: Page, permissionRequests: string[], permissionR
         },
       ])
     }
-    if (url.pathname === "/api/project/current")
+    if (path === "/api/project/current")
       return json(route, { id: remote ? sessionB.projectID : "project-server-a", directory })
-    if (url.pathname === "/api/session") return json(route, { data: sessions.map(currentSession), cursor: {} })
-    if (url.pathname === "/api/session/active") return json(route, { data: {} })
-    const currentSessionInfo = sessions.find((session) => url.pathname === `/api/session/${session.id}`)
+    if (path === "/api/session" || path === "/session") return json(route, { data: sessions.map(currentSession), cursor: {} })
+    if (path === "/api/session/active" || path === "/session/active") return json(route, { data: {} })
+    const currentSessionInfo = sessions.find((session) => path === `/api/session/${session.id}`)
     if (currentSessionInfo) return json(route, { data: currentSession(currentSessionInfo) })
-    if (sessions.some((session) => url.pathname === `/api/session/${session.id}/message`))
+    if (sessions.some((session) => path === `/api/session/${session.id}/message`))
       return json(route, { data: [], cursor: {} })
-    const current = sessions.find((session) => url.pathname === `/session/${session.id}`)
+    const current = sessions.find((session) => path === `/session/${session.id}`)
     if (current) return json(route, current)
-    if (/^\/session\/[^/]+$/.test(url.pathname)) return json(route, { name: "NotFoundError" }, 404)
-    if (/^\/session\/[^/]+\/message$/.test(url.pathname)) return json(route, [])
-    if (/^\/session\/[^/]+\/(children|todo|diff)$/.test(url.pathname)) return json(route, [])
-    if (url.pathname === "/permission") {
-      permissionRequests.push(url.toString())
+    if (/^\/session\/[^/]+$/.test(path)) return json(route, { name: "NotFoundError" }, 404)
+    if (/^\/session\/[^/]+\/message$/.test(path)) return json(route, [])
+    if (/^\/session\/[^/]+\/(children|todo|diff)$/.test(path)) return json(route, [])
+    if (path === "/permission") {
+      permissionRequests.push(`${origin}${path}${url.search}`)
       return json(route, [])
     }
-    if (["/skill", "/command", "/lsp", "/formatter", "/question", "/vcs/diff", "/pty/shells"].includes(url.pathname))
+    if (["/skill", "/command", "/lsp", "/formatter", "/question", "/vcs/diff", "/pty/shells"].includes(path))
       return json(route, [])
-    if (["/global/config", "/config", "/provider/auth", "/mcp"].includes(url.pathname)) return json(route, {})
-    if (url.pathname === "/provider") return json(route, provider(remote ? "server-b" : "server-a"))
-    if (url.pathname === "/agent") return json(route, [{ name: "build", mode: "primary" }])
-    if (url.pathname === "/project" || url.pathname === "/project/current") {
+    if (["/global/config", "/config", "/provider/auth", "/mcp"].includes(path)) return json(route, {})
+    if (path === "/provider") return json(route, provider(remote ? "server-b" : "server-a"))
+    if (path === "/agent") return json(route, [{ name: "build", mode: "primary" }])
+    if (path === "/project" || path === "/project/current") {
       const project = {
         id: remote ? sessionB.projectID : "project-server-a",
         worktree: directory,
@@ -233,9 +258,9 @@ async function mockServers(page: Page, permissionRequests: string[], permissionR
         time: { created: 1, updated: 1 },
         sandboxes: [],
       }
-      return json(route, url.pathname === "/project" ? [project] : project)
+      return json(route, path === "/project" ? [project] : project)
     }
-    if (url.pathname === "/path")
+    if (path === "/path")
       return json(route, {
         state: directory,
         config: directory,
@@ -243,14 +268,26 @@ async function mockServers(page: Page, permissionRequests: string[], permissionR
         directory,
         home: directory,
       })
-    if (url.pathname === "/api/path")
+    if (path === "/api/path")
       return json(route, { state: directory, config: directory, worktree: directory, directory, home: directory })
-    if (url.pathname === "/vcs") return json(route, { branch: "main", default_branch: "main" })
-    if (url.pathname === "/api/vcs")
+    if (path === "/vcs") return json(route, { branch: "main", default_branch: "main" })
+    if (path === "/api/vcs")
       return json(route, { location: { directory }, data: { branch: "main", defaultBranch: "main" } })
-    if (url.pathname === "/api/pty/shells") return json(route, { location: { directory }, data: [] })
+    if (path === "/api/pty/shells") return json(route, { location: { directory }, data: [] })
     return json(route, {})
   })
+}
+
+function serverDescriptor(endpoint: string) {
+  return {
+    id: endpoint,
+    name: endpoint === serverB ? "Server B" : "Server A",
+    endpoint,
+    enabled: true,
+    state: "READY",
+    protocol: "v1",
+    health: { healthy: true, reachable: true, authenticated: true },
+  }
 }
 
 function session(id: string, directory: string, title: string) {

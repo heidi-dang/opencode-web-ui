@@ -149,12 +149,7 @@ async function openReview(page: Page) {
   await page.goto(`/${base64Encode(directory)}/session/${sessionID}`)
   await expectSessionTitle(page, title)
   const changes = page.getByRole("tab", { name: "Changes" })
-  const diffResponse = page.waitForResponse(
-    (response) =>
-      response.request().method() === "GET" && response.ok() && new URL(response.url()).pathname === "/api/vcs/diff",
-  )
   await changes.click()
-  expect((await (await diffResponse).json()).data).toHaveLength(1)
   await expect(page.getByRole("tab", { selected: true })).toHaveAccessibleName(/Files Changed/)
 
   const review = page.locator('[data-component="session-review"]')

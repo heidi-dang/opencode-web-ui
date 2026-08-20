@@ -30,8 +30,17 @@ async function openProjectDialog(page: Page) {
     localStorage.setItem(
       "opencode.global.dat:server",
       JSON.stringify({
-        projects: { local: dirs.map((worktree: string) => ({ worktree, expanded: false })) },
+        projects: { "http://127.0.0.1:4096": dirs.map((worktree: string) => ({ worktree, expanded: false })) },
         lastProject: {},
+      }),
+    )
+    localStorage.setItem(
+      "opencode.global.dat:server.v4",
+      JSON.stringify({
+        list: [{ type: "http", http: { id: "http://127.0.0.1:4096", url: "http://127.0.0.1:4096" } }],
+        projects: { "http://127.0.0.1:4096": dirs.map((worktree: string) => ({ worktree, expanded: false })) },
+        lastProject: {},
+        recentlyClosed: {},
       }),
     )
   }, worktrees)
