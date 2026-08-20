@@ -1,4 +1,4 @@
-import { createMemo, createEffect, on, onCleanup, For, Show } from "solid-js"
+import { createMemo, createEffect, createSignal, on, onCleanup, For, Show } from "solid-js"
 import type { JSX } from "solid-js"
 import { useSync } from "@/context/sync"
 import { checksum } from "@opencode-ai/core/util/encode"
@@ -201,6 +201,16 @@ export function SessionContextTab() {
     return language.t("context.breakdown.other")
   }
 
+  const [activeServiceTab, setActiveServiceTab] = createSignal<"usage" | "plugins" | "mcp" | "lsp">("usage")
+  const [disabledPlugins, setDisabledPlugins] = createSignal<string[]>([])
+  const pluginNames = createMemo(() =>
+    (sync().data.config.plugin ?? []).map((item) => (typeof item === "string" ? item : item[0])),
+  )
+  const mcpEntries = createMemo(() => Object.entries(sync().data.mcp ?? {}).sort(([a], [b]) => a.localeCompare(b)))
+  const lspEntries = createMemo(() => sync().data.lsp ?? [])
+  const togglePlugin = (name: string) =>
+    setDisabledPlugins((current) => (current.includes(name) ? current.filter((item) => item !== name) : [...current, name]))
+
   const stats = [
     { label: "context.stats.session", value: () => info()?.title ?? params.id ?? "—" },
     { label: "context.stats.messages", value: () => counts().all.toLocaleString(language.intl()) },
@@ -312,6 +322,100 @@ export function SessionContextTab() {
           <For each={stats}>
             {(stat) => <Stat label={language.t(stat.label as Parameters<typeof language.t>[0])} value={stat.value()} />}
           </For>
+        </div>
+
+        <div class="flex flex-col gap-3">
+          <div class="flex items-center gap-1 overflow-x-auto border-b border-border-weak-base" role="tablist" aria-label="Session services">
+            <For each={[
+              ["usage", "Usage"],
+              ["plugins", "Plugins"],
+              ["mcp", "MCP"],
+              ["lsp", "LSP"],
+            ] as const}>
+              {([value, label]) => (
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={activeServiceTab() === value}
+                  class="shrink-0 px-3 py-2 text-12-medium text-text-weak border-b-2 border-transparent"
+                  classList={{ "text-text-strong border-icon-base": activeServiceTab() === value }}
+                  onClick={() => setActiveServiceTab(value)}
+                >
+                  {label}
+                </button>
+              )}
+            </For>
+          </div>
+
+          <Show when={activeServiceTab() === "usage"}>
+            <div class="grid grid-cols-2 @[32rem]:grid-cols-4 gap-3 rounded-md border border-border-weak-base bg-surface-base p-3">
+              <Stat label="context.stats.totalTokens" value={formatter().number(ctx()?.total)} />
+              <Stat label="context.stats.inputTokens" value={formatter().number(ctx()?.input)} />
+              <Stat label="context.stats.outputTokens" value={formatter().number(ctx()?.message.tokens.output)} />
+              <Stat label="context.stats.totalCost" value={cost()} />
+            </div>
+          </Show>
+
+          <Show when={activeServiceTab() === "plugins"}>
+            <div class="flex flex-col gap-2 rounded-md border border-border-weak-base bg-surface-base p-3">
+              <Show when={pluginNames().length > 0} fallback={<div class="text-12-regular text-text-weak">No plugins configured.</div>}>
+                <For each={pluginNames()}>
+                  {(plugin) => {
+                    const enabled = () => !disabledPlugins().includes(plugin)
+                    return (
+                      <div class="flex items-center justify-between gap-3">
+                        <span class="min-w-0 truncate text-12-regular text-text-strong">{plugin}</span>
+                        <Button size="small" variant="ghost" class="shrink-0" onClick={() => togglePlugin(plugin)}>
+                          {enabled() ? "Disable plugin" : "Enable plugin"}
+                        </Button>
+                      </div>
+                    )
+                  }}
+                </For>
+              </Show>
+            </div>
+          </Show>
+
+          <Show when={activeServiceTab() === "mcp"}>
+            <div class="flex flex-col gap-2 rounded-md border border-border-weak-base bg-surface-base p-3">
+              <Show when={mcpEntries().length > 0} fallback={<div class="text-12-regular text-text-weak">No MCP servers configured.</div>}>
+                <For each={mcpEntries()}>
+                  {([name, item]) => (
+                    <div class="flex items-center justify-between gap-3">
+                      <div class="min-w-0">
+                        <div class="truncate text-12-regular text-text-strong">{name}</div>
+                        <div class="text-11-regular text-text-weak">{item.status}</div>
+                      </div>
+                      <Button size="small" variant="ghost" class="shrink-0" onClick={() => sync().mcp.toggle(name)}>
+                        {item.status === "connected" ? "Disable" : "Enable"}
+                      </Button>
+                    </div>
+                  )}
+                </For>
+              </Show>
+              <Button size="small" variant="secondary" class="self-start" onClick={() => showToast({ variant: "success", title: "Add MCP server", description: "Configure a new MCP server in your server configuration, then reload this session." })}>
+                Add MCP server
+              </Button>
+            </div>
+          </Show>
+
+          <Show when={activeServiceTab() === "lsp"}>
+            <div class="flex flex-col gap-2 rounded-md border border-border-weak-base bg-surface-base p-3">
+              <Show when={lspEntries().length > 0} fallback={<div class="text-12-regular text-text-weak">No LSP servers detected.</div>}>
+                <For each={lspEntries()}>
+                  {(item) => (
+                    <div class="flex items-center justify-between gap-3">
+                      <span class="min-w-0 truncate text-12-regular text-text-strong">{item.name || item.id}</span>
+                      <span classList={{ "text-icon-success-base": item.status === "connected", "text-icon-critical-base": item.status !== "connected" }} class="shrink-0 text-11-regular">
+                        {item.status}
+                      </span>
+                    </div>
+                  )}
+                </For>
+              </Show>
+              <div class="text-11-regular text-text-weak">Language servers are detected from the files used in this session.</div>
+            </div>
+          </Show>
         </div>
 
         <Show when={breakdown().length > 0}>
