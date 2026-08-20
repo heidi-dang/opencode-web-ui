@@ -53,3 +53,5 @@ The workspace toggle is opt-in and disabled by default. `workspace-preferences.t
 ## Tests
 
 Focused controller, lifecycle, contract, preference, i18n, and browser presentation tests cover scope isolation, identity/dedupe, ordering, replay/reset/disposal, bounded retention, lineage failure states, safe metrics/diffs, invalid persistence, and localized rendering. The full app unit, browser, stability, typecheck, build, and real-backend E2E gates remain the final acceptance work for this branch.
+
+Frontend phase: the mounted workspace keeps conversation primary and adds a responsive, touch-scrollable view switcher for lineage, timeline, changes/review, and context. Active and failed timeline cards are emphasized without fabricated progress; review rows expose long paths through accessible labels and titles; unavailable telemetry remains intentional. Browser QA reached the local preview, but no OpenCode server/session was configured, so backend-mounted visual states remain to be exercised in the integrated environment. Focused app typecheck and autonomous-workspace unit validation pass.
