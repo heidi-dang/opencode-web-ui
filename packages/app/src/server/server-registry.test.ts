@@ -74,6 +74,36 @@ describe("server registry", () => {
     }
   })
 
+  test("falls back to global health when the native endpoint is unavailable", async () => {
+    process.env.OPENCODE_SERVERS_STORE = `/tmp/opencode-registry-health-fallback-${process.pid}.json`
+    delete process.env.OPENCODE_SERVERS_CONFIG
+    process.env.OPENCODE_ALLOWED_SERVERS = "https://health-fallback.example"
+    resetRegistryForTests()
+    const server = await registerServer({ baseUrl: "https://health-fallback.example" })
+    const originalFetch = globalThis.fetch
+    const paths: string[] = []
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = input instanceof Request ? input.url : String(input)
+      paths.push(new URL(url).pathname)
+      if (url.endsWith("/api/health")) throw new TypeError("fetch failed")
+      return Response.json({ healthy: true, version: "1.18.18" })
+    }) as unknown as typeof fetch
+
+    try {
+      await expect(probeRegisteredServer(server)).resolves.toMatchObject({
+        serverId: server.id,
+        reachable: true,
+        authenticated: true,
+        healthy: true,
+        state: "READY",
+        protocol: "v1",
+      })
+      expect(paths).toEqual(["/api/health", "/global/health"])
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+
   test("uses manual redirects for health probes", async () => {
     process.env.OPENCODE_SERVERS_STORE = `/tmp/opencode-registry-redirect-${process.pid}.json`
     delete process.env.OPENCODE_SERVERS_CONFIG

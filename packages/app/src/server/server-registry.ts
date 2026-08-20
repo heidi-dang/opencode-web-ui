@@ -295,8 +295,12 @@ export async function probeRegisteredServer(serverOrId: RegisteredServer | strin
       : finish({ reachable: true, authenticated: true, healthy: false, state: "UNHEALTHY", error: "OPENCODE_HEALTH_FAILED" })
   }
   if (current.kind === "malformed") return finish({ reachable: true, authenticated: true, healthy: false, state: "UNHEALTHY", error: "MALFORMED_HEALTH_RESPONSE" })
-  if (current.kind === "network") return finish({ reachable: false, authenticated: false, healthy: false, state: "UNHEALTHY", error: current.error })
-  if (current.status === 401 || current.status === 403) return finish({ reachable: true, authenticated: false, healthy: false, state: "AUTH_FAILED", error: "AUTH_FAILED" })
+  // Some OpenCode deployments expose only the documented global health
+  // endpoint. Treat an unavailable native endpoint as a protocol miss and
+  // continue probing the fallback endpoint; only classify the backend as
+  // unreachable after both probes fail. This is important for gateways that
+  // time out unknown routes instead of returning 404.
+  if (current.kind === "http" && (current.status === 401 || current.status === 403)) return finish({ reachable: true, authenticated: false, healthy: false, state: "AUTH_FAILED", error: "AUTH_FAILED" })
 
   const legacy = await probe("/global/health")
   if (legacy.kind === "ok") {
@@ -305,9 +309,17 @@ export async function probeRegisteredServer(serverOrId: RegisteredServer | strin
       : finish({ reachable: true, authenticated: true, healthy: false, state: "UNHEALTHY", error: "OPENCODE_HEALTH_FAILED" })
   }
   if (legacy.kind === "malformed") return finish({ reachable: true, authenticated: true, healthy: false, state: "UNHEALTHY", error: "MALFORMED_HEALTH_RESPONSE" })
-  if (legacy.kind === "network") return finish({ reachable: false, authenticated: false, healthy: false, state: "UNHEALTHY", error: legacy.error })
-  if (legacy.status === 401 || legacy.status === 403) return finish({ reachable: true, authenticated: false, healthy: false, state: "AUTH_FAILED", error: "AUTH_FAILED" })
-  if (current.status === 404 && legacy.status === 404) return finish({ reachable: true, authenticated: true, healthy: false, state: "UNHEALTHY", error: "SERVER_NOT_FOUND" })
+  if (legacy.kind === "network") {
+    return finish({
+      reachable: false,
+      authenticated: false,
+      healthy: false,
+      state: "UNHEALTHY",
+      error: current.kind === "network" ? current.error : legacy.error,
+    })
+  }
+  if (legacy.kind === "http" && (legacy.status === 401 || legacy.status === 403)) return finish({ reachable: true, authenticated: false, healthy: false, state: "AUTH_FAILED", error: "AUTH_FAILED" })
+  if (current.kind === "http" && legacy.kind === "http" && current.status === 404 && legacy.status === 404) return finish({ reachable: true, authenticated: true, healthy: false, state: "UNHEALTHY", error: "SERVER_NOT_FOUND" })
   return finish({ reachable: true, authenticated: true, healthy: false, state: "UNHEALTHY", error: "OPENCODE_HEALTH_FAILED" })
 }
 
