@@ -2,6 +2,7 @@ import type { AgentExecutionEvent, AgentExecutionState, AgentRuntimeSnapshot, Co
 import { normalizeAgentState } from "./contracts"
 
 type RuntimeEvent = {
+  id?: string
   type?: string
   properties?: Record<string, unknown>
 }
@@ -13,8 +14,13 @@ function sessionID(event: RuntimeEvent) {
   return text(event.properties?.sessionID) ?? text(event.properties?.sessionId)
 }
 
-function eventID(event: RuntimeEvent, index: number) {
-  return text(event.properties?.id) ?? `${event.type ?? "runtime"}:${sessionID(event) ?? "unknown"}:${index}`
+function eventID(event: RuntimeEvent, index: number, timestamp: number) {
+  const properties = event.properties
+  const officialID = text(event.id) ?? text(properties?.id)
+  if (officialID) return officialID
+
+  const domainID = text(properties?.callID) ?? text(properties?.partID) ?? text(properties?.messageID)
+  return [event.type ?? "runtime", sessionID(event) ?? "unknown", domainID ?? "unknown", number(properties?.timestamp) ?? timestamp, index].join(":")
 }
 
 function activityFor(type: string): AgentExecutionEvent["kind"] {
@@ -41,7 +47,7 @@ export function normalizeRuntimeEvent(event: RuntimeEvent, index = 0, timestamp 
   const properties = event.properties ?? {}
   const label = text(properties.title) ?? text(properties.name) ?? text(properties.message) ?? type
   return {
-    id: eventID(event, index),
+    id: eventID(event, index, timestamp),
     agentId: sessionID(event),
     kind: activityFor(type),
     label,
@@ -97,43 +103,74 @@ export function contextUsageFromRuntime(value: unknown): ContextUsageSnapshot | 
   }
 }
 
-export function createRuntimeEventBuffer(limit = 500) {
-  const events: AgentExecutionEvent[] = []
-  const seen = new Set<string>()
+export type SessionWorkspaceScope = {
+  serverID: string
+  directory: string
+  sessionID: string
+}
+
+type SessionWorkspaceEvent = RuntimeEvent & {
+  workspaceScope?: Partial<Pick<SessionWorkspaceScope, "serverID" | "directory">>
+}
+
+type SessionWorkspaceListener = () => void
+
+function compareEvents(left: AgentExecutionEvent, right: AgentExecutionEvent) {
+  return left.timestamp - right.timestamp || left.id.localeCompare(right.id)
+}
+
+/**
+ * Holds only transient presentation events for one active session route.
+ * Authoritative session state continues to live in the existing reducers.
+ */
+export function createSessionWorkspaceController(scope: SessionWorkspaceScope, options: { limit?: number } = {}) {
+  const limit = Math.max(1, Math.floor(options.limit ?? 500))
+  const events = new Map<string, AgentExecutionEvent>()
+  const listeners = new Set<SessionWorkspaceListener>()
+  let disposed = false
+  let index = 0
+
+  const matchesScope = (event: SessionWorkspaceEvent) => {
+    const source = event.workspaceScope
+    if (source?.serverID && source.serverID !== scope.serverID) return false
+    if (source?.directory && source.directory !== scope.directory) return false
+    const id = sessionID(event)
+    return id === undefined || id === scope.sessionID
+  }
+
+  const timeline = () => [...events.values()].sort(compareEvents)
+
+  const notify = () => {
+    for (const listener of listeners) listener()
+  }
+
   return {
-    push(event: AgentExecutionEvent | undefined) {
-      if (!event || seen.has(event.id)) return events
-      seen.add(event.id)
-      events.push(event)
-      if (events.length > limit) {
-        const removed = events.splice(0, events.length - limit)
-        for (const item of removed) seen.delete(item.id)
-      }
-      return events
+    accept(event: SessionWorkspaceEvent, timestamp = Date.now()) {
+      if (disposed || !matchesScope(event)) return false
+      const normalized = normalizeRuntimeEvent(event, index, timestamp)
+      if (!normalized || events.has(normalized.id)) return false
+
+      index += 1
+      events.set(normalized.id, normalized)
+      const overflow = timeline().slice(0, Math.max(0, events.size - limit))
+      for (const item of overflow) events.delete(item.id)
+      notify()
+      return true
     },
-    values() { return events.slice() },
-    clear() { events.length = 0; seen.clear() },
+    timeline,
+    subscribe(listener: SessionWorkspaceListener) {
+      if (disposed) return () => {}
+      listeners.add(listener)
+      return () => listeners.delete(listener)
+    },
+    dispose() {
+      if (disposed) return
+      disposed = true
+      events.clear()
+      listeners.clear()
+    },
   }
 }
-
-type RuntimeListener = (event: AgentExecutionEvent) => void
-const runtimeListeners = new Set<RuntimeListener>()
-const runtimeBuffer = createRuntimeEventBuffer()
-
-/** Shared bridge from the existing OpenCode SSE consumer to workspace consumers. */
-export function publishRuntimeEvent(event: RuntimeEvent, index = 0, timestamp = Date.now()) {
-  const normalized = normalizeRuntimeEvent(event, index, timestamp)
-  if (!normalized || runtimeBuffer.push(normalized).length === 0) return normalized
-  for (const listener of runtimeListeners) listener(normalized)
-  return normalized
-}
-
-export function subscribeRuntimeEvents(listener: RuntimeListener) {
-  runtimeListeners.add(listener)
-  return () => runtimeListeners.delete(listener)
-}
-
-export function runtimeEvents() { return runtimeBuffer.values() }
 
 export type WorkspacePreference = { view?: string; expanded?: string[]; contextTab?: string; version: 1 }
 export function loadWorkspacePreference(key: string): WorkspacePreference | undefined {

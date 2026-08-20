@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { agentTree, contextUsageFromMessage, normalizeAgentState, normalizeWorkspaceChanges } from "./contracts"
+import { normalizeRuntimeEvent } from "./runtime-bridge"
 
 describe("autonomous workspace contracts", () => {
   test("normalizes unknown agent states instead of inventing runtime truth", () => {
@@ -24,5 +25,15 @@ describe("autonomous workspace contracts", () => {
     expect(normalizeWorkspaceChanges([{ file: "src/a.ts", status: "modified" }, { status: "modified" }])).toEqual([
       { file: "src/a.ts", status: "modified", additions: undefined, deletions: undefined, patch: undefined },
     ])
+  })
+
+  test("preserves the official event identity rather than deriving a display collision key", () => {
+    const event = normalizeRuntimeEvent({
+      id: "evt-official",
+      type: "session.next.tool.called",
+      properties: { sessionID: "ses-a", callID: "tool-a" },
+    })
+
+    expect(event?.id).toBe("evt-official")
   })
 })

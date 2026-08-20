@@ -43,7 +43,6 @@ import { queryOptions, useMutation, useQueries, useQuery, useQueryClient } from 
 import type { SolidQueryOptions } from "@tanstack/solid-query"
 import { createRefreshQueue } from "./global-sync/queue"
 import { directoryKey } from "./global-sync/utils"
-import { publishRuntimeEvent } from "@/features/autonomous-workspace/runtime-bridge"
 import { PathKey } from "@/utils/path-key"
 import { createDirSyncContext } from "./directory-sync"
 import { createSimpleContext } from "@opencode-ai/ui/context"
@@ -692,7 +691,6 @@ export function createServerSyncContextInner(serverSDK: ServerSDK) {
     const directory = e.name
     const key = directoryKey(directory)
     const event = e.details
-    publishRuntimeEvent(event as { type?: string; properties?: Record<string, unknown> })
     const eventType: string = event.type
     const recent = bootingRoot || Date.now() - bootedAt < 1500
 
