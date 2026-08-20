@@ -148,6 +148,7 @@ test("keeps the review tree and terminal sized when both panels are open", async
 
   await page.goto(`/${base64Encode(directory)}/session/${sessionID}`)
   await expectSessionTitle(page, title)
+  await page.getByRole("button", { name: "Toggle review" }).click()
   await expect(page.locator("#review-panel")).toBeVisible()
   await expectTree(page, 8, "git-0.ts")
 
@@ -174,8 +175,11 @@ test("keeps the review tree and terminal sized when both panels are open", async
   expect(bottomGap).toBeLessThanOrEqual(16)
   const lazyDiff = page.waitForRequest((request) => {
     const url = new URL(request.url())
+    const path = url.pathname.startsWith("/api/opencode")
+      ? url.pathname.slice("/api/opencode".length)
+      : url.pathname
     return (
-      url.pathname === "/vcs/diff" &&
+      path === "/vcs/diff" &&
       url.searchParams.get("directory")?.replaceAll("\\", "/").endsWith("/src/branch/d00027") === true
     )
   })
@@ -189,8 +193,11 @@ test("keeps the review tree and terminal sized when both panels are open", async
   await expect(page.getByRole("button", { name: "Stop" })).toBeVisible()
   const refreshedDiff = page.waitForRequest((request) => {
     const url = new URL(request.url())
+    const path = url.pathname.startsWith("/api/opencode")
+      ? url.pathname.slice("/api/opencode".length)
+      : url.pathname
     return (
-      url.pathname === "/vcs/diff" &&
+      path === "/vcs/diff" &&
       url.searchParams.get("directory")?.replaceAll("\\", "/").endsWith("/src/branch/d00027") === true
     )
   })

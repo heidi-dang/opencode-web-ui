@@ -1,6 +1,7 @@
 import type { Page } from "@playwright/test"
 import { expectSessionTitle } from "../../utils/waits"
 import { mockOpenCodeServer } from "../../utils/mock-server"
+import { deferred } from "../../utils/deferred"
 import { benchmark, expect, withBenchmarkPage } from "../benchmark"
 import { fixture } from "./session-timeline-stress.fixture"
 import { installStressSessionTabs, stressSessionHref } from "./timeline-test-helpers"
@@ -81,7 +82,7 @@ benchmark("hydrates an orphaned latest turn after a cold session click", async (
 
 async function trial(page: Page, mode: ParentHydrationBenchmarkMode) {
   const requests: { type: "list" | "parent"; before?: string }[] = []
-  const history = mode === "candidate" ? Promise.withResolvers<void>() : undefined
+  const history = mode === "candidate" ? deferred<void>() : undefined
   let historyGates = 0
   await mockOpenCodeServer(page, {
     sessions: fixture.sessions.filter((session) => session.id === fixture.sourceID),

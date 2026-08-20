@@ -151,7 +151,7 @@ for (const scenario of responsiveCases) {
     const status = page.locator('[data-component="streaming-status-bar"]')
     const waveform = status.locator('[data-component="model-activity-waveform"]')
     const timer = status.locator(".elapsed-timer")
-    await expect(page).toHaveTitle("Heidi")
+    await expect(page).toHaveTitle("OpenCode")
     await expect(page.locator("vite-error-overlay")).toHaveCount(0)
     await expect(page.locator("h1", { hasText: "Timeline visual stability" })).toBeVisible()
     await expect(page.locator("html")).toHaveAttribute("data-color-scheme", scenario.scheme)

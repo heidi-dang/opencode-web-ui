@@ -4,6 +4,8 @@ const emptyList = new Set(["/skill", "/command", "/lsp", "/formatter", "/vcs/sta
 const emptyObject = new Set(["/global/config", "/config", "/provider/auth", "/mcp", "/experimental/resource"])
 
 export interface MockServerConfig {
+  serverId?: string
+  serverUrl?: string
   protocol?: "v1" | "v2"
   agents?: unknown[]
   provider: unknown | (() => unknown)
@@ -39,6 +41,9 @@ export interface MockServerConfig {
 export async function mockOpenCodeServer(page: Page, config: MockServerConfig) {
   const cursors = new Map<string, string>()
   let nextCursor = 0
+  const targetPort = process.env.PLAYWRIGHT_SERVER_PORT ?? "4096"
+  const serverUrl = config.serverUrl ?? `http://${process.env.PLAYWRIGHT_SERVER_HOST ?? "127.0.0.1"}:${targetPort}`
+  const serverId = config.serverId ?? serverUrl
   const staticRoutes: Record<string, unknown> = {
     "/path": {
       state: config.directory,
@@ -54,13 +59,26 @@ export async function mockOpenCodeServer(page: Page, config: MockServerConfig) {
     "/session": config.sessions,
   }
 
+  await page.addInitScript(({ serverId, serverUrl, directory }) => {
+    if (localStorage.getItem("opencode.global.dat:server.v4")) return
+    localStorage.setItem(
+      "opencode.global.dat:server.v4",
+      JSON.stringify({
+        list: [{ type: "http", http: { id: serverId, url: serverUrl } }],
+        projects: { [serverId]: [{ worktree: directory, expanded: true }] },
+        lastProject: { [serverId]: directory },
+        recentlyClosed: {},
+      }),
+    )
+  }, { serverId, serverUrl, directory: config.directory })
+
   await page.route("**/*", async (route) => {
     const url = new URL(route.request().url())
-    const targetPort = process.env.PLAYWRIGHT_SERVER_PORT ?? "4096"
     const appPort = new URL(
-      process.env.PLAYWRIGHT_BASE_URL ?? `http://127.0.0.1:${process.env.PLAYWRIGHT_PORT ?? "3000"}`,
+      process.env.PLAYWRIGHT_BASE_URL ?? `http://127.0.0.1:${process.env.PLAYWRIGHT_PORT ?? "4173"}`,
     ).port
-    if (url.port !== targetPort && url.port !== appPort) return route.fallback()
+    const applicationPorts = new Set([appPort, process.env.PLAYWRIGHT_STABILITY_PORT].filter(Boolean))
+    if (url.port !== targetPort && !applicationPorts.has(url.port)) return route.fallback()
 
     // Browser requests go through the same-origin gateway in production. In
     // tests that proxy prefix is still an upstream OpenCode path, so strip it
@@ -68,15 +86,41 @@ export async function mockOpenCodeServer(page: Page, config: MockServerConfig) {
     const path = url.pathname.startsWith("/api/opencode")
       ? url.pathname.slice("/api/opencode".length) || "/"
       : url.pathname
-    if (/^\/servers\/[^/]+\/health$/.test(path))
+    if (path === "/api/bootstrap")
       return json(route, {
+        backends: [
+          {
+            id: serverId,
+            name: "Timeline fixture",
+            endpoint: serverUrl,
+            enabled: true,
+            state: "READY",
+            protocol: config.protocol ?? "v1",
+            health: { healthy: true, reachable: true },
+          },
+        ],
+        activeBackendId: serverId,
+      })
+    if (/^\/servers\/[^/]+\/health$/.test(path)) {
+      const protocol = config.protocol ?? "v1"
+      return json(route, {
+        server: {
+          id: serverId,
+          name: "Timeline fixture",
+          endpoint: serverUrl,
+          enabled: true,
+          state: "READY",
+          protocol,
+        },
         state: "READY",
         healthy: true,
         authenticated: true,
         reachable: true,
-        protocol: config.protocol ?? "v1",
+        protocol,
         latencyMs: 1,
+        checkedAt: new Date().toISOString(),
       })
+    }
     if (path === "/global/event" || path === "/event" || path === "/api/event") {
       const events = config.events?.()
       return sse(

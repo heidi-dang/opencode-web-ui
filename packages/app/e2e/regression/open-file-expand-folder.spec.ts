@@ -111,6 +111,7 @@ test("expands a folder whose path has a trailing Windows separator", async ({ pa
   await page.goto(`/server/${base64Encode(server)}/session/${sessionID}`)
   await expectSessionTitle(page, title)
 
+  await page.getByRole("button", { name: "Toggle review" }).click()
   const panel = page.locator("#review-panel")
   await panel.getByRole("button", { name: "Open file" }).click()
   await expect(panel.getByRole("tab", { name: "Open file" })).toHaveAttribute("data-selected", "")

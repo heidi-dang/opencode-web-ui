@@ -14,6 +14,15 @@ test("tab busy indicator reflects the tab server's own session status", async ({
       localStorage.setItem("settings.v3", JSON.stringify({ general: { newLayoutDesigns: true } }))
       localStorage.setItem("opencode.global.dat:server", JSON.stringify({ list: [serverB] }))
       localStorage.setItem(
+        "opencode.global.dat:server.v4",
+        JSON.stringify({
+          list: [serverA, serverB].map((url) => ({ type: "http", http: { id: url, url } })),
+          projects: {},
+          lastProject: {},
+          recentlyClosed: {},
+        }),
+      )
+      localStorage.setItem(
         "opencode.window.browser.dat:tabs",
         JSON.stringify([
           { type: "session", server: serverA, sessionId: sessionA },
@@ -54,30 +63,48 @@ function session(id: string, directory: string, title: string) {
 async function mockServers(page: Page) {
   await page.route("**/*", async (route) => {
     const url = new URL(route.request().url())
-    if (url.origin !== serverA && url.origin !== serverB) return route.fallback()
-    const current = url.origin === serverA ? sessionA : sessionB
+    if (url.pathname === "/api/bootstrap") {
+      return json(route, {
+        backends: [serverDescriptor(serverA), serverDescriptor(serverB)],
+        activeBackendId: serverA,
+      })
+    }
+    const appPort = new URL(process.env.PLAYWRIGHT_BASE_URL ?? `http://127.0.0.1:${process.env.PLAYWRIGHT_PORT ?? "4173"}`).port
+    const health = url.port === appPort && url.pathname.match(/^\/api\/opencode\/servers\/([^/]+)\/health$/)
+    if (health) {
+      const endpoint = decodeURIComponent(health[1]!)
+      return json(route, { server: serverDescriptor(endpoint), state: "READY", protocol: "v1", reachable: true, authenticated: true, healthy: true, latencyMs: 1, checkedAt: new Date().toISOString() })
+    }
+    const appRequest = url.port === appPort && url.pathname.startsWith("/api/opencode")
+    const origin = appRequest ? url.searchParams.get("serverId") : url.origin
+    const path = appRequest ? url.pathname.slice("/api/opencode".length) || "/" : url.pathname
+    if (origin !== serverA && origin !== serverB) return route.fallback()
+    const current = origin === serverA ? sessionA : sessionB
     const directory = url.searchParams.get("directory")
     if (directory && directory !== current.directory) return json(route, { name: "InvalidDirectory" }, 500)
-    if (url.pathname === "/global/event" || url.pathname === "/event" || url.pathname === "/api/event")
-      return sse(route, url.pathname === "/api/event")
-    if (url.pathname === "/global/health") return json(route, {}, 404)
-    if (url.pathname === "/api/health") return json(route, { pid: 1 })
-    if (url.pathname === "/api/session/active")
-      return json(route, { data: url.origin === serverB ? { [sessionB.id]: { type: "running" } } : {} })
-    if (url.pathname === "/api/session") return json(route, { data: [currentSession(current)], cursor: {} })
-    if (url.pathname === `/api/session/${current.id}`) return json(route, { data: currentSession(current) })
-    if (url.pathname === `/api/session/${current.id}/message`) return json(route, { data: [], cursor: {} })
-    if (url.pathname === `/session/${current.id}`) return json(route, current)
-    if (/^\/session\/[^/]+$/.test(url.pathname)) return json(route, { name: "NotFoundError" }, 404)
-    if (url.pathname === `/session/${current.id}/message`) return json(route, [])
-    if (/^\/session\/[^/]+\/(children|todo|diff)$/.test(url.pathname)) return json(route, [])
-    if (["/skill", "/command", "/lsp", "/formatter", "/permission", "/question", "/vcs/diff"].includes(url.pathname))
+    if (path === "/global/event" || path === "/event" || path === "/api/event")
+      return sse(route, path === "/api/event")
+    if (path === "/global/health") return json(route, {}, 404)
+    if (path === "/api/health") return json(route, { pid: 1 })
+    if (path === "/api/session/status" || path === "/session/status")
+      return json(route, origin === serverB ? { [sessionB.id]: { type: "running" } } : {})
+    if (path === "/api/session/active" || path === "/session/active")
+      return json(route, { data: origin === serverB ? { [sessionB.id]: { type: "running" } } : {} })
+    if (path === "/api/session" || path === "/session" || path === "/session/data")
+      return json(route, { data: [currentSession(current)], cursor: {} })
+    if (path === `/api/session/${current.id}`) return json(route, { data: currentSession(current) })
+    if (path === `/api/session/${current.id}/message`) return json(route, { data: [], cursor: {} })
+    if (path === `/session/${current.id}`) return json(route, current)
+    if (/^\/session\/[^/]+$/.test(path)) return json(route, { name: "NotFoundError" }, 404)
+    if (path === `/session/${current.id}/message` || path === "/session/data/message") return json(route, [])
+    if (/^\/session\/[^/]+\/(children|todo|diff)$/.test(path)) return json(route, [])
+    if (["/skill", "/command", "/lsp", "/formatter", "/permission", "/question", "/vcs/diff"].includes(path))
       return json(route, [])
-    if (["/global/config", "/config", "/provider/auth", "/mcp"].includes(url.pathname)) return json(route, {})
-    if (url.pathname === "/provider")
+    if (["/global/config", "/config", "/provider/auth", "/mcp"].includes(path)) return json(route, {})
+    if (path === "/provider")
       return json(route, { all: [], connected: [], default: { providerID: "", modelID: "" } })
-    if (url.pathname === "/agent") return json(route, [{ name: "build", mode: "primary" }])
-    if (url.pathname === "/project" || url.pathname === "/project/current") {
+    if (path === "/agent") return json(route, [{ name: "build", mode: "primary" }])
+    if (path === "/project" || path === "/project/current") {
       const project = {
         id: current.projectID,
         worktree: current.directory,
@@ -85,9 +112,9 @@ async function mockServers(page: Page) {
         time: { created: 1, updated: 1 },
         sandboxes: [],
       }
-      return json(route, url.pathname === "/project" ? [project] : project)
+      return json(route, path === "/project" ? [project] : project)
     }
-    if (url.pathname === "/path")
+    if (path === "/path")
       return json(route, {
         state: current.directory,
         config: current.directory,
@@ -95,7 +122,7 @@ async function mockServers(page: Page) {
         directory: current.directory,
         home: current.directory,
       })
-    if (url.pathname === "/api/path")
+    if (path === "/api/path")
       return json(route, {
         state: current.directory,
         config: current.directory,
@@ -103,14 +130,26 @@ async function mockServers(page: Page) {
         directory: current.directory,
         home: current.directory,
       })
-    if (url.pathname === "/vcs") return json(route, { branch: "main", default_branch: "main" })
-    if (url.pathname === "/api/vcs")
+    if (path === "/vcs") return json(route, { branch: "main", default_branch: "main" })
+    if (path === "/api/vcs")
       return json(route, {
         location: { directory: current.directory },
         data: { branch: "main", defaultBranch: "main" },
       })
     return json(route, {})
   })
+}
+
+function serverDescriptor(endpoint: string) {
+  return {
+    id: endpoint,
+    name: endpoint === serverB ? "Server B" : "Server A",
+    endpoint,
+    enabled: true,
+    state: "READY",
+    protocol: "v1",
+    health: { healthy: true, reachable: true, authenticated: true },
+  }
 }
 
 function json(route: Route, body: unknown, status = 200) {

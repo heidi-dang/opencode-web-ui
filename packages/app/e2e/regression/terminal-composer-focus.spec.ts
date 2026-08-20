@@ -1,6 +1,7 @@
 import { base64Encode } from "@opencode-ai/core/util/encode"
 import { expect, test, type Page } from "@playwright/test"
 import { mockOpenCodeServer } from "../utils/mock-server"
+import { deferred } from "../utils/deferred"
 import { expectSessionTitle } from "../utils/waits"
 
 const directory = "C:/OpenCode/TerminalComposerFocus"
@@ -98,8 +99,8 @@ test("routes typing to the composer unless the open terminal is focused", async 
 })
 
 test("keeps composer focus when a cached terminal finishes mounting", async ({ page }) => {
-  const ghostty = Promise.withResolvers<void>()
-  const release = Promise.withResolvers<void>()
+  const ghostty = deferred<void>()
+  const release = deferred<void>()
   const created = { count: 0 }
   await page.route("**/api/pty*", (route) => {
     created.count += 1
@@ -134,8 +135,8 @@ test("keeps composer focus when a cached terminal finishes mounting", async ({ p
 })
 
 test("keeps newer composer focus while an explicit terminal open finishes", async ({ page }) => {
-  const ghostty = Promise.withResolvers<void>()
-  const release = Promise.withResolvers<void>()
+  const ghostty = deferred<void>()
+  const release = deferred<void>()
   await page.route(/ghostty-web/, async (route) => {
     ghostty.resolve()
     await release.promise
