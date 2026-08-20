@@ -1,6 +1,6 @@
 import type { Page, Route } from "@playwright/test"
 
-const emptyList = new Set(["/skill", "/command", "/lsp", "/formatter", "/vcs/status", "/vcs/diff"])
+const emptyList = new Set(["/skill", "/command", "/lsp", "/formatter", "/vcs/status"])
 const emptyObject = new Set(["/global/config", "/config", "/provider/auth", "/mcp", "/experimental/resource"])
 
 export interface MockServerConfig {
@@ -165,8 +165,8 @@ export async function mockOpenCodeServer(page: Page, config: MockServerConfig) {
             family: id,
             capabilities: { tools: true, input: ["text"], output: ["text"] },
             variants: [],
-            time: { released: Date.now() },
-            cost: [{ input: 0, output: 0, cache: { read: 0, write: 0 } }],
+            ...(current.time === undefined ? {} : { time: current.time }),
+            cost: current.cost ?? [{ input: 0, output: 0, cache: { read: 0, write: 0 } }],
             status: "active",
             enabled: true,
             limit: { context: 200_000, output: 16_000 },

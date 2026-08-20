@@ -25,6 +25,21 @@ The committed changes are limited to browser regression/stability harness behavi
 they preserve the session-scoped controller, existing PTY/runtime ownership,
 virtualized timeline, exact-origin security, and production application behavior.
 
+## E2E closure pass — 2026-08-21
+
+The latest fixture pass corrected two repository-controlled issues: `/vcs/diff` was
+being swallowed by the generic empty-list mock before configured review data could
+reach the application, and the model projection was fabricating release timestamps
+and costs instead of preserving fixture metadata. The context-resize transition test
+that uses `page.context().newCDPSession()` is explicitly Chromium-scoped because
+CPU throttling is a Chrome DevTools Protocol capability; its first test retains
+Chromium/WebKit product-level coverage.
+
+The local Playwright browser download could not complete in the sandbox, so a fresh
+full matrix could not be executed after these changes. `typecheck:e2e` and `git
+diff --check` pass; do not treat this environment limitation as a green full-E2E
+result.
+
 ## Historical acceptance record — superseded
 
 The authoritative current gate is tracked here; older provisional notes below are
