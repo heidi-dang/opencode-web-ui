@@ -1,5 +1,28 @@
 # Autonomous Workspace Developer Handoff
 
+## Final acceptance record — 2026-08-20
+
+The authoritative current gate is tracked here; older provisional notes below are
+historical and must not be read as final production acceptance.
+
+| Area | Result | Evidence |
+| --- | --- | --- |
+| Branch | PASS | Work remains on `encryption-key-configuration`; `main` is untouched. |
+| Encryption | PASS | Normal local acceptance used a non-committed, ephemeral 32-byte `APP_ENCRYPTION_KEY`; plaintext mode was not used for acceptance. |
+| Playwright | PASS | Local package version `1.59.1`; Chromium and WebKit binaries launch. |
+| Real session/workspace | PASS | Authenticated local OpenCode v2 session mounted the opt-in workspace and streamed a real prompt. |
+| Review/diff | PASS | Real Git-backed acceptance file modification was reflected by Git and the workspace review. |
+| Remote target | PASS / CONFIGURED | `http://100.97.224.96:4096` is reachable and responds to authenticated health/project requests; application registration additionally requires its exact private origin in `OPENCODE_ALLOWED_SERVERS`. |
+| Unit/browser | PASS — BASELINE WARNING | 932 unit tests passed; browser suite remains 50 passed plus the identical Solid cleanup failure on clean `origin/main`. |
+| Targeted browser E2E | PASS | 15/15 repaired registry/control-plane specs passed; workspace timeline/accessibility smoke passed in Chromium and WebKit. |
+| Full E2E | FAIL — 78 PASS / 152 FAIL | The complete 230-test Chromium/WebKit matrix executed with an isolated control-plane DB and explicit port; no tests were skipped. |
+| Stability | FAIL — 81 PASS / 7 FAIL | Analyzer 23/23 passed and the prebuilt-serve browser phase executed; two Chromium and five WebKit timeline virtualization/scroll cases failed. |
+| Vercel – opencode-web-ui / -ct | BLOCKED — AUTH REQUIRED | GitHub status metadata identifies failing deployments, but no authenticated Vercel logs are available in this environment. |
+
+Keep the workspace session-scoped and derived from authoritative state. Do not
+restore a global event bridge, fabricate telemetry, or use `APP_ENCRYPTION_DISABLED=1`
+for production-style acceptance.
+
 ## Runtime ownership
 
 Use the existing `ServerSDK`, `server-sync`, session reducer, VCS/review state, provider/model state, and terminal context. The workspace is mounted in `pages/session.tsx` under the active session page owner and is disabled by default. The controller is instantiated directly in that owner; there is no autonomous-workspace context provider or second global bridge. Enabling it wraps the existing conversation/composer and reuses the existing terminal panel; it does not replace or duplicate those systems.
@@ -60,27 +83,29 @@ Current capabilities are LIVE or DERIVED only where listed above. Unsupported ag
 
 | Area | Result | Evidence |
 | --- | --- | --- |
-| Connected backend | PASS (local) | Authenticated real OpenCode 1.18.18, v2, `127.0.0.1:4096`, project `/`; `100.97.224.96:4096` was TCP-refused in this environment. |
+| Connected backend | PASS (local) / PASS (remote direct) | Authenticated real OpenCode 1.18.18, v2, `127.0.0.1:4096`, project `/`; direct authenticated health/project requests to `100.97.224.96:4096` also passed. Isolated application registration of the private origin requires the exact `OPENCODE_ALLOWED_SERVERS` entry. |
 | Workspace mount and real prompt | PASS | Production Bun build served the SPA; real prompt response rendered after the session route transition. |
 | Timeline, lineage, Usage/Activity | PASS (smoke) | Views mounted and rendered from scoped state; no fabricated metrics were introduced. |
-| Review/diff | PENDING | Test project has no Git repository, so no authoritative diff was available. |
-| Terminal | PENDING | No-Git test project did not provide a safe PTY acceptance target. |
-| Interrupt/reconnect | PENDING | Needs controlled long-running generation/network interruption. |
+| Review/diff | PASS (local) | A disposable Git-backed acceptance project was modified by a real prompt and matched by Git/workspace review. |
+| Terminal | NOT CLOSED | The existing PTY path was not proven cleanly in the final connected acceptance window. |
+| Interrupt/reconnect | NOT CLOSED | Streaming passed, but controlled interrupt/reconnect evidence is incomplete. |
 | Persistence/reload | PASS (smoke) | Bootstrap settlement now gates first-run setup; fresh contexts did not show the setup dialog over an already registered backend, and workspace navigation remained available after reload. |
 | Chromium | PASS (smoke) | Installed repository Playwright Chromium and completed connected prompt/workspace flow. |
 | WebKit/mobile/tablet | PASS (smoke) | Connected prompt/workspace flow passed in WebKit; phone/tablet/landscape Chromium viewports had no horizontal overflow. WebKit emitted only the existing ResizeObserver lifecycle warning. |
-| Stability/CI | PARTIAL / classified | Visual stability unit tests passed (23/23). Playwright stability uses a synthetic fixture page and did not pass against the production route; the full stability command also exceeds the local 120s web-server timeout because build time is ~11m33s. Both Vercel failures require authenticated Vercel project logs; GitHub status metadata alone does not show a branch-code cause. |
+| Stability/CI | FAIL / classified | Visual analyzer passed 23/23; the complete prebuilt browser phase was 81/88. Both Vercel failures require authenticated Vercel project logs; GitHub status metadata alone does not show a branch-code cause. |
 
 ## Acceptance evidence
 
 - `bun run typecheck`: passed.
 - `bun --cwd packages/app typecheck:e2e`: passed.
-- `bun --cwd packages/app test`: 50 browser tests passed; one known Solid cleanup failure remains (`route cleanup cannot invalidate an owner list being disposed`), matching the recorded baseline warning.
+- `bun --cwd packages/app test`: 50 browser tests passed; one known Solid cleanup failure remains (`route cleanup cannot invalidate an owner list being disposed`), matching clean `origin/main`.
+- `bun --cwd packages/app test:unit`: 932 tests passed, 0 failed.
+- `bun --cwd packages/app test:e2e`: 78 passed, 152 failed out of 230; the full matrix executed without skips.
 - Visual stability unit analyzer: passed, 23 tests / 0 failures.
 - `bun run db:check`: passed.
-- Stability harness repair: `test:stability` now builds once, serves prebuilt `dist` on configurable `PLAYWRIGHT_STABILITY_PORT` (default 4174), and avoids preview-port reuse. Its unit phase passed; browser phase is pending the local browser binary.
-- Full Playwright E2E: blocked before assertions because the required Chromium headless-shell executable is unavailable in this sandbox.
-- Tailscale: TCP connection to `100.97.224.96:4096` succeeded; the `tailscale` CLI is unavailable, so identity/ping diagnostics and authenticated application acceptance remain unproven.
-- Branch baseline: authoritative HEAD is `4f9def64da42d0fe31562b7c0013e449ecad2202` on `opencode-workspace-ui`; `origin/main` is not present in the clone, so no main comparison or merge was fabricated.
+- Stability harness: `test:stability` built once, served prebuilt `dist` on `PLAYWRIGHT_STABILITY_PORT=4174`, and completed 88 browser tests: 81 passed, 7 failed. The failures are timeline virtualization/scroll scenarios, not port ownership or browser startup.
+- Full Playwright E2E: repository Chromium and WebKit launched; 230 tests executed with 78 passed and 152 failed. Failures include stale fixture expectations, WebKit `Promise.withResolvers` helpers, transport-path assertions, terminal/timeline fixtures, and model-routing fixtures.
+- Tailscale target: direct authenticated health/project requests to `100.97.224.96:4096` passed; registering the private origin through the isolated app was correctly rejected until the exact origin is present in `OPENCODE_ALLOWED_SERVERS`.
+- Branch baseline: authoritative feature start was `e77c7a74134dd4a20e6b28a75e5c05a5504af2f`; `origin/main` was `918d6c51ad1e6d9fe653feba08879ec86bac4a34`; main was not modified.
 
 Remaining acceptance work is environmental rather than a reason to weaken the runtime: use the connected backend and `TEMP_REPO` to run server/project/session isolation, reconnect/resync, interrupt/follow-up, terminal reuse, Git-backed review, reload, and mobile/WebKit flows, then attach Playwright and console/network evidence.

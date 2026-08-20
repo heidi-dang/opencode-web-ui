@@ -1,5 +1,31 @@
 # Autonomous Workspace Implementation
 
+## Final acceptance record — 2026-08-20
+
+This section supersedes earlier provisional acceptance notes below. It records the
+current `encryption-key-configuration` gate without treating mock-only coverage as
+real-backend evidence.
+
+| Area | Result | Evidence |
+| --- | --- | --- |
+| Branch/source | PASS | Feature started at `e77c7a74134dd4a20e6b28a75e5c05a5504af2f`; `origin/main` was `918d6c51ad1e6d9fe653feba08879ec86bac4a34`; main was not modified. |
+| Encrypted local runtime | PASS | Acceptance processes used an ephemeral 32-byte `APP_ENCRYPTION_KEY` supplied only through the environment. |
+| Browser binaries | PASS | Repository Playwright `1.59.1`; Chromium and WebKit installed from the repository package and launch-smoked. |
+| Real local OpenCode | PASS | Authenticated v2 server on `127.0.0.1:4096`; real session prompt streamed through the gateway and rendered. |
+| Remote OpenCode reachability | PASS | `100.97.224.96:4096` returned authenticated `/global/health` and `/project` responses; private-origin registration requires the configured `OPENCODE_ALLOWED_SERVERS` allowlist. |
+| Workspace mount | PASS | Conversation, Session lineage, Timeline, Changes, and Context views mounted in the real session route. |
+| Git-backed diff | PASS | A real prompt changed one tracked acceptance file; Git status/diff and the workspace review agreed. |
+| Typecheck/build/database | PASS | Root typecheck, E2E typecheck, DB check, and production build passed. |
+| Unit/browser | PASS — BASELINE WARNING | 932 unit tests passed. Browser tests reported 50 passed and the unchanged Solid cleanup failure; the same failure was reproduced on clean `origin/main`. |
+| Targeted E2E | PASS | The repaired control-plane/registry fixture group passed 15/15 in Chromium; workspace accessibility smoke passed in Chromium and WebKit. |
+| Full E2E | FAIL — 78 PASS / 152 FAIL | The complete 230-test Chromium/WebKit matrix executed with the isolated fixture DB and configurable port; no tests were skipped. |
+| Full stability | FAIL — 81 PASS / 7 FAIL | Analyzer 23/23 passed; the prebuilt production server and 88-test Chromium/WebKit browser phase executed. Two Chromium and five WebKit failures remain in timeline virtualization/scroll scenarios. |
+| Vercel red checks | BLOCKED — EXTERNAL | GitHub exposes deployment URLs but Vercel project logs require authenticated Vercel access; no branch-code cause is proven. |
+
+No visible production telemetry is fabricated. Unsupported agent hierarchy, context
+limits, inferred pricing, token speed, and destructive review mutations remain
+explicitly unavailable. The standalone proxy is not part of the acceptance runtime.
+
 ## Architecture
 
 The autonomous workspace is an opt-in view of the existing session route. It does not own an SDK client, SSE connection, message reducer, review engine, or terminal/PTY subsystem.
@@ -64,13 +90,13 @@ Frontend phase: the mounted workspace keeps conversation primary and adds a resp
 | Mounted workspace | PASS | Production Bun server on an isolated port; real session prompt rendered and workspace toggle mounted without route error. |
 | Live streaming | PASS | Real prompt admitted through the gateway and assistant response rendered. |
 | Timeline / lineage / Usage-Activity tabs | PASS (smoke) | Workspace views rendered from the connected session; no console/page errors. Extended burn-in remains environment-dependent. |
-| Diff/review | PENDING | No safe repository-backed change was available in the `/`/No Git test project. |
-| Terminal | PENDING | Existing PTY was not exercised in the no-Git project. |
-| Interrupt / reconnect | PENDING | Requires a long-running real generation or controlled network interruption. |
+| Diff/review | PASS (local) | A disposable Git project was edited by a real prompt; Git status/diff and the workspace review agreed on the modified file. |
+| Terminal | NOT CLOSED | Existing PTY remains covered by targeted fixtures, but the full connected acceptance did not produce clean terminal evidence. |
+| Interrupt / reconnect | NOT CLOSED | Real prompt/SSE streaming passed; a clean controlled interrupt/reconnect burn-in is not proven by the completed matrix. |
 | Persistence / reload | PASS (smoke) | Fresh-context bootstrap no longer opens the setup modal before the registry settles; workspace navigation remained available after reload. |
 | Chromium / WebKit / mobile | PASS (smoke) | Connected real prompt/workspace flows passed in Chromium and WebKit; phone/tablet/landscape viewports had no horizontal overflow. WebKit reported only the existing ResizeObserver lifecycle warning. |
-| Stability / CI | PARTIAL / classified | Visual stability unit tests passed (23/23); Playwright stability requires its synthetic fixture page and did not start against the production route. Full `test:stability` also exceeds the local 120s web-server timeout because the build takes ~11m33s. Vercel red checks require authenticated project access for logs. |
+| Stability / CI | FAIL / classified | `test:stability` completed the analyzer (23/23) and prebuilt browser phase (81/88). Seven timeline virtualization/scroll cases failed. Vercel red checks require authenticated project access for logs. |
 
-Acceptance run on 2026-08-20: root typecheck passed; app unit tests passed with 928 tests and 0 failures; browser unit tests passed; visual-stability analyzer passed with 23 tests and 0 failures. The local Playwright rerun was blocked by the port-3000 preview collision and initially missing Chromium runtime. The checkout began at `opencode-workspace-ui` / `c5ccb9e607a9f96fcc135fc89cdcf23a28f138ee`; `origin/main` is not present, so no main comparison was fabricated. Real backend/session acceptance remains required for Git review, terminal, interrupt/reconnect, and controlled long-running flows.
+Historical note: the earlier 928-test/Chromium-missing report is superseded by the final record above. The current run used repository Playwright 1.59.1 with installed Chromium/WebKit, an isolated control-plane DB, and an explicit port.
 
-Final-gate rerun from `4f9def64da42d0fe31562b7c0013e449ecad2202`: `bun run typecheck` passed; `bun --cwd packages/app typecheck:e2e` passed; `bun run db:check` passed; the canonical app regression currently reports 50 browser tests passed and one known Solid cleanup failure (`route cleanup cannot invalidate an owner list being disposed`), matching the previously recorded baseline warning. The visual stability analyzer passed 23/23. The stability harness is now repository-controlled: it builds once, serves the prebuilt `dist` on configurable port `PLAYWRIGHT_STABILITY_PORT` (default 4174), and uses bounded readiness instead of coupling Playwright readiness to a dev build or preview port. Full Playwright E2E remains externally blocked in this sandbox because the required Chromium headless-shell binary is unavailable; TCP port 4096 was reachable, but the `tailscale` CLI was not installed for identity/ping diagnostics.
+Final-gate rerun from `e77c7a74134dd4a20e6b28a75e5c05a5504af2f`: root typecheck, E2E typecheck, DB check, and production build passed; the app unit suite passed 932/932; the browser suite reported 50 passed plus the identical Solid cleanup failure on clean `origin/main`. Full E2E executed 230 tests with 78 passed and 152 failed; no tests were skipped. Full stability executed its analyzer (23/23) and prebuilt browser phase (81/88), with seven timeline virtualization/scroll failures. Chromium and WebKit binaries launch successfully. The remaining E2E/stability failures are recorded as acceptance blockers rather than hidden behind a green smoke result.
