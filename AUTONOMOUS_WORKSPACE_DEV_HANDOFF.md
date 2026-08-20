@@ -15,7 +15,7 @@ historical and must not be read as final production acceptance.
 | Remote target | PASS / CONFIGURED | `http://100.97.224.96:4096` is reachable and responds to authenticated health/project requests; application registration additionally requires its exact private origin in `OPENCODE_ALLOWED_SERVERS`. |
 | Unit/browser | PASS — BASELINE WARNING | 932 unit tests passed; browser suite remains 50 passed plus the identical Solid cleanup failure on clean `origin/main`. |
 | Targeted browser E2E | PASS | 15/15 repaired registry/control-plane specs passed; workspace timeline/accessibility smoke passed in Chromium and WebKit. |
-| Full E2E | FAIL — 78 PASS / 152 FAIL | The complete 230-test Chromium/WebKit matrix executed with an isolated control-plane DB and explicit port; no tests were skipped. |
+| Full E2E | FAIL — 78 PASS / 152 FAIL (pre-helper rerun) | The complete 230-test Chromium/WebKit matrix executed with an isolated control-plane DB and explicit port before the WebKit deferred-helper correction; no tests were skipped. The post-correction focused subset was 3/6, with three terminal focus/visibility failures; a clean final full-matrix result is not claimed. |
 | Stability | FAIL — 81 PASS / 7 FAIL | Analyzer 23/23 passed and the prebuilt-serve browser phase executed; two Chromium and five WebKit timeline virtualization/scroll cases failed. |
 | Vercel – opencode-web-ui / -ct | BLOCKED — AUTH REQUIRED | GitHub status metadata identifies failing deployments, but no authenticated Vercel logs are available in this environment. |
 
@@ -100,7 +100,7 @@ Current capabilities are LIVE or DERIVED only where listed above. Unsupported ag
 - `bun --cwd packages/app typecheck:e2e`: passed.
 - `bun --cwd packages/app test`: 50 browser tests passed; one known Solid cleanup failure remains (`route cleanup cannot invalidate an owner list being disposed`), matching clean `origin/main`.
 - `bun --cwd packages/app test:unit`: 932 tests passed, 0 failed.
-- `bun --cwd packages/app test:e2e`: 78 passed, 152 failed out of 230; the full matrix executed without skips.
+- `bun --cwd packages/app test:e2e`: pre-helper matrix 78 passed, 152 failed out of 230; the full matrix executed without skips. After replacing WebKit-only `Promise.withResolvers` helpers, the focused affected subset was 3 passed / 3 failed, with the remaining failures in terminal focus/visibility behavior.
 - Visual stability unit analyzer: passed, 23 tests / 0 failures.
 - `bun run db:check`: passed.
 - Stability harness: `test:stability` built once, served prebuilt `dist` on `PLAYWRIGHT_STABILITY_PORT=4174`, and completed 88 browser tests: 81 passed, 7 failed. The failures are timeline virtualization/scroll scenarios, not port ownership or browser startup.
