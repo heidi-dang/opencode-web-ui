@@ -3,16 +3,23 @@ import { useLanguage } from "@/context/language"
 import type { SessionLineageSnapshot } from "./contracts"
 import { sessionLineageTree } from "./contracts"
 
-export function SessionLineageCenter(props: { sessions: () => SessionLineageSnapshot[]; compact?: boolean }) {
+export function SessionLineageCenter(props: {
+  sessions: () => SessionLineageSnapshot[]
+  compact?: boolean
+  expanded?: () => string[]
+  onExpandedChange?: (ids: string[]) => void
+}) {
   const language = useLanguage()
   const roots = createMemo(() => sessionLineageTree(props.sessions()))
-  const [expanded, setExpanded] = createSignal<Set<string>>(new Set())
-  const toggle = (id: string) => setExpanded((current) => {
-    const next = new Set(current)
+  const [localExpanded, setLocalExpanded] = createSignal<Set<string>>(new Set())
+  const expanded = () => new Set(props.expanded?.() ?? [...localExpanded()])
+  const toggle = (id: string) => {
+    const next = expanded()
     if (next.has(id)) next.delete(id)
     else next.add(id)
-    return next
-  })
+    if (props.onExpandedChange) props.onExpandedChange([...next])
+    else setLocalExpanded(next)
+  }
 
   return (
     <section class="flex min-h-0 flex-col rounded-2xl border border-border-weak-base bg-surface-raised-strong shadow-[0_16px_40px_rgba(0,0,0,0.18)]" aria-labelledby="session-lineage-title">
@@ -47,7 +54,9 @@ function SessionRow(props: { session: SessionLineageSnapshot; depth: number; com
           <span class="flex min-w-0 items-center gap-2">
             <span class="truncate text-12-emphasis text-text-strong">{props.session.label}</span>
             <span class="shrink-0 text-11-regular text-text-muted">
-              {language.t(`autonomousWorkspace.lineage.relation.${props.session.relation}`)}
+              {props.session.relation === "unavailable"
+                ? language.t("autonomousWorkspace.common.unavailable")
+                : language.t(`autonomousWorkspace.lineage.relation.${props.session.relation}`)}
             </span>
           </span>
           <Show when={!props.compact && model()}>

@@ -1,4 +1,4 @@
-import { For, Show, createSignal } from "solid-js"
+import { For, Show } from "solid-js"
 import { useLanguage } from "@/context/language"
 import type { AgentExecutionEvent } from "./contracts"
 
@@ -25,17 +25,17 @@ export function ExecutionTimeline(props: { events: () => AgentExecutionEvent[] }
 
 function TimelineEvent(props: { event: AgentExecutionEvent }) {
   const language = useLanguage()
-  const [open, setOpen] = createSignal(false)
-  const eventTime = () => new Date(props.event.timestamp).toLocaleTimeString(language.intl(), { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+  const eventTime = () => props.event.timestamp === undefined
+    ? language.t("autonomousWorkspace.common.unavailable")
+    : new Date(props.event.timestamp).toLocaleTimeString(language.intl(), { hour: "2-digit", minute: "2-digit", second: "2-digit" })
   return (
     <li class="relative flex gap-3 pb-3 last:pb-0">
       <div class="flex w-7 shrink-0 flex-col items-center"><span class="grid size-7 place-items-center rounded-lg bg-surface-base-hover font-mono text-12-emphasis text-icon-info" aria-hidden="true">{kindIcon[props.event.kind]}</span><span class="mt-1 h-full w-px bg-border-weak-base last:hidden" aria-hidden="true" /></div>
       <div class="min-w-0 flex-1 rounded-xl border border-border-weak-base/70 bg-surface-base px-3 py-2">
-        <button type="button" class="flex w-full items-start justify-between gap-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus" aria-expanded={open()} onClick={() => setOpen((value) => !value)}>
-          <span class="min-w-0"><span class="block truncate text-12-emphasis text-text-strong">{props.event.label}</span><span class="block text-11-regular text-text-weak">{eventTime()} <Show when={props.event.durationMs !== undefined}>· {language.t("autonomousWorkspace.timeline.duration", { duration: props.event.durationMs! })}</Show></span></span>
+        <div class="flex w-full items-start justify-between gap-3 text-left">
+          <span class="min-w-0"><span class="block truncate text-12-emphasis text-text-strong">{language.t(props.event.timelineLabelKey)}</span><span class="block text-11-regular text-text-weak">{eventTime()} <Show when={props.event.durationMs !== undefined}>· {language.t("autonomousWorkspace.timeline.duration", { duration: props.event.durationMs! })}</Show></span></span>
           <span class={`shrink-0 rounded-full px-2 py-0.5 text-11-regular ${props.event.state === "failed" ? "bg-surface-critical-weak text-text-critical" : props.event.state === "active" ? "bg-surface-info-weak text-text-info" : "bg-surface-base-hover text-text-muted"}`}>{language.t(`autonomousWorkspace.timeline.state.${props.event.state}`)}</span>
-        </button>
-        <Show when={open() && (props.event.detail || props.event.output)}><pre class="mt-2 max-h-56 overflow-auto whitespace-pre-wrap break-words border-t border-border-weak-base pt-2 font-mono text-11-regular text-text-weak">{props.event.detail ?? props.event.output}</pre></Show>
+        </div>
       </div>
     </li>
   )

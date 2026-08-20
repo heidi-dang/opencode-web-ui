@@ -1,9 +1,27 @@
 import type { Message } from "@opencode-ai/sdk/v2"
-import type { FileDiffInfo } from "@opencode-ai/client/promise"
+type WorkspaceDiffLike = {
+  file: string
+  status?: string
+  additions?: number
+  deletions?: number
+  patch?: string
+  binary?: boolean
+}
 
 export type AgentActivityKind = "reasoning" | "read" | "search" | "edit" | "patch" | "shell" | "test" | "build" | "network" | "mcp" | "waiting" | "retry" | "completion" | "cancellation" | "failure"
 
-export type SessionLineageRelation = "current" | "derived"
+export type SessionLineageRelation = "current" | "derived" | "unavailable"
+
+export type TimelineLabelKey =
+  | "autonomousWorkspace.timeline.event.tool"
+  | "autonomousWorkspace.timeline.event.shell"
+  | "autonomousWorkspace.timeline.event.step"
+  | "autonomousWorkspace.timeline.event.retry"
+  | "autonomousWorkspace.timeline.event.configuration"
+  | "autonomousWorkspace.timeline.event.permission"
+  | "autonomousWorkspace.timeline.event.question"
+  | "autonomousWorkspace.timeline.event.changes"
+  | "autonomousWorkspace.timeline.event.session"
 
 export interface SessionLineageSnapshot {
   id: string
@@ -18,12 +36,10 @@ export interface AgentExecutionEvent {
   id: string
   agentId?: string
   kind: AgentActivityKind
-  label: string
-  timestamp: number
+  timelineLabelKey: TimelineLabelKey
+  timestamp?: number
   durationMs?: number
   state: "active" | "completed" | "failed" | "cancelled"
-  detail?: string
-  output?: string
 }
 
 export interface ContextUsageSnapshot {
@@ -85,29 +101,82 @@ export function contextUsageFromMessage(message: Message | undefined): ContextUs
     inputTokens: tokens?.input,
     outputTokens: tokens?.output,
     reasoningTokens: tokens?.reasoning,
-    cacheReadTokens: tokens?.cache.read,
-    cacheWriteTokens: tokens?.cache.write,
+    cacheReadTokens: tokens?.cache?.read,
+    cacheWriteTokens: tokens?.cache?.write,
     totalTokens: tokens?.total,
     cost: typeof cost === "number" ? cost : undefined,
   }
 }
 
-export function workspaceChangeFromDiff(value: FileDiffInfo): WorkspaceChange {
+export function workspaceChangeFromDiff(value: WorkspaceDiffLike): WorkspaceChange {
+  const status = value.status
+  const unsupported = value.binary === true
   return {
     file: value.file,
-    status: value.status === "added" || value.status === "deleted" || value.status === "modified" ? value.status : "unknown",
-    additions: value.additions,
-    deletions: value.deletions,
-    patch: value.patch,
+    status: unsupported
+      ? "unsupported"
+      : status === "added" || status === "deleted" || status === "modified" || status === "renamed"
+        ? status
+        : "unknown",
+    additions: unsupported ? undefined : value.additions,
+    deletions: unsupported ? undefined : value.deletions,
+    patch: unsupported ? undefined : value.patch,
   }
 }
 
 export function sessionLineageTree(sessions: SessionLineageSnapshot[]) {
-  const byParent = new Map<string | undefined, SessionLineageSnapshot[]>()
-  for (const session of sessions) byParent.set(session.parentId, [...(byParent.get(session.parentId) ?? []), session])
+  const duplicateIDs = new Set<string>()
+  const byID = new Map<string, SessionLineageSnapshot>()
+  const ordered: SessionLineageSnapshot[] = []
+  for (const session of sessions) {
+    if (byID.has(session.id)) {
+      duplicateIDs.add(session.id)
+      continue
+    }
+    const next = { ...session, children: undefined }
+    byID.set(session.id, next)
+    ordered.push(next)
+  }
+
+  const cycleIDs = new Set<string>()
+  const states = new Map<string, "visiting" | "visited">()
+  const stack: string[] = []
+  const visit = (id: string) => {
+    if (states.get(id) === "visited") return
+    if (states.get(id) === "visiting") {
+      const start = stack.lastIndexOf(id)
+      for (const item of stack.slice(Math.max(0, start))) cycleIDs.add(item)
+      return
+    }
+    states.set(id, "visiting")
+    stack.push(id)
+    const parentID = byID.get(id)?.parentId
+    if (parentID && byID.has(parentID)) visit(parentID)
+    stack.pop()
+    states.set(id, "visited")
+  }
+  for (const session of ordered) visit(session.id)
+
+  const invalidIDs = new Set(cycleIDs)
+  for (const session of ordered) {
+    if (session.parentId && invalidIDs.has(session.parentId)) invalidIDs.add(session.id)
+  }
+
+  const children = new Map<string, SessionLineageSnapshot[]>()
+  const roots: SessionLineageSnapshot[] = []
+  for (const session of ordered) {
+    const unresolved = duplicateIDs.has(session.id) || invalidIDs.has(session.id) || (!!session.parentId && !byID.has(session.parentId))
+    if (unresolved) session.relation = "unavailable"
+    if (!session.parentId || unresolved) {
+      roots.push(session)
+      continue
+    }
+    children.set(session.parentId, [...(children.get(session.parentId) ?? []), session])
+  }
+
   const attach = (session: SessionLineageSnapshot): SessionLineageSnapshot => ({
     ...session,
-    children: byParent.get(session.id)?.map(attach),
+    children: (children.get(session.id) ?? []).map(attach),
   })
-  return (byParent.get(undefined) ?? sessions.filter((session) => !session.parentId)).map(attach)
+  return roots.map(attach)
 }

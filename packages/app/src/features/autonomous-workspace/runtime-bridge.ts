@@ -17,38 +17,38 @@ export type SessionWorkspaceEventInput = SessionWorkspaceScope & {
 }
 
 type SessionWorkspaceListener = () => void
-type TimelineDefinition = Pick<AgentExecutionEvent, "kind" | "state">
+type TimelineDefinition = Pick<AgentExecutionEvent, "kind" | "state" | "timelineLabelKey">
 type FallbackIdentityPolicy = {
   domain: (properties: Record<string, unknown>) => string | undefined
   requiresTimestamp?: boolean
 }
 
 const timelineDefinitions: Partial<Record<ServerEvent["type"], TimelineDefinition>> = {
-  "session.next.tool.called": { kind: "network", state: "active" },
-  "session.next.tool.progress": { kind: "network", state: "active" },
-  "session.next.tool.success": { kind: "network", state: "completed" },
-  "session.next.tool.failed": { kind: "failure", state: "failed" },
-  "session.next.shell.started": { kind: "shell", state: "active" },
-  "session.next.shell.ended": { kind: "shell", state: "completed" },
-  "session.next.step.started": { kind: "reasoning", state: "active" },
-  "session.next.step.ended": { kind: "completion", state: "completed" },
-  "session.next.step.failed": { kind: "failure", state: "failed" },
-  "session.next.retried": { kind: "retry", state: "active" },
-  "session.next.agent.switched": { kind: "reasoning", state: "completed" },
-  "session.next.model.switched": { kind: "reasoning", state: "completed" },
-  "permission.asked": { kind: "waiting", state: "active" },
-  "permission.v2.asked": { kind: "waiting", state: "active" },
-  "permission.replied": { kind: "waiting", state: "completed" },
-  "permission.v2.replied": { kind: "waiting", state: "completed" },
-  "question.asked": { kind: "waiting", state: "active" },
-  "question.v2.asked": { kind: "waiting", state: "active" },
-  "question.replied": { kind: "waiting", state: "completed" },
-  "question.v2.replied": { kind: "waiting", state: "completed" },
-  "question.v2.rejected": { kind: "cancellation", state: "cancelled" },
-  "session.diff": { kind: "edit", state: "completed" },
-  "session.error": { kind: "failure", state: "failed" },
-  "session.status": { kind: "reasoning", state: "active" },
-  "session.idle": { kind: "completion", state: "completed" },
+  "session.next.tool.called": { kind: "network", state: "active", timelineLabelKey: "autonomousWorkspace.timeline.event.tool" },
+  "session.next.tool.progress": { kind: "network", state: "active", timelineLabelKey: "autonomousWorkspace.timeline.event.tool" },
+  "session.next.tool.success": { kind: "network", state: "completed", timelineLabelKey: "autonomousWorkspace.timeline.event.tool" },
+  "session.next.tool.failed": { kind: "failure", state: "failed", timelineLabelKey: "autonomousWorkspace.timeline.event.tool" },
+  "session.next.shell.started": { kind: "shell", state: "active", timelineLabelKey: "autonomousWorkspace.timeline.event.shell" },
+  "session.next.shell.ended": { kind: "shell", state: "completed", timelineLabelKey: "autonomousWorkspace.timeline.event.shell" },
+  "session.next.step.started": { kind: "reasoning", state: "active", timelineLabelKey: "autonomousWorkspace.timeline.event.step" },
+  "session.next.step.ended": { kind: "completion", state: "completed", timelineLabelKey: "autonomousWorkspace.timeline.event.step" },
+  "session.next.step.failed": { kind: "failure", state: "failed", timelineLabelKey: "autonomousWorkspace.timeline.event.step" },
+  "session.next.retried": { kind: "retry", state: "active", timelineLabelKey: "autonomousWorkspace.timeline.event.retry" },
+  "session.next.agent.switched": { kind: "reasoning", state: "completed", timelineLabelKey: "autonomousWorkspace.timeline.event.configuration" },
+  "session.next.model.switched": { kind: "reasoning", state: "completed", timelineLabelKey: "autonomousWorkspace.timeline.event.configuration" },
+  "permission.asked": { kind: "waiting", state: "active", timelineLabelKey: "autonomousWorkspace.timeline.event.permission" },
+  "permission.v2.asked": { kind: "waiting", state: "active", timelineLabelKey: "autonomousWorkspace.timeline.event.permission" },
+  "permission.replied": { kind: "waiting", state: "completed", timelineLabelKey: "autonomousWorkspace.timeline.event.permission" },
+  "permission.v2.replied": { kind: "waiting", state: "completed", timelineLabelKey: "autonomousWorkspace.timeline.event.permission" },
+  "question.asked": { kind: "waiting", state: "active", timelineLabelKey: "autonomousWorkspace.timeline.event.question" },
+  "question.v2.asked": { kind: "waiting", state: "active", timelineLabelKey: "autonomousWorkspace.timeline.event.question" },
+  "question.replied": { kind: "waiting", state: "completed", timelineLabelKey: "autonomousWorkspace.timeline.event.question" },
+  "question.v2.replied": { kind: "waiting", state: "completed", timelineLabelKey: "autonomousWorkspace.timeline.event.question" },
+  "question.v2.rejected": { kind: "cancellation", state: "cancelled", timelineLabelKey: "autonomousWorkspace.timeline.event.question" },
+  "session.diff": { kind: "edit", state: "completed", timelineLabelKey: "autonomousWorkspace.timeline.event.changes" },
+  "session.error": { kind: "failure", state: "failed", timelineLabelKey: "autonomousWorkspace.timeline.event.session" },
+  "session.status": { kind: "reasoning", state: "active", timelineLabelKey: "autonomousWorkspace.timeline.event.session" },
+  "session.idle": { kind: "completion", state: "completed", timelineLabelKey: "autonomousWorkspace.timeline.event.session" },
 }
 
 const fallbackIdentityPolicies: Partial<Record<ServerEvent["type"], FallbackIdentityPolicy>> = {
@@ -124,7 +124,7 @@ function identity(input: SessionWorkspaceEventInput) {
 }
 
 function compareEvents(left: AgentExecutionEvent, right: AgentExecutionEvent) {
-  return left.timestamp - right.timestamp || left.id.localeCompare(right.id)
+  return (left.timestamp ?? 0) - (right.timestamp ?? 0) || left.id.localeCompare(right.id)
 }
 
 function boundedLimit(value: number | undefined, fallback: number) {
@@ -141,12 +141,21 @@ export function normalizeRuntimeEvent(input: SessionWorkspaceEventInput): AgentE
   const definition = timelineDefinitions[input.event.type]
   const id = identity(input)
   if (!definition || !id) return undefined
+  const properties = record(input.event.properties)
+  const sessionStatus = text(record(properties?.status)?.type) ?? text(properties?.status) ?? text(properties?.type)
+  const state = input.event.type === "session.status"
+    ? sessionStatus === "idle" || sessionStatus === "completed"
+      ? "completed"
+      : sessionStatus === "error" || sessionStatus === "failed"
+        ? "failed"
+        : definition.state
+    : definition.state
   return {
     id,
     kind: definition.kind,
-    label: input.event.type,
-    timestamp: timestamp(input.event) ?? 0,
-    state: definition.state,
+    timelineLabelKey: definition.timelineLabelKey,
+    timestamp: timestamp(input.event),
+    state,
   }
 }
 
@@ -227,19 +236,4 @@ export function createSessionWorkspaceController(
       listeners.clear()
     },
   }
-}
-
-export type WorkspacePreference = { view?: string; expanded?: string[]; contextTab?: string; version: 1 }
-export function loadWorkspacePreference(key: string): WorkspacePreference | undefined {
-  if (typeof localStorage === "undefined") return undefined
-  try {
-    const parsed = JSON.parse(localStorage.getItem(key) ?? "null") as WorkspacePreference | null
-    return parsed?.version === 1 ? parsed : undefined
-  } catch {
-    return undefined
-  }
-}
-export function saveWorkspacePreference(key: string, value: WorkspacePreference) {
-  if (typeof localStorage === "undefined") return
-  try { localStorage.setItem(key, JSON.stringify(value)) } catch { /* storage is optional */ }
 }

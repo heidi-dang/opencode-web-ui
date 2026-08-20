@@ -34,6 +34,46 @@ describe("autonomous workspace contracts", () => {
     expect(tree[0]?.children?.[0]?.relation).toBe("derived")
   })
 
+  test("retains a session with a missing parent as an unavailable root", () => {
+    const tree = sessionLineageTree([
+      { id: "root", label: "Root session", relation: "current" },
+      { id: "orphan", parentId: "missing", label: "Orphan session", relation: "derived" },
+    ])
+
+    expect(tree.map((session) => [session.id, session.relation])).toEqual([
+      ["root", "current"],
+      ["orphan", "unavailable"],
+    ])
+  })
+
+  test("turns cyclic lineage into stable unavailable roots without recursing", () => {
+    const tree = sessionLineageTree([
+      { id: "a", parentId: "b", label: "Session A", relation: "derived" },
+      { id: "b", parentId: "a", label: "Session B", relation: "derived" },
+      { id: "child", parentId: "a", label: "Child", relation: "derived" },
+    ])
+
+    expect(tree.map((session) => [session.id, session.relation, session.children?.map((child) => child.id) ?? []])).toEqual([
+      ["a", "unavailable", []],
+      ["b", "unavailable", []],
+      ["child", "unavailable", []],
+    ])
+  })
+
+  test("uses the first duplicate session deterministically and marks its lineage unavailable", () => {
+    const tree = sessionLineageTree([
+      { id: "duplicate", label: "First", relation: "current" },
+      { id: "duplicate", label: "Second", relation: "derived" },
+      { id: "child", parentId: "duplicate", label: "Child", relation: "derived" },
+      { id: "last", label: "Last", relation: "current" },
+    ])
+
+    expect(tree.map((session) => [session.id, session.label, session.relation, session.children?.map((child) => child.id) ?? []])).toEqual([
+      ["duplicate", "First", "unavailable", ["child"]],
+      ["last", "Last", "current", []],
+    ])
+  })
+
   test("keeps unavailable context metrics undefined", () => {
     expect(contextUsageFromMessage(undefined)).toBeUndefined()
   })
@@ -120,5 +160,49 @@ describe("autonomous workspace contracts", () => {
     })
 
     expect(event?.id).toBe("evt-official")
+  })
+
+  test("maps allowlisted runtime events to safe localized label keys without display payloads", () => {
+    const event = normalizeRuntimeEvent({
+      ...workspaceScope,
+      event: {
+        id: "evt-tool",
+        type: "session.next.tool.called",
+        properties: {
+          timestamp: 1,
+          sessionID: "ses-a",
+          assistantMessageID: "msg-a",
+          callID: "tool-a",
+          tool: "read",
+          input: { secret: "must-not-render" },
+          provider: { executed: true },
+        },
+      },
+    })
+
+    expect(event).toEqual({
+      id: "evt-tool",
+      kind: "network",
+      timelineLabelKey: "autonomousWorkspace.timeline.event.tool",
+      timestamp: 1,
+      state: "active",
+    })
+    expect(event).not.toHaveProperty("label")
+    expect(event).not.toHaveProperty("detail")
+    expect(event).not.toHaveProperty("output")
+  })
+
+  test("maps idle session status to completed and does not invent a timestamp", () => {
+    const event = normalizeRuntimeEvent({
+      ...workspaceScope,
+      event: {
+        id: "evt-status",
+        type: "session.status",
+        properties: { sessionID: "ses-a", status: { type: "idle" } },
+      },
+    })
+
+    expect(event?.state).toBe("completed")
+    expect(event?.timestamp).toBeUndefined()
   })
 })

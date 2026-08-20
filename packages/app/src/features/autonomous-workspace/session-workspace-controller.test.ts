@@ -261,7 +261,10 @@ describe("session workspace controller", () => {
     ).toBe(false)
 
     const [timelineEvent] = controller.timeline()
-    expect(timelineEvent).toMatchObject({ id: "evt-tool", label: "session.next.tool.called" })
+    expect(timelineEvent).toMatchObject({
+      id: "evt-tool",
+      timelineLabelKey: "autonomousWorkspace.timeline.event.tool",
+    })
     expect(timelineEvent).not.toHaveProperty("detail")
     expect(timelineEvent).not.toHaveProperty("output")
   })
