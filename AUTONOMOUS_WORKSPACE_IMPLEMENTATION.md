@@ -1,6 +1,33 @@
 # Autonomous Workspace Implementation
 
-## Final acceptance record — 2026-08-20
+## Focused defect-closure gate — 2026-08-20 (authoritative)
+
+This is the current gate after the timeline, terminal, interrupt, reconnect, and
+remote-registration closure pass. It supersedes the historical records below.
+The focused blockers are closed, but the broad application E2E matrix still has
+repository-controlled failures, so this is not a 100% production-acceptance claim.
+
+| Area | Result | Evidence |
+| --- | --- | --- |
+| Branch/source | PASS | Started at `9e78a6e5ab2ee0a716327c7af2e405cf1b11a9a9`; `origin/main` is `918d6c51ad1e6d9fe653feba08879ec86bac4a34`; main was not modified. |
+| Encrypted local runtime | PASS | Tests used an ephemeral 32-byte `APP_ENCRYPTION_KEY` through the environment; plaintext mode was not used. |
+| Browser binaries | PASS | Playwright `1.59.1`; Chromium and WebKit launch successfully. |
+| Timeline virtualization/scroll | PASS | Focused Chromium/WebKit timeline suite: 12/12; final stability analyzer: 23/23. |
+| Terminal focus/visibility | PASS | Focused terminal regression suite: 8/8 across Chromium/WebKit; selected terminal tabs are required to be visible and non-zero-sized before focus assertions. |
+| Interrupt/reconnect | PASS (focused) | Session interrupt/transport lifecycle suite: 18/18 across Chromium/WebKit, including stop, follow-up, heartbeat, close, error, replay, and resync coverage. |
+| Remote backend registration | PASS | `srv_2f9736e138ce8bde` registered through the app with exact `OPENCODE_ALLOWED_SERVERS=http://100.97.224.96:4096`; health was READY/v2/reachable/authenticated/healthy. |
+| Unit/browser | PASS — BASELINE WARNING | Unit tests: 932/932. Browser tests: 50 pass plus the identical Solid cleanup failure reproduced on clean `origin/main`. |
+| Full E2E | FAIL | Fresh 230-test matrix: 161 passed, 69 failed, 0 skipped. Remaining failures are grouped in review/file fixtures, prompt/model fixture expectations, request-dock route assertions, WebKit CDP-only coverage, terminal tab fixtures, and smoke timeline fixtures. |
+| Full stability | PASS | Fresh prebuilt-serve run: analyzer 23/23 and browser phase 88/88. |
+| Vercel red checks | BLOCKED — AUTH REQUIRED | `opencode-web-ui` and `opencode-web-ui-ct` remain red, but authenticated Vercel deployment logs are unavailable; no branch-code cause is proven. |
+| Readiness score | 8.6/10 | Focused workspace blockers pass, but the full E2E gate is not green. Do not claim 9.5/10 or 100% closure until the 69 failures are resolved/classified at their owning layers. |
+
+The focused test changes are harness/regression fixes only. They do not restore a
+global workspace bridge, alter the session-scoped controller, disable timeline
+virtualization, change PTY ownership, weaken the exact-origin allowlist, or add
+production debug hooks.
+
+## Historical acceptance record — superseded
 
 This section supersedes earlier provisional acceptance notes below. It records the
 current `encryption-key-configuration` gate without treating mock-only coverage as
@@ -82,7 +109,7 @@ Focused controller, lifecycle, contract, preference, i18n, and browser presentat
 
 Frontend phase: the mounted workspace keeps conversation primary and adds a responsive, touch-scrollable view switcher for lineage, timeline, changes/review, and context. Active and failed timeline cards are emphasized without fabricated progress; review rows expose long paths through accessible labels and titles; unavailable telemetry remains intentional.
 
-## Connected acceptance matrix
+## Historical connected acceptance matrix — superseded
 
 | Area | Result | Evidence |
 | --- | --- | --- |

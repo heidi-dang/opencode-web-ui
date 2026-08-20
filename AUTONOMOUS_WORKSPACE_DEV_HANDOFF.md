@@ -1,6 +1,31 @@
 # Autonomous Workspace Developer Handoff
 
-## Final acceptance record — 2026-08-20
+## Focused defect-closure gate — 2026-08-20 (authoritative)
+
+The latest focused pass closes the previously reported timeline, WebKit terminal,
+interrupt, reconnect, and exact-origin remote-registration blockers. The broad
+application E2E suite is still not green, so this document does not claim full
+production closure.
+
+| Area | Result | Evidence |
+| --- | --- | --- |
+| Branch | PASS | Starting feature SHA `9e78a6e5ab2ee0a716327c7af2e405cf1b11a9a9`; `origin/main` `918d6c51ad1e6d9fe653feba08879ec86bac4a34`; main untouched. |
+| Encryption | PASS | Ephemeral 32-byte `APP_ENCRYPTION_KEY` supplied only in process environments; `APP_ENCRYPTION_DISABLED=1` was not used for acceptance. |
+| Playwright | PASS | Package version `1.59.1`; Chromium and WebKit launch. |
+| Timeline | PASS | Focused timeline suite 12/12; fresh stability analyzer 23/23 and browser phase 88/88. |
+| Terminal | PASS | Focused terminal focus/visibility suite 8/8 across Chromium/WebKit. |
+| Interrupt/reconnect | PASS (focused) | 18/18 across Chromium/WebKit, including interruption, follow-up, stream lifecycle, replay, and resync checks. |
+| Remote backend | PASS | Exact private origin allowlisted via environment; `srv_2f9736e138ce8bde` returned READY/v2/reachable/authenticated/healthy through the application. |
+| Unit/browser | PASS — BASELINE WARNING | 932 unit passes; browser 50 passes plus the unchanged Solid cleanup failure, identical on clean `origin/main`. |
+| Full E2E | FAIL | Fresh 230 tests: 161 passed, 69 failed, 0 skipped. Failures remain in review/file fixtures, prompt/model fixture expectations, request-dock route assertions, WebKit Chromium-only CDP coverage, terminal-tab fixtures, and smoke timeline fixtures. |
+| Vercel | BLOCKED — AUTH REQUIRED | Red `opencode-web-ui` and `opencode-web-ui-ct` checks cannot be classified from deployment logs without authenticated Vercel access. |
+| Readiness | 8.6/10 | Focused blockers are closed; full E2E prevents the requested >=9.5/10 production score. |
+
+The committed changes are limited to browser regression/stability harness behavior:
+they preserve the session-scoped controller, existing PTY/runtime ownership,
+virtualized timeline, exact-origin security, and production application behavior.
+
+## Historical acceptance record — superseded
 
 The authoritative current gate is tracked here; older provisional notes below are
 historical and must not be read as final production acceptance.
@@ -79,7 +104,7 @@ The branch’s `APP_ENCRYPTION_DISABLED=1` and encryption-key behavior are separ
 
 Current capabilities are LIVE or DERIVED only where listed above. Unsupported agent hierarchy and destructive review actions remain UNAVAILABLE/FUTURE.
 
-## Connected acceptance matrix
+## Historical connected acceptance matrix — superseded
 
 | Area | Result | Evidence |
 | --- | --- | --- |
