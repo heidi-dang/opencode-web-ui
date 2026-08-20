@@ -1,5 +1,6 @@
+import { readFileSync } from "node:fs"
 import { sentryVitePlugin } from "@sentry/vite-plugin"
-import { defineConfig } from "vite"
+import { defineConfig, loadEnv } from "vite"
 import desktopPlugin from "./vite"
 import { handleControlPlaneRequest } from "./src/server/control-plane-api"
 import { handleOpenCodeProxy } from "./src/server/proxy"
@@ -48,15 +49,42 @@ const universalServerProxy = {
   },
 }
 
-export default defineConfig({
-  plugins: [desktopPlugin, universalServerProxy, sentry] as any,
-  server: {
-    host: "0.0.0.0",
-    allowedHosts: ["localhost", "127.0.0.1"],
-    port: 3000,
-  },
-  build: {
-    target: "esnext",
-    sourcemap: true,
-  },
+export default defineConfig(({ mode }) => {
+  // Vite loads .env files into import.meta.env, but the server/control-plane
+  // modules intentionally read process.env. Bridge only the server-side secrets
+  // before any request handlers are created.
+  const env = loadEnv(mode, process.cwd(), "")
+  const projectEnvPath = "/vercel/share/.env.project"
+  let projectEnv: Record<string, string> = {}
+  try {
+    projectEnv = Object.fromEntries(
+      readFileSync(projectEnvPath, "utf8")
+        .split(/\r?\n/)
+        .flatMap((line) => {
+          const match = line.match(/^\s*([A-Z][A-Z0-9_]*)\s*=\s*(.*)\s*$/)
+          if (!match) return []
+          const value = match[2].replace(/^(['"])(.*)\1$/, "$2")
+          return [[match[1], value]] as const
+        }),
+    )
+  } catch {
+    // Production and non-v0 environments provide secrets through process.env.
+  }
+  for (const key of ["APP_ENCRYPTION_KEY", "APP_ENCRYPTION_KEY_2", "CONTROL_PLANE_DB"]) {
+    const value = process.env[key] || env[key] || projectEnv[key]
+    if (value) process.env[key] = value
+  }
+
+  return {
+    plugins: [desktopPlugin, universalServerProxy, sentry] as any,
+    server: {
+      host: "0.0.0.0",
+      allowedHosts: ["localhost", "127.0.0.1"],
+      port: 3000,
+    },
+    build: {
+      target: "esnext",
+      sourcemap: true,
+    },
+  }
 })
