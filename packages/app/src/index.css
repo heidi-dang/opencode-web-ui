@@ -215,6 +215,52 @@
   -webkit-backdrop-filter: var(--v2-blur-floating);
 }
 
+/* The status telemetry and composer are one continuous chat surface. */
+[data-component="session-prompt-dock"] .prompt-composer-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  filter: drop-shadow(0 14px 30px color-mix(in srgb, var(--v2-background-bg-deep) 42%, transparent));
+}
+
+[data-component="session-prompt-dock"] [data-component="streaming-status-bar"] {
+  position: relative;
+  z-index: 1;
+  min-height: 32px;
+  padding: 6px 16px 4px;
+  border: 1px solid transparent;
+  border-bottom: 0;
+  border-radius: 14px 14px 0 0;
+  background:
+    linear-gradient(var(--v2-background-bg-base), var(--v2-background-bg-base)) padding-box,
+    linear-gradient(105deg, color-mix(in srgb, var(--v2-blue-600) 78%, transparent), color-mix(in srgb, var(--v2-icon-icon-info) 28%, transparent) 48%, color-mix(in srgb, var(--v2-state-fg-success) 38%, transparent)) border-box;
+}
+
+[data-component="session-prompt-dock"] [data-component="prompt-input-v2"] {
+  border: 1px solid transparent;
+  border-top-color: color-mix(in srgb, var(--v2-blue-600) 30%, transparent);
+  border-radius: 0 0 14px 14px;
+  background:
+    linear-gradient(var(--v2-background-bg-base), var(--v2-background-bg-base)) padding-box,
+    linear-gradient(105deg, color-mix(in srgb, var(--v2-blue-600) 78%, transparent), color-mix(in srgb, var(--v2-icon-icon-info) 28%, transparent) 48%, color-mix(in srgb, var(--v2-state-fg-success) 38%, transparent)) border-box;
+  box-shadow: var(--v2-elevation-raised);
+}
+
+[data-component="session-prompt-dock"] [data-component="prompt-input-v2"] > div:last-child {
+  border-top: 1px solid color-mix(in srgb, var(--v2-border-border-base) 72%, transparent);
+  background: color-mix(in srgb, var(--v2-background-bg-layer-01) 36%, transparent);
+}
+
+@media (max-width: 640px) {
+  [data-component="session-prompt-dock"] [data-component="streaming-status-bar"] {
+    padding-inline: 12px;
+  }
+
+  [data-component="session-prompt-dock"] [data-component="prompt-input-v2"] {
+    border-radius: 0 0 12px 12px;
+  }
+}
+
 @media (forced-colors: active) {
   /* Remove glass effects in forced-colors mode */
   [data-component="sidebar-panel"],

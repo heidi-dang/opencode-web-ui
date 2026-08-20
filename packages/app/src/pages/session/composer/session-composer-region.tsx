@@ -124,11 +124,12 @@ export function SessionComposerRegion(props: {
                 </div>
               )}
             </Show>
-            <StreamingStatusBar />
-            <div
-              classList={{
-                "relative z-[70]": true,
-              }}
+            <div class="prompt-composer-stack">
+              <StreamingStatusBar />
+              <div
+                classList={{
+                  "relative z-[70]": true,
+                }}
               style={{
                 "margin-top": `${-controller.lift()}px`,
               }}
@@ -161,6 +162,7 @@ export function SessionComposerRegion(props: {
                   </Show>
                 </div>
               </Show>
+              </div>
             </div>
           </Show>
         </Show>
