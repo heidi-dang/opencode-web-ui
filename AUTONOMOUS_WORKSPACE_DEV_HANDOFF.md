@@ -70,3 +70,14 @@ Current capabilities are LIVE or DERIVED only where listed above. Unsupported ag
 | Chromium | PASS (smoke) | Installed repository Playwright Chromium and completed connected prompt/workspace flow. |
 | WebKit/mobile/tablet | PASS (smoke) | Connected prompt/workspace flow passed in WebKit; phone/tablet/landscape Chromium viewports had no horizontal overflow. WebKit emitted only the existing ResizeObserver lifecycle warning. |
 | Stability/CI | PARTIAL / classified | Visual stability unit tests passed (23/23). Playwright stability uses a synthetic fixture page and did not pass against the production route; the full stability command also exceeds the local 120s web-server timeout because build time is ~11m33s. Both Vercel failures require authenticated Vercel project logs; GitHub status metadata alone does not show a branch-code cause. |
+
+## Acceptance evidence
+
+- `bun run typecheck`: passed.
+- `bun --cwd packages/app test:unit`: passed, 928 tests / 0 failures.
+- `bun --cwd packages/app test:browser`: passed, including autonomous workspace presentation coverage.
+- Visual stability unit analyzer: passed, 23 tests / 0 failures.
+- Current local rerun: Playwright stability was blocked by the existing port-3000 webServer collision with the preview; E2E was initially blocked by the missing Chromium headless-shell runtime. A repository-local browser install was attempted afterward.
+- Branch baseline: this checkout was initially `opencode-workspace-ui` at `c5ccb9e607a9f96fcc135fc89cdcf23a28f138ee`; `origin/main` is not present in the clone, so no main comparison or merge was fabricated.
+
+Remaining acceptance work is environmental rather than a reason to weaken the runtime: use the connected backend and `TEMP_REPO` to run server/project/session isolation, reconnect/resync, interrupt/follow-up, terminal reuse, Git-backed review, reload, and mobile/WebKit flows, then attach Playwright and console/network evidence.
