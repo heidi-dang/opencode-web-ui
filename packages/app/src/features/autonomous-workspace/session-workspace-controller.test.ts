@@ -63,6 +63,22 @@ const idlessToolCalled = (
   },
 })
 
+const idlessToolProgress = (
+  callID: string,
+  timestamp: number,
+  sessionID = "ses-a",
+): IdlessEventOf<"session.next.tool.progress"> => ({
+  type: "session.next.tool.progress",
+  properties: {
+    timestamp,
+    sessionID,
+    assistantMessageID: "msg-a",
+    callID,
+    structured: {},
+    content: [],
+  },
+})
+
 const idlessIdle = (sessionID = "ses-a"): IdlessEventOf<"session.idle"> => ({
   type: "session.idle",
   properties: { sessionID },
@@ -141,6 +157,21 @@ describe("session workspace controller", () => {
 
     expect(notifications).toBe(2)
     expect(controller.timeline()).toHaveLength(2)
+  })
+
+  test("keeps timestamp-distinct id-less tool progress and deduplicates exact replay", () => {
+    const controller = createSessionWorkspaceController(scope())
+
+    const first = idlessToolProgress("tool-a", 10)
+    const second = idlessToolProgress("tool-a", 11)
+
+    expect(controller.accept(input(first))).toBe(true)
+    expect(controller.accept(input(second))).toBe(true)
+    expect(controller.accept(input(first))).toBe(false)
+    expect(controller.accept(input(second))).toBe(false)
+
+    expect(controller.timeline()).toHaveLength(2)
+    expect(controller.timeline().map((item) => item.timestamp)).toEqual([10, 11])
   })
 
   test("ignores an id-less event without a stable domain identity", () => {

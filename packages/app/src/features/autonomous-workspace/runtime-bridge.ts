@@ -53,7 +53,14 @@ const timelineDefinitions: Partial<Record<ServerEvent["type"], TimelineDefinitio
 
 const fallbackIdentityPolicies: Partial<Record<ServerEvent["type"], FallbackIdentityPolicy>> = {
   "session.next.tool.called": { domain: (properties) => text(properties.callID) },
-  "session.next.tool.progress": { domain: (properties) => text(properties.callID) },
+  "session.next.tool.progress": {
+    domain: (properties) => {
+      const assistantMessageID = text(properties.assistantMessageID)
+      const callID = text(properties.callID)
+      return assistantMessageID && callID ? JSON.stringify([assistantMessageID, callID]) : undefined
+    },
+    requiresTimestamp: true,
+  },
   "session.next.tool.success": { domain: (properties) => text(properties.callID) },
   "session.next.tool.failed": { domain: (properties) => text(properties.callID) },
   "session.next.shell.started": { domain: (properties) => text(properties.callID) },
