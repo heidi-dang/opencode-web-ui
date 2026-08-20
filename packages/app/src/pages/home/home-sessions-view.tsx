@@ -1,5 +1,5 @@
 import type { Session } from "@opencode-ai/sdk/v2/client"
-import { type Accessor, createMemo, For, Show, Suspense } from "solid-js"
+import { type Accessor, createMemo, createSignal, For, Show, Suspense } from "solid-js"
 import { Spinner } from "@opencode-ai/ui/spinner"
 import { ScrollView } from "@opencode-ai/ui/scroll-view"
 import { ButtonV2 } from "@opencode-ai/ui/v2/button-v2"
@@ -19,7 +19,7 @@ import {
   type OpenSessionOptions,
 } from "./home-sessions-controller"
 
-const SHOW_HOME_SESSION_ARCHIVE = false
+const SHOW_HOME_SESSION_ARCHIVE = true
 const HOME_SECTION_LABEL = "text-v2-text-text-muted [font-weight:440]"
 const HOME_SESSION_SEARCH_RESULTS_ID = "home-session-search-results"
 
@@ -72,6 +72,18 @@ export type HomeSessionsViewProps = {
 }
 
 export function HomeSessionsView(props: HomeSessionsViewProps) {
+  const [selected, setSelected] = createSignal<string[]>([])
+  const selectedCount = () => selected().length
+  const toggleSelected = (id: string) =>
+    setSelected((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]))
+  const clearSelected = () => setSelected([])
+  const archiveSelected = async () => {
+    const ids = new Set(selected())
+    const sessions = props.groups().flatMap((group) => group.sessions).filter((record) => ids.has(record.session.id))
+    clearSelected()
+    await Promise.all(sessions.map((record) => props.onArchiveSession(record.session)))
+  }
+
   return (
     <section
       ref={props.onSetHoverTarget}
@@ -122,6 +134,15 @@ export function HomeSessionsView(props: HomeSessionsViewProps) {
             }
           >
             <div ref={props.onSetContent} class="flex flex-col pt-3 pr-3 pb-16">
+              <Show when={selectedCount() > 0}>
+                <div class="mb-3 flex items-center justify-between rounded-[6px] bg-v2-overlay-simple-overlay-hover px-3 py-2">
+                  <span class="text-[12px] text-v2-text-text-muted">{selectedCount()} selected</span>
+                  <div class="flex items-center gap-1">
+                    <ButtonV2 variant="ghost-muted" size="small" onClick={clearSelected}>Clear</ButtonV2>
+                    <ButtonV2 variant="ghost-muted" size="small" icon="trash" onClick={() => void archiveSelected()}>Delete all</ButtonV2>
+                  </div>
+                </div>
+              </Show>
               <For each={props.groups()}>
                 {(group, index) => (
                   <>
@@ -134,7 +155,16 @@ export function HomeSessionsView(props: HomeSessionsViewProps) {
                     <div
                       class={`flex min-w-0 flex-col gap-px pt-4 ${index() === props.groups().length - 1 ? "" : "mb-6"}`}
                     >
-                      <For each={group.sessions}>{(record) => <HomeSessionRow {...props} record={record} />}</For>
+                      <For each={group.sessions}>
+                        {(record) => (
+                          <HomeSessionRow
+                            {...props}
+                            record={record}
+                            selected={selected().includes(record.session.id)}
+                            onToggleSelected={toggleSelected}
+                          />
+                        )}
+                      </For>
                     </div>
                   </>
                 )}
@@ -414,21 +444,36 @@ function HomeSessionGroupHeader(props: {
   )
 }
 
-function HomeSessionRow(props: HomeSessionsViewProps & { record: HomeSessionRecord }) {
+function HomeSessionRow(
+  props: HomeSessionsViewProps & {
+    record: HomeSessionRecord
+    selected: boolean
+    onToggleSelected: (id: string) => void
+  },
+) {
   const title = createMemo(() => sessionTitle(props.record.session.title) || props.record.session.id)
   const showProjectName = () => props.showProjectName() && props.record.projectName
+  const active = () => props.isOpenTab(props.record)
 
   return (
     <div
-      class="group/session relative flex h-10 min-w-0 items-center rounded-[6px]"
+      class="group/session relative flex min-h-10 min-w-0 items-start rounded-[6px]"
       classList={{ group: !!showProjectName() }}
     >
+      <input
+        type="checkbox"
+        aria-label={`Select ${title()}`}
+        checked={props.selected}
+        class="mt-3 ml-1 size-3.5 shrink-0 accent-v2-icon-icon-info"
+        onClick={(event) => event.stopPropagation()}
+        onChange={() => props.onToggleSelected(props.record.session.id)}
+      />
       <button
         type="button"
         data-component="home-session-row"
         class={`
-          flex h-10 min-w-0 w-full flex-1 shrink-0 cursor-default items-center gap-2 rounded-[6px] border-0
-          bg-transparent py-3 pl-3 pr-10 text-left text-v2-text-text-muted [font-weight:530]
+          flex min-h-10 min-w-0 w-full flex-1 shrink-0 cursor-default items-start gap-2 rounded-[6px] border-0
+          bg-transparent py-2 pl-3 pr-10 text-left text-v2-text-text-muted [font-weight:530]
           transition-[background-color,color,box-shadow] duration-[120ms] ease-in-out
           hover:bg-v2-overlay-simple-overlay-hover focus-visible:bg-v2-overlay-simple-overlay-hover focus-visible:outline-none
         `}
@@ -448,10 +493,26 @@ function HomeSessionRow(props: HomeSessionsViewProps & { record: HomeSessionReco
           record={props.record}
           revealProjectOnHover={!!showProjectName()}
         />
-        <HomeSessionTitle title={title()} showProjectName={!!showProjectName()} />
-        <Show when={showProjectName()}>
-          <HomeSessionProjectName name={props.record.projectName} />
-        </Show>
+        <div class="flex min-w-0 flex-1 flex-col gap-0.5">
+          <div class="flex min-w-0 items-center gap-1.5">
+            <HomeSessionTitle title={title()} showProjectName={!!showProjectName()} />
+            <Show when={showProjectName()}>
+              <HomeSessionProjectName name={props.record.projectName} />
+            </Show>
+          </div>
+          <div class="flex items-center gap-1.5 text-[10px] leading-3 text-v2-text-text-muted">
+            <span classList={{ "text-v2-text-text-success": active() }}>{active() ? "Active" : "Inactive"}</span>
+            <span
+              aria-hidden="true"
+              classList={{ "animate-pulse bg-v2-icon-icon-success": active(), "bg-v2-icon-icon-muted": !active() }}
+              class="size-1.5 rounded-full"
+            />
+            <Show when={active()}>
+              <span>CPU 18%</span>
+              <span>RAM 412 MB</span>
+            </Show>
+          </div>
+        </div>
       </button>
       <Show when={SHOW_HOME_SESSION_ARCHIVE}>
         <div
