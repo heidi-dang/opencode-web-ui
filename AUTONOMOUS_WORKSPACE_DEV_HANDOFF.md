@@ -74,10 +74,13 @@ Current capabilities are LIVE or DERIVED only where listed above. Unsupported ag
 ## Acceptance evidence
 
 - `bun run typecheck`: passed.
-- `bun --cwd packages/app test:unit`: passed, 928 tests / 0 failures.
-- `bun --cwd packages/app test:browser`: passed, including autonomous workspace presentation coverage.
+- `bun --cwd packages/app typecheck:e2e`: passed.
+- `bun --cwd packages/app test`: 50 browser tests passed; one known Solid cleanup failure remains (`route cleanup cannot invalidate an owner list being disposed`), matching the recorded baseline warning.
 - Visual stability unit analyzer: passed, 23 tests / 0 failures.
-- Current local rerun: Playwright stability was blocked by the existing port-3000 webServer collision with the preview; E2E was initially blocked by the missing Chromium headless-shell runtime. A repository-local browser install was attempted afterward.
-- Branch baseline: this checkout was initially `opencode-workspace-ui` at `c5ccb9e607a9f96fcc135fc89cdcf23a28f138ee`; `origin/main` is not present in the clone, so no main comparison or merge was fabricated.
+- `bun run db:check`: passed.
+- Stability harness repair: `test:stability` now builds once, serves prebuilt `dist` on configurable `PLAYWRIGHT_STABILITY_PORT` (default 4174), and avoids preview-port reuse. Its unit phase passed; browser phase is pending the local browser binary.
+- Full Playwright E2E: blocked before assertions because the required Chromium headless-shell executable is unavailable in this sandbox.
+- Tailscale: TCP connection to `100.97.224.96:4096` succeeded; the `tailscale` CLI is unavailable, so identity/ping diagnostics and authenticated application acceptance remain unproven.
+- Branch baseline: authoritative HEAD is `4f9def64da42d0fe31562b7c0013e449ecad2202` on `opencode-workspace-ui`; `origin/main` is not present in the clone, so no main comparison or merge was fabricated.
 
 Remaining acceptance work is environmental rather than a reason to weaken the runtime: use the connected backend and `TEMP_REPO` to run server/project/session isolation, reconnect/resync, interrupt/follow-up, terminal reuse, Git-backed review, reload, and mobile/WebKit flows, then attach Playwright and console/network evidence.
