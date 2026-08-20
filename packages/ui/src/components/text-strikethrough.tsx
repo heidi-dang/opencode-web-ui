@@ -1,5 +1,5 @@
 import type { JSX } from "solid-js"
-import { onMount } from "solid-js"
+import { onCleanup, onMount } from "solid-js"
 import { createResizeObserver } from "@solid-primitives/resize-observer"
 import { createStore } from "solid-js/store"
 import { useSpring } from "./motion-spring"
@@ -28,13 +28,28 @@ export function TextStrikethrough(props: {
   const textWidth = () => state.textWidth
   const containerWidth = () => state.containerWidth
 
+  let measureFrame: number | undefined
+
   const measure = () => {
-    if (baseRef) setState("textWidth", baseRef.scrollWidth)
-    if (containerRef) setState("containerWidth", containerRef.offsetWidth)
+    const textWidth = baseRef?.scrollWidth ?? 0
+    const containerWidth = containerRef?.offsetWidth ?? 0
+    if (state.textWidth !== textWidth) setState("textWidth", textWidth)
+    if (state.containerWidth !== containerWidth) setState("containerWidth", containerWidth)
   }
 
-  onMount(measure)
-  createResizeObserver(() => containerRef, measure)
+  const scheduleMeasure = () => {
+    if (measureFrame !== undefined) return
+    measureFrame = requestAnimationFrame(() => {
+      measureFrame = undefined
+      measure()
+    })
+  }
+
+  onMount(scheduleMeasure)
+  createResizeObserver(() => containerRef, scheduleMeasure)
+  onCleanup(() => {
+    if (measureFrame !== undefined) cancelAnimationFrame(measureFrame)
+  })
 
   // Revealed pixels from left = progress * textWidth
   const revealedPx = () => {

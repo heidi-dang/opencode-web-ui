@@ -153,6 +153,7 @@ export function ScrollView(props: ScrollViewProps) {
   const showThumb = () => state.showThumb
 
   let scrollIdleTimer: ReturnType<typeof setTimeout> | undefined
+  let thumbFrame: number | undefined
 
   const markScrolling = () => {
     setState("isScrolling", true)
@@ -197,9 +198,21 @@ export function ScrollView(props: ScrollViewProps) {
     // Ensure thumb stays within bounds (shouldn't be necessary due to math above, but good for safety)
     const boundedTop = trackPadding + Math.max(0, Math.min(top, maxThumbTop))
 
-    setState("thumbHeight", height)
-    setState("thumbTop", boundedTop)
+    if (thumbHeight() !== height) setState("thumbHeight", height)
+    if (thumbTop() !== boundedTop) setState("thumbTop", boundedTop)
   }
+
+  const scheduleThumbUpdate = () => {
+    if (thumbFrame !== undefined) return
+    thumbFrame = requestAnimationFrame(() => {
+      thumbFrame = undefined
+      updateThumb()
+    })
+  }
+
+  onCleanup(() => {
+    if (thumbFrame !== undefined) cancelAnimationFrame(thumbFrame)
+  })
 
   onMount(() => {
     if (local.viewportRef) {
@@ -208,15 +221,15 @@ export function ScrollView(props: ScrollViewProps) {
 
     createResizeObserver(
       () => [viewportRef, viewportRef.firstElementChild, thumbMount()].filter(Boolean) as HTMLElement[],
-      updateThumb,
+      scheduleThumbUpdate,
     )
 
-    updateThumb()
+    scheduleThumbUpdate()
   })
 
   createEffect(() => {
     thumbMount()
-    updateThumb()
+    scheduleThumbUpdate()
   })
 
   createEffect(() => {
