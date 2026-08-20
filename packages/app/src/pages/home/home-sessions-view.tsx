@@ -135,7 +135,7 @@ export function HomeSessionsView(props: HomeSessionsViewProps) {
           >
             <div ref={props.onSetContent} class="flex flex-col pt-3 pr-3 pb-16">
               <Show when={selectedCount() > 0}>
-                <div class="mb-3 flex items-center justify-between rounded-[6px] bg-v2-overlay-simple-overlay-hover px-3 py-2">
+                <div class="relative z-10 mb-3 mt-8 flex min-w-0 flex-wrap items-center justify-between gap-2 rounded-[6px] bg-v2-overlay-simple-overlay-hover px-3 py-2 lg:mt-10">
                   <span class="text-[12px] text-v2-text-text-muted">{selectedCount()} selected</span>
                   <div class="flex items-center gap-1">
                     <ButtonV2 variant="ghost-muted" size="small" onClick={clearSelected}>Clear</ButtonV2>
