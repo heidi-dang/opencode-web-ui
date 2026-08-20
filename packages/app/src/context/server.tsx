@@ -278,7 +278,7 @@ export const { use: useServer, provider: ServerProvider } = createSimpleContext(
   }) => {
     const [store, setStore, _, ready] = persisted(
       {
-        ...Persist.global("server.v4"),
+        ...Persist.global("server.v4", ["opencode.global.dat:server", "server"]),
         migrate: (value) => migrateCanonicalLocalServerState(value, props.canonicalLocalServer),
       },
       createStore({
