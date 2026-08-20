@@ -1,23 +1,17 @@
 import type { Message } from "@opencode-ai/sdk/v2"
 import type { FileDiffInfo } from "@opencode-ai/client/promise"
 
-export type AgentExecutionState = "idle" | "thinking" | "working" | "tool" | "waiting" | "completed" | "failed" | "cancelled" | "unknown"
-export type AgentActivityKind = "reasoning" | "read" | "search" | "edit" | "patch" | "shell" | "test" | "build" | "network" | "mcp" | "delegation" | "waiting" | "retry" | "completion" | "cancellation" | "failure"
+export type AgentActivityKind = "reasoning" | "read" | "search" | "edit" | "patch" | "shell" | "test" | "build" | "network" | "mcp" | "waiting" | "retry" | "completion" | "cancellation" | "failure"
 
-export interface AgentRuntimeSnapshot {
+export type SessionLineageRelation = "current" | "derived"
+
+export interface SessionLineageSnapshot {
   id: string
   parentId?: string
   label: string
-  task?: string
+  relation: SessionLineageRelation
   model?: { providerID?: string; modelID?: string }
-  state: AgentExecutionState
-  activity?: string
-  currentTool?: string
-  currentFile?: string
-  elapsedMs?: number
-  progress?: number
-  updatedAt?: number
-  children?: AgentRuntimeSnapshot[]
+  children?: SessionLineageSnapshot[]
 }
 
 export interface AgentExecutionEvent {
@@ -36,16 +30,16 @@ export interface ContextUsageSnapshot {
   model?: { providerID?: string; modelID?: string }
   inputTokens?: number
   outputTokens?: number
+  reasoningTokens?: number
+  cacheReadTokens?: number
+  cacheWriteTokens?: number
   totalTokens?: number
-  contextUsed?: number
-  contextLimit?: number
   cost?: number
-  updatedAt?: number
 }
 
 export interface WorkspaceChange {
   file: string
-  status: "added" | "modified" | "deleted" | "renamed" | "unknown"
+  status: "added" | "modified" | "deleted" | "renamed" | "unsupported" | "unknown"
   additions?: number
   deletions?: number
   patch?: string
@@ -59,11 +53,6 @@ export interface RuntimeHealthSnapshot {
   updatedAt?: number
 }
 
-export function normalizeAgentState(value: unknown): AgentExecutionState {
-  if (value === "idle" || value === "thinking" || value === "working" || value === "tool" || value === "waiting" || value === "completed" || value === "failed" || value === "cancelled") return value
-  return "unknown"
-}
-
 export function normalizeWorkspaceChanges(value: unknown): WorkspaceChange[] {
   if (!Array.isArray(value)) return []
   return value.flatMap((item) => {
@@ -71,12 +60,17 @@ export function normalizeWorkspaceChanges(value: unknown): WorkspaceChange[] {
     const record = item as Record<string, unknown>
     if (typeof record.file !== "string") return []
     const status = record.status
+    const unsupported = record.binary === true || status === "unsupported"
     return [{
       file: record.file,
-      status: status === "added" || status === "modified" || status === "deleted" || status === "renamed" ? status : "unknown",
+      status: unsupported
+        ? "unsupported"
+        : status === "added" || status === "modified" || status === "deleted" || status === "renamed"
+          ? status
+          : "unknown",
       additions: typeof record.additions === "number" ? record.additions : undefined,
       deletions: typeof record.deletions === "number" ? record.deletions : undefined,
-      patch: typeof record.patch === "string" ? record.patch : undefined,
+      patch: !unsupported && typeof record.patch === "string" ? record.patch : undefined,
     }]
   })
 }
@@ -87,9 +81,13 @@ export function contextUsageFromMessage(message: Message | undefined): ContextUs
   const cost = message.cost
   if (!tokens && typeof cost !== "number") return undefined
   return {
+    model: { providerID: message.providerID, modelID: message.modelID },
     inputTokens: tokens?.input,
     outputTokens: tokens?.output,
-    totalTokens: tokens ? tokens.input + tokens.output + (tokens.reasoning ?? 0) + (tokens.cache?.read ?? 0) : undefined,
+    reasoningTokens: tokens?.reasoning,
+    cacheReadTokens: tokens?.cache.read,
+    cacheWriteTokens: tokens?.cache.write,
+    totalTokens: tokens?.total,
     cost: typeof cost === "number" ? cost : undefined,
   }
 }
@@ -104,9 +102,12 @@ export function workspaceChangeFromDiff(value: FileDiffInfo): WorkspaceChange {
   }
 }
 
-export function agentTree(agents: AgentRuntimeSnapshot[]) {
-  const byParent = new Map<string | undefined, AgentRuntimeSnapshot[]>()
-  for (const agent of agents) byParent.set(agent.parentId, [...(byParent.get(agent.parentId) ?? []), agent])
-  const attach = (agent: AgentRuntimeSnapshot): AgentRuntimeSnapshot => ({ ...agent, children: byParent.get(agent.id)?.map(attach) })
-  return (byParent.get(undefined) ?? agents.filter((agent) => !agent.parentId)).map(attach)
+export function sessionLineageTree(sessions: SessionLineageSnapshot[]) {
+  const byParent = new Map<string | undefined, SessionLineageSnapshot[]>()
+  for (const session of sessions) byParent.set(session.parentId, [...(byParent.get(session.parentId) ?? []), session])
+  const attach = (session: SessionLineageSnapshot): SessionLineageSnapshot => ({
+    ...session,
+    children: byParent.get(session.id)?.map(attach),
+  })
+  return (byParent.get(undefined) ?? sessions.filter((session) => !session.parentId)).map(attach)
 }
