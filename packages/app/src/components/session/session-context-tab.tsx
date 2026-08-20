@@ -18,6 +18,7 @@ import { useLanguage } from "@/context/language"
 import { useProviders } from "@/hooks/use-providers"
 import { useSDK } from "@/context/sdk"
 import { useSessionLayout } from "@/pages/session/session-layout"
+import { useDialog } from "@opencode-ai/ui/context/dialog"
 import { getSessionContext } from "./session-context-metrics"
 import { estimateSessionContextBreakdown, type SessionContextBreakdownKey } from "./session-context-breakdown"
 import { createSessionContextFormatter } from "./session-context-format"
@@ -97,6 +98,7 @@ const emptyUserMessages: UserMessage[] = []
 export function SessionContextTab() {
   const sync = useSync()
   const language = useLanguage()
+  const dialog = useDialog()
   const sdk = useSDK()
   const providers = useProviders(() => sdk().directory)
   const { params, view } = useSessionLayout()
@@ -208,8 +210,19 @@ export function SessionContextTab() {
   )
   const mcpEntries = createMemo(() => Object.entries(sync().data.mcp ?? {}).sort(([a], [b]) => a.localeCompare(b)))
   const lspEntries = createMemo(() => sync().data.lsp ?? [])
+  const lspLanguages = createMemo(() => {
+    const languages = new Set<string>()
+    for (const item of lspEntries()) {
+      const value = item as typeof item & { language?: string; languages?: string[] }
+      for (const language of value.languages ?? (value.language ? [value.language] : [])) languages.add(language)
+    }
+    return [...languages].sort()
+  })
   const togglePlugin = (name: string) =>
     setDisabledPlugins((current) => (current.includes(name) ? current.filter((item) => item !== name) : [...current, name]))
+  const openMcpDialog = () => {
+    void import("@/components/dialog-select-mcp").then((module) => dialog.show(() => <module.DialogSelectMcp />))
+  }
 
   const stats = [
     { label: "context.stats.session", value: () => info()?.title ?? params.id ?? "—" },
@@ -393,8 +406,8 @@ export function SessionContextTab() {
                   )}
                 </For>
               </Show>
-              <Button size="small" variant="secondary" class="self-start" onClick={() => showToast({ variant: "success", title: "Add MCP server", description: "Configure a new MCP server in your server configuration, then reload this session." })}>
-                Add MCP server
+              <Button size="small" variant="secondary" class="self-start" onClick={openMcpDialog}>
+                Manage MCP servers
               </Button>
             </div>
           </Show>
@@ -413,7 +426,10 @@ export function SessionContextTab() {
                   )}
                 </For>
               </Show>
-              <div class="text-11-regular text-text-weak">Language servers are detected from the files used in this session.</div>
+              <div class="flex flex-col gap-1 text-11-regular text-text-weak">
+                <div>Languages in this session: {lspLanguages().join(", ") || "Detecting from session files"}</div>
+                <div>LSP health updates live from the connected server.</div>
+              </div>
             </div>
           </Show>
         </div>
