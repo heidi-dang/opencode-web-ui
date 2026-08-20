@@ -468,10 +468,20 @@ export default function Page() {
   const desktopSidePanelOpen = createMemo(() => desktopSessionResizeOpen() || desktopFileTreeOpen())
   let panelRow: HTMLDivElement | undefined
   const [panelRowWidth, setPanelRowWidth] = createSignal<number>()
+  let panelWidthFrame: number | undefined
   createResizeObserver(
     () => panelRow,
-    ({ width }) => setPanelRowWidth(width),
+    ({ width }) => {
+      if (panelWidthFrame !== undefined) return
+      panelWidthFrame = requestAnimationFrame(() => {
+        panelWidthFrame = undefined
+        setPanelRowWidth(width)
+      })
+    },
   )
+  onCleanup(() => {
+    if (panelWidthFrame !== undefined) cancelAnimationFrame(panelWidthFrame)
+  })
   const splitReview = createMemo(
     () => (newSessionDesign() ? desktopV2ReviewOpen() : desktopReviewOpen()) && layout.review.diffStyle() === "split",
   )
