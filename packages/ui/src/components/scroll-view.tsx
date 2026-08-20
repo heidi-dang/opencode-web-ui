@@ -219,8 +219,12 @@ export function ScrollView(props: ScrollViewProps) {
       local.viewportRef(viewportRef)
     }
 
+    // Observe only the scroll viewport and its content. The external thumb track
+    // must not be observed here: updateThumb changes the thumb mounted inside it,
+    // which can resize the track and synchronously re-enter this observer. That
+    // feedback loop is what produces the browser's undelivered-notifications error.
     createResizeObserver(
-      () => [viewportRef, viewportRef.firstElementChild, thumbMount()].filter(Boolean) as HTMLElement[],
+      () => [viewportRef, viewportRef.firstElementChild].filter(Boolean) as HTMLElement[],
       scheduleThumbUpdate,
     )
 
