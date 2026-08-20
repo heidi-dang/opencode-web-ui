@@ -1,7 +1,7 @@
 import { For, Show, createMemo, createSignal, type JSX } from "solid-js"
 import { useLanguage } from "@/context/language"
 import type { AgentExecutionEvent, ContextUsageSnapshot, SessionLineageSnapshot, WorkspaceChange } from "./contracts"
-import type { WorkspaceView } from "./workspace-preferences"
+import type { WorkspaceContextTab, WorkspaceView } from "./workspace-preferences"
 import { SessionLineageCenter } from "./agent-command-center"
 import { ExecutionTimeline } from "./execution-timeline"
 import { ChangesReviewCenter, ContextIntelligence } from "./workspace-panels"
@@ -17,6 +17,10 @@ export function AutonomousWorkspace(props: {
   terminal?: JSX.Element
   view?: () => WorkspaceView
   onViewChange?: (view: WorkspaceView) => void
+  expandedLineage?: () => string[]
+  onExpandedLineageChange?: (ids: string[]) => void
+  contextTab?: () => WorkspaceContextTab
+  onContextTabChange?: (tab: WorkspaceContextTab) => void
 }) {
   const language = useLanguage()
   const [localView, setLocalView] = createSignal<WorkspaceView>("conversation")
@@ -44,10 +48,10 @@ export function AutonomousWorkspace(props: {
     </header>
     <div class="min-h-0 flex-1 overflow-auto p-3 sm:p-5"><div class="mx-auto flex min-h-full w-full max-w-[1440px] flex-col gap-4">
       <Show when={view() === "conversation"}>{props.conversation}</Show>
-      <Show when={view() === "lineage"}><SessionLineageCenter sessions={props.lineage} /></Show>
+      <Show when={view() === "lineage"}><SessionLineageCenter sessions={props.lineage} expanded={props.expandedLineage} onExpandedChange={props.onExpandedLineageChange} /></Show>
       <Show when={view() === "timeline"}><ExecutionTimeline events={props.events} /></Show>
       <Show when={view() === "changes"}><ChangesReviewCenter changes={props.changes} loading={props.changesLoading} onSelect={props.onSelectChange} /></Show>
-      <Show when={view() === "context"}><ContextIntelligence usage={props.usage} /></Show>
+      <Show when={view() === "context"}><ContextIntelligence usage={props.usage} events={props.events} tab={props.contextTab} onTabChange={props.onContextTabChange} /></Show>
       <Show when={props.terminal && view() === "timeline"}><aside class="min-h-0 overflow-hidden rounded-2xl border border-border-weak-base bg-surface-raised-strong">{props.terminal}</aside></Show>
     </div></div>
   </main>

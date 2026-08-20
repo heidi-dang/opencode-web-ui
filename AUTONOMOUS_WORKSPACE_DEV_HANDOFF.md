@@ -41,7 +41,7 @@ The workspace composes the existing `TerminalPanel`/`TerminalPanelV2` and `Termi
 
 ### Preferences — PERSISTED LAYOUT ONLY
 
-`workspace-preferences.ts` stores a validated version-1 preference scoped by server and directory. It contains only enabled/view/expanded-panel/context-tab fields. It never stores session IDs, event history, streaming truth, connectivity, authorization, credentials, or messages. Invalid state falls back to conversation mode.
+`workspace-preferences.ts` stores a validated version-1 preference scoped by server and directory. It contains only enabled/view/expanded-panel/expanded-lineage-layout/context-tab fields. The context panel exposes Usage and a Timeline activity summary from normalized events. It never stores event history, streaming truth, connectivity, authorization, credentials, or messages; lineage IDs are bounded layout hints only. Invalid state falls back to conversation mode.
 
 ## Encryption scope
 

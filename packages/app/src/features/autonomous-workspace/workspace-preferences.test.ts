@@ -32,7 +32,8 @@ describe("autonomous workspace preferences", () => {
       enabled: true,
       view: "timeline",
       expanded: ["timeline", "changes"],
-      contextTab: "usage",
+      expandedLineage: ["session-child"],
+      contextTab: "activity",
     }
 
     expect(saveWorkspacePreference(scope, preference)).toBeTrue()
@@ -46,6 +47,8 @@ describe("autonomous workspace preferences", () => {
     JSON.stringify({ version: 1, enabled: true, view: "unknown", expanded: [] }),
     JSON.stringify({ version: 1, enabled: true, view: "timeline", expanded: ["unknown"] }),
     JSON.stringify({ version: 1, enabled: true, view: "timeline", expanded: ["timeline", "timeline"] }),
+    JSON.stringify({ version: 1, enabled: true, view: "timeline", expanded: [], expandedLineage: ["session-child", "session-child"] }),
+    JSON.stringify({ version: 1, enabled: true, view: "timeline", expanded: [], expandedLineage: ["\u0000bad"] }),
     JSON.stringify({ version: 1, enabled: true, view: "timeline", expanded: [], contextTab: "unknown" }),
   ])("falls back for invalid persisted schema: %s", (raw) => {
     localStorage.setItem(workspacePreferenceKey(scope), raw)
@@ -73,6 +76,7 @@ describe("autonomous workspace preferences", () => {
       enabled: true,
       view: "conversation",
       expanded: [],
+      expandedLineage: [],
       // Runtime callers are typed, but persistence must remain safe at runtime too.
       sessionID: "ses-secret",
       events: [{ id: "event-secret" }],

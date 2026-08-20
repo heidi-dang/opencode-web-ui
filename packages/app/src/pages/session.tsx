@@ -2359,6 +2359,10 @@ export default function Page() {
         usage={workspaceUsage}
         view={workspaceView}
         onViewChange={(view) => updateWorkspacePreference({ view })}
+        expandedLineage={() => workspacePreference()?.expandedLineage ?? []}
+        onExpandedLineageChange={(expandedLineage) => updateWorkspacePreference({ expandedLineage })}
+        contextTab={() => workspacePreference()?.contextTab ?? "usage"}
+        onContextTabChange={(contextTab) => updateWorkspacePreference({ contextTab })}
         conversation={sessionPanelContent()}
         terminal={workspaceTerminal()}
       />

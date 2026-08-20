@@ -20,6 +20,35 @@ export function SessionLineageCenter(props: {
     if (props.onExpandedChange) props.onExpandedChange([...next])
     else setLocalExpanded(next)
   }
+  const renderSession = (session: SessionLineageSnapshot, depth: number) => {
+    const hasChildren = () => (session.children?.length ?? 0) > 0
+    const isExpanded = () => expanded().has(session.id)
+    const model = () => [session.model?.providerID, session.model?.modelID].filter(Boolean).join(" / ")
+    return (
+      <div role="treeitem" aria-expanded={hasChildren() ? isExpanded() : undefined} aria-level={depth + 1}>
+        <button type="button" class="group flex w-full min-w-0 items-start gap-3 rounded-xl px-3 py-2 text-left transition-colors hover:bg-surface-base-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus" style={{ "padding-left": `${12 + depth * 16}px` }} onClick={() => hasChildren() && toggle(session.id)}>
+          <span class="mt-1 size-2 shrink-0 rounded-full bg-icon-muted" aria-hidden="true" />
+          <span class="min-w-0 flex-1">
+            <span class="flex min-w-0 items-center gap-2">
+              <span class="truncate text-12-emphasis text-text-strong">{session.label}</span>
+              <span class="shrink-0 text-11-regular text-text-muted">
+                {session.relation === "unavailable"
+                  ? language.t("autonomousWorkspace.common.unavailable")
+                  : language.t(`autonomousWorkspace.lineage.relation.${session.relation}`)}
+              </span>
+            </span>
+            <Show when={!props.compact && model()}>
+              <span class="mt-1 block max-w-full truncate font-mono text-11-regular text-text-weak">{model()}</span>
+            </Show>
+          </span>
+          <Show when={hasChildren()}><span class="shrink-0 text-text-muted" aria-hidden="true"><Show when={isExpanded} fallback="+">−</Show></span></Show>
+        </button>
+        <Show when={isExpanded}>
+          <For each={session.children}>{(child) => renderSession(child, depth + 1)}</For>
+        </Show>
+      </div>
+    )
+  }
 
   return (
     <section class="flex min-h-0 flex-col rounded-2xl border border-border-weak-base bg-surface-raised-strong shadow-[0_16px_40px_rgba(0,0,0,0.18)]" aria-labelledby="session-lineage-title">
@@ -34,40 +63,9 @@ export function SessionLineageCenter(props: {
       </header>
       <div class="min-h-0 overflow-auto p-2" role="tree" aria-label={language.t("autonomousWorkspace.lineage.treeLabel")}>
         <Show when={roots().length > 0} fallback={<p class="px-2 py-6 text-center text-12-regular text-text-weak">{language.t("autonomousWorkspace.lineage.unavailable")}</p>}>
-          <For each={roots()}>{(session) => <SessionRow session={session} depth={0} compact={props.compact} expanded={expanded()} onToggle={toggle} />}</For>
+          <For each={roots()}>{(session) => renderSession(session, 0)}</For>
         </Show>
       </div>
     </section>
-  )
-}
-
-function SessionRow(props: { session: SessionLineageSnapshot; depth: number; compact?: boolean; expanded: Set<string>; onToggle: (id: string) => void }) {
-  const language = useLanguage()
-  const hasChildren = () => (props.session.children?.length ?? 0) > 0
-  const isExpanded = () => props.expanded.has(props.session.id)
-  const model = () => [props.session.model?.providerID, props.session.model?.modelID].filter(Boolean).join(" / ")
-  return (
-    <div role="treeitem" aria-expanded={hasChildren() ? isExpanded() : undefined} aria-level={props.depth + 1}>
-      <button type="button" class="group flex w-full min-w-0 items-start gap-3 rounded-xl px-3 py-2 text-left transition-colors hover:bg-surface-base-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus" style={{ "padding-left": `${12 + props.depth * 16}px` }} onClick={() => hasChildren() && props.onToggle(props.session.id)}>
-        <span class="mt-1 size-2 shrink-0 rounded-full bg-icon-muted" aria-hidden="true" />
-        <span class="min-w-0 flex-1">
-          <span class="flex min-w-0 items-center gap-2">
-            <span class="truncate text-12-emphasis text-text-strong">{props.session.label}</span>
-            <span class="shrink-0 text-11-regular text-text-muted">
-              {props.session.relation === "unavailable"
-                ? language.t("autonomousWorkspace.common.unavailable")
-                : language.t(`autonomousWorkspace.lineage.relation.${props.session.relation}`)}
-            </span>
-          </span>
-          <Show when={!props.compact && model()}>
-            <span class="mt-1 block max-w-full truncate font-mono text-11-regular text-text-weak">{model()}</span>
-          </Show>
-        </span>
-        <Show when={hasChildren()}><span class="shrink-0 text-text-muted" aria-hidden="true">{isExpanded() ? "−" : "+"}</span></Show>
-      </button>
-      <Show when={isExpanded()}>
-        <For each={props.session.children}>{(child) => <SessionRow session={child} depth={props.depth + 1} compact={props.compact} expanded={props.expanded} onToggle={props.onToggle} />}</For>
-      </Show>
-    </div>
   )
 }

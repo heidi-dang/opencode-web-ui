@@ -1,16 +1,38 @@
-import { For, Show } from "solid-js"
+import { For, Show, createSignal } from "solid-js"
 import { useLanguage } from "@/context/language"
-import type { ContextUsageSnapshot, WorkspaceChange } from "./contracts"
+import type { AgentExecutionEvent, ContextUsageSnapshot, WorkspaceChange } from "./contracts"
+import type { WorkspaceContextTab } from "./workspace-preferences"
 
-export function ContextIntelligence(props: { usage: () => ContextUsageSnapshot | undefined }) {
+export function ContextIntelligence(props: {
+  usage: () => ContextUsageSnapshot | undefined
+  events?: () => AgentExecutionEvent[]
+  tab?: () => WorkspaceContextTab
+  onTabChange?: (tab: WorkspaceContextTab) => void
+}) {
   const language = useLanguage()
+  const [localTab, setLocalTab] = createSignal<WorkspaceContextTab>("usage")
+  const tab = () => props.tab?.() ?? localTab()
+  const setTab = (next: WorkspaceContextTab) => props.onTabChange ? props.onTabChange(next) : setLocalTab(next)
   const usage = () => props.usage()
   const unavailable = () => language.t("autonomousWorkspace.common.unavailable")
   const number = (value?: number) => value === undefined ? unavailable() : new Intl.NumberFormat(language.intl()).format(value)
   const cost = () => usage()?.cost === undefined
     ? unavailable()
     : new Intl.NumberFormat(language.intl(), { maximumFractionDigits: 6 }).format(usage()!.cost!)
-  return <section class="rounded-2xl border border-border-weak-base bg-surface-raised-strong p-4" aria-labelledby="context-intelligence-title"><div><p id="context-intelligence-title" class="text-14-emphasis text-text-strong">{language.t("autonomousWorkspace.context.title")}</p><p class="text-12-regular text-text-weak">{language.t("autonomousWorkspace.context.description")}</p></div><div class="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4"><Metric label={language.t("autonomousWorkspace.context.provider")} value={usage()?.model?.providerID ?? unavailable()} /><Metric label={language.t("autonomousWorkspace.context.model")} value={usage()?.model?.modelID ?? unavailable()} /><Metric label={language.t("autonomousWorkspace.context.inputTokens")} value={number(usage()?.inputTokens)} /><Metric label={language.t("autonomousWorkspace.context.outputTokens")} value={number(usage()?.outputTokens)} /><Metric label={language.t("autonomousWorkspace.context.reasoningTokens")} value={number(usage()?.reasoningTokens)} /><Metric label={language.t("autonomousWorkspace.context.cacheReadTokens")} value={number(usage()?.cacheReadTokens)} /><Metric label={language.t("autonomousWorkspace.context.cacheWriteTokens")} value={number(usage()?.cacheWriteTokens)} /><Metric label={language.t("autonomousWorkspace.context.totalTokens")} value={number(usage()?.totalTokens)} /><Metric label={language.t("autonomousWorkspace.context.cost")} value={cost()} /></div></section>
+  const events = () => props.events?.() ?? []
+  const latestEvent = () => events().at(-1)
+  return <section class="rounded-2xl border border-border-weak-base bg-surface-raised-strong p-4" aria-labelledby="context-intelligence-title">
+    <header class="flex flex-wrap items-start justify-between gap-3">
+      <div><p id="context-intelligence-title" class="text-14-emphasis text-text-strong">{language.t("autonomousWorkspace.context.title")}</p><p class="text-12-regular text-text-weak">{language.t("autonomousWorkspace.context.description")}</p></div>
+      <div class="flex shrink-0 gap-1 rounded-lg bg-surface-base p-1" role="tablist" aria-label={language.t("autonomousWorkspace.context.title")}>
+        <button type="button" role="tab" aria-selected={tab() === "usage"} class={`rounded-md px-2 py-1 text-11-emphasis transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus ${tab() === "usage" ? "bg-surface-raised-strong text-text-strong" : "text-text-muted hover:text-text-base"}`} onClick={() => setTab("usage")}>{language.t("context.usage.usage")}</button>
+        <button type="button" role="tab" aria-selected={tab() === "activity"} class={`rounded-md px-2 py-1 text-11-emphasis transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-focus ${tab() === "activity" ? "bg-surface-raised-strong text-text-strong" : "text-text-muted hover:text-text-base"}`} onClick={() => setTab("activity")}>{language.t("autonomousWorkspace.views.timeline")}</button>
+      </div>
+    </header>
+    <Show when={() => tab() === "usage"} fallback={<div class="mt-4 grid gap-2 sm:grid-cols-2"><Metric label={language.t("autonomousWorkspace.timeline.count", { count: events().length })} value={events().length > 0 ? language.t(latestEvent()!.timelineLabelKey) : language.t("autonomousWorkspace.timeline.empty")} /><Metric label={language.t("autonomousWorkspace.timeline.state.completed")} value={latestEvent() ? language.t(`autonomousWorkspace.timeline.state.${latestEvent()!.state}`) : language.t("autonomousWorkspace.common.unavailable")} /></div>}>
+      <div class="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4"><Metric label={language.t("autonomousWorkspace.context.provider")} value={usage()?.model?.providerID ?? unavailable()} /><Metric label={language.t("autonomousWorkspace.context.model")} value={usage()?.model?.modelID ?? unavailable()} /><Metric label={language.t("autonomousWorkspace.context.inputTokens")} value={number(usage()?.inputTokens)} /><Metric label={language.t("autonomousWorkspace.context.outputTokens")} value={number(usage()?.outputTokens)} /><Metric label={language.t("autonomousWorkspace.context.reasoningTokens")} value={number(usage()?.reasoningTokens)} /><Metric label={language.t("autonomousWorkspace.context.cacheReadTokens")} value={number(usage()?.cacheReadTokens)} /><Metric label={language.t("autonomousWorkspace.context.cacheWriteTokens")} value={number(usage()?.cacheWriteTokens)} /><Metric label={language.t("autonomousWorkspace.context.totalTokens")} value={number(usage()?.totalTokens)} /><Metric label={language.t("autonomousWorkspace.context.cost")} value={cost()} /></div>
+    </Show>
+  </section>
 }
 
 function Metric(props: { label: string; value: string }) { return <div class="min-w-0 rounded-xl border border-border-weak-base/70 bg-surface-base px-3 py-2"><p class="text-11-regular text-text-weak">{props.label}</p><p class="mt-1 truncate font-mono text-12-emphasis text-text-strong">{props.value}</p></div> }

@@ -2,7 +2,7 @@ export const WORKSPACE_PREFERENCE_VERSION = 1 as const
 
 export const WORKSPACE_VIEWS = ["conversation", "lineage", "timeline", "changes", "context"] as const
 export const WORKSPACE_PANELS = ["lineage", "timeline", "changes", "context", "terminal"] as const
-export const WORKSPACE_CONTEXT_TABS = ["usage"] as const
+export const WORKSPACE_CONTEXT_TABS = ["usage", "activity"] as const
 
 export type WorkspaceView = (typeof WORKSPACE_VIEWS)[number]
 export type WorkspacePanel = (typeof WORKSPACE_PANELS)[number]
@@ -18,6 +18,7 @@ export type WorkspacePreference = {
   enabled: boolean
   view: WorkspaceView
   expanded: WorkspacePanel[]
+  expandedLineage: string[]
   contextTab?: WorkspaceContextTab
 }
 
@@ -26,12 +27,15 @@ export const defaultWorkspacePreference: WorkspacePreference = {
   enabled: false,
   view: "conversation",
   expanded: [],
+  expandedLineage: [],
+  contextTab: "usage",
 }
 
-const preferenceKeys = new Set(["version", "enabled", "view", "expanded", "contextTab"])
+const preferenceKeys = new Set(["version", "enabled", "view", "expanded", "expandedLineage", "contextTab"])
 const panelSet = new Set<string>(WORKSPACE_PANELS)
 const viewSet = new Set<string>(WORKSPACE_VIEWS)
 const contextTabSet = new Set<string>(WORKSPACE_CONTEXT_TABS)
+const MAX_EXPANDED_LINEAGE = 100
 
 function record(value: unknown): Record<string, unknown> | undefined {
   return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined
@@ -41,13 +45,17 @@ function isString(value: unknown): value is string {
   return typeof value === "string"
 }
 
+function isSafeLineageID(value: unknown): value is string {
+  return isString(value) && value.length > 0 && value.length <= 256 && !/[\u0000-\u001f\u007f]/.test(value)
+}
+
 function isSafeScope(value: unknown): value is WorkspacePreferenceScope {
   const source = record(value)
   return !!source && isString(source.serverID) && source.serverID.length > 0 && isString(source.directory) && source.directory.length > 0
 }
 
 function copyDefault(): WorkspacePreference {
-  return { ...defaultWorkspacePreference, expanded: [] }
+  return { ...defaultWorkspacePreference, expanded: [], expandedLineage: [] }
 }
 
 function isKnownKeys(source: Record<string, unknown>) {
@@ -65,18 +73,21 @@ function parsePreference(value: unknown, allowUnknownKeys: boolean): WorkspacePr
   const expanded = source.expanded as WorkspacePanel[]
   if (new Set(expanded).size !== expanded.length) return undefined
 
-  const contextTab = source.contextTab
-  if (contextTab !== undefined && (!isString(contextTab) || !contextTabSet.has(contextTab))) return undefined
+  const expandedLineage = source.expandedLineage === undefined ? [] : source.expandedLineage
+  if (!Array.isArray(expandedLineage) || expandedLineage.length > MAX_EXPANDED_LINEAGE || !expandedLineage.every(isSafeLineageID)) return undefined
+  if (new Set(expandedLineage).size !== expandedLineage.length) return undefined
 
-  return contextTab === undefined
-    ? { version: WORKSPACE_PREFERENCE_VERSION, enabled: source.enabled, view: source.view as WorkspaceView, expanded: [...expanded] }
-    : {
-        version: WORKSPACE_PREFERENCE_VERSION,
-        enabled: source.enabled,
-        view: source.view as WorkspaceView,
-        expanded: [...expanded],
-        contextTab: contextTab as WorkspaceContextTab,
-      }
+  const contextTab = source.contextTab ?? "usage"
+  if (!isString(contextTab) || !contextTabSet.has(contextTab)) return undefined
+
+  return {
+    version: WORKSPACE_PREFERENCE_VERSION,
+    enabled: source.enabled,
+    view: source.view as WorkspaceView,
+    expanded: [...expanded],
+    expandedLineage: [...expandedLineage],
+    contextTab: contextTab as WorkspaceContextTab,
+  }
 }
 
 function storageOrDefault(storage?: Storage): Storage | undefined {

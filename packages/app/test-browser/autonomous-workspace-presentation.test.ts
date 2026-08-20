@@ -95,6 +95,25 @@ describe("autonomous workspace presentation", () => {
     expect(host.textContent).toContain("Unavailable")
   })
 
+  test("keeps controlled lineage expansion in sync with the persisted layout owner", () => {
+    const sessions = [
+      { id: "parent", label: "Parent session", relation: "current" },
+      { id: "child", parentId: "parent", label: "Child session", relation: "derived" },
+    ] as SessionLineageSnapshot[]
+    const [expanded, setExpanded] = createSignal<string[]>([])
+    const host = mount(() => createComponent(SessionLineageCenter, {
+      sessions: () => sessions,
+      expanded,
+      onExpandedChange: setExpanded,
+    }))
+
+    expect(host.textContent).not.toContain("Child session")
+    ;(host.querySelector('[role="treeitem"] button') as HTMLButtonElement).click()
+
+    expect(expanded()).toEqual(["parent"])
+    expect(host.textContent).toContain("Child session")
+  })
+
   test("renders unavailable metrics without inventing values", () => {
     const host = mount(() => createComponent(ContextIntelligence, { usage: () => undefined }))
 
@@ -102,6 +121,31 @@ describe("autonomous workspace presentation", () => {
     expect(host.textContent).toContain("Provider")
     expect(host.textContent).toContain("Unavailable")
     expect(host.textContent).not.toContain("%")
+  })
+
+  test("switches the context panel to real timeline activity", () => {
+    const [tab, setTab] = createSignal<"usage" | "activity">("usage")
+    const event = {
+      id: "evt-activity",
+      kind: "completion",
+      timelineLabelKey: "autonomousWorkspace.timeline.event.session",
+      timestamp: 1,
+      state: "completed",
+    } as AgentExecutionEvent
+    const host = mount(() => createComponent(ContextIntelligence, {
+      usage: () => undefined,
+      events: () => [event],
+      tab,
+      onTabChange: setTab,
+    }))
+
+    expect(host.textContent).toContain("Provider")
+    const activity = [...host.querySelectorAll("button")].find((button) => button.textContent === "Timeline") as HTMLButtonElement
+    activity.click()
+
+    expect(tab()).toBe("activity")
+    expect(host.textContent).toContain("Session activity")
+    expect(host.textContent).toContain("Events: 1")
   })
 
   test("renders unsupported binary changes without leaking patch content", () => {

@@ -40,7 +40,7 @@ The controller deduplicates replay IDs, orders by timestamp with stable ID tie-b
 
 The existing Night Owl styling, responsive overflow, focus rings, reduced-motion classes, and v0 panel layout are preserved. New visible strings use the typed locale dictionaries.
 
-The workspace toggle is opt-in and disabled by default. `workspace-preferences.ts` stores only a strict version-1 schema: enabled state, selected workspace view, expanded panel IDs, and the context tab. Its key is scoped to server ID and directory, not session ID. Invalid JSON, versions, fields, or storage failures fall back to the safe conversation preference without blocking startup.
+The workspace toggle is opt-in and disabled by default. `workspace-preferences.ts` stores only a strict version-1 schema: enabled state, selected workspace view, expanded panel IDs, bounded expanded lineage session IDs, and the context tab (`usage` or the real-event `activity` summary). Its key is scoped to server ID and directory, not session ID. Invalid JSON, versions, fields, duplicate/unsafe lineage IDs, or storage failures fall back to the safe conversation preference without blocking startup. Lineage rows read the live scoped expansion signal, so controlled updates render immediately and persist without making persisted IDs runtime truth.
 
 ## Capability status
 
