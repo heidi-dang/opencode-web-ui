@@ -54,9 +54,18 @@ export default defineConfig(({ mode }) => {
   // modules intentionally read process.env. Bridge only the server-side secrets
   // before any request handlers are created.
   const env = loadEnv(mode, process.cwd(), "")
-  const projectEnvPath = "/vercel/share/.env.project"
+  const projectEnvPaths = ["/vercel/share/.env.project", `${process.cwd()}/.env.development.local`, `${process.cwd()}/../.env.development.local`]
   let projectEnv: Record<string, string> = {}
   try {
+    const projectEnvPath = projectEnvPaths.find((path) => {
+      try {
+        readFileSync(path)
+        return true
+      } catch {
+        return false
+      }
+    })
+    if (!projectEnvPath) throw new Error("project environment file not found")
     projectEnv = Object.fromEntries(
       readFileSync(projectEnvPath, "utf8")
         .split(/\r?\n/)
