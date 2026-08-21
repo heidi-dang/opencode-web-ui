@@ -33,7 +33,7 @@ export function SessionComposerRegion(props: {
     >
       <div
         classList={{
-          "w-full px-3 pointer-events-auto": true,
+          "w-full px-3 pb-1 pointer-events-auto": true,
           "md:max-w-200 md:mx-auto 2xl:max-w-[1000px]": controller.centered(),
         }}
       >
@@ -100,7 +100,7 @@ export function SessionComposerRegion(props: {
                   )}
                 </Show>
                 <div
-                  class="w-full min-h-32 md:min-h-40 rounded-md border border-border-weak-base bg-background-base/50 px-4 py-3 text-text-weak whitespace-pre-wrap pointer-events-none"
+                  class="w-full min-h-20 md:min-h-28 rounded-md border border-border-weak-base bg-background-base/50 px-3 py-2 text-13-regular text-text-weak whitespace-pre-wrap pointer-events-none"
                   style={{ "margin-top": `${-36 * controller.dockProgress()}px` }}
                 >
                   {controller.handoffPrompt() || language.t("prompt.loading")}
