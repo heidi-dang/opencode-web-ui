@@ -225,7 +225,7 @@
 }
 
 [data-component="sidebar-rail"] {
-  background: var(--workspace-surface) !important;
+  background: var(--workspace-surface-1);
   border-right: 1px solid var(--workspace-border);
 }
 
@@ -303,6 +303,41 @@
 [data-component="session-prompt-dock"] .prompt-composer-stack {
   gap: 0;
   filter: drop-shadow(0 12px 28px color-mix(in srgb, var(--background-base) 38%, transparent));
+}
+
+.workspace-header {
+  background: var(--workspace-surface-1);
+}
+
+.workspace-tabs {
+  scrollbar-width: none;
+}
+
+.workspace-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.workspace-mode-toggle {
+  min-width: 44px;
+}
+
+[data-component="session-prompt-dock"] [data-component="prompt-input-v2"] {
+  min-height: 76px;
+}
+
+@media (max-width: 640px) {
+  [data-component="session-prompt-dock"] {
+    padding-bottom: max(env(safe-area-inset-bottom), 4px);
+  }
+
+  [data-component="session-prompt-dock"] [data-component="prompt-input-v2"] {
+    min-height: 68px;
+  }
+
+  .workspace-header {
+    padding-top: 8px;
+    padding-bottom: 6px;
+  }
 }
 
 [data-component="session-prompt-dock"] [data-component="prompt-input-v2"]:focus-within {
@@ -386,7 +421,7 @@
    repeat gradient background on child layout components.
 ──────────────────────────────────────────────────────────────────────────── */
 [data-color-scheme="dark"] #root {
-  background: var(--v2-gradient-ambient-canvas);
+  background: var(--workspace-canvas);
 }
 
 /* Desktop sidebar nav panel — apply V2 panel elevation in dark mode */
