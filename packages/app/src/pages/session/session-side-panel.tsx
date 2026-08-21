@@ -520,7 +520,7 @@ export function SessionSidePanel(props: {
                     }
                   >
                     <DndKitProvider
-                      sensors={[
+                      sensors={() => [
                         PointerSensor.configure({
                           activationConstraints: [new PointerActivationConstraints.Distance({ value: 4 })],
                           preventActivation: (event) =>

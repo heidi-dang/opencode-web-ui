@@ -292,7 +292,7 @@ export function TitlebarTabStrip(props: {
         ref={scrollRef}
       >
         <DragDropProvider
-          sensors={[
+          sensors={() => [
             PointerSensor.configure({
               activationConstraints: [new PointerActivationConstraints.Distance({ value: 4 })],
               preventActivation: (event) =>
