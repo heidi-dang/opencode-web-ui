@@ -8,35 +8,28 @@ const kindIcon: Record<AgentExecutionEvent["kind"], string> = {
 
 export function ExecutionTimeline(props: { events: () => AgentExecutionEvent[] }) {
   const language = useLanguage()
-  return (
-    <section class="flex min-h-0 flex-col rounded-2xl border border-border-weak-base bg-surface-raised-strong" aria-labelledby="execution-timeline-title">
-      <header class="flex items-center justify-between gap-3 border-b border-border-weak-base px-4 py-3">
-        <div><p id="execution-timeline-title" class="text-14-emphasis text-text-strong">{language.t("autonomousWorkspace.timeline.title")}</p><p class="text-12-regular text-text-weak">{language.t("autonomousWorkspace.timeline.description")}</p></div>
-        <span class="font-mono text-11-regular text-text-muted">{language.t("autonomousWorkspace.timeline.count", { count: props.events().length })}</span>
-      </header>
-      <ol class="min-h-0 overflow-auto p-3 sm:p-4" aria-label={language.t("autonomousWorkspace.timeline.listLabel")}>
-        <Show when={props.events().length > 0} fallback={<li class="py-8 text-center text-12-regular text-text-weak">{language.t("autonomousWorkspace.timeline.empty")}</li>}>
-          <For each={props.events()}>{(event) => <TimelineEvent event={event} />}</For>
-        </Show>
-      </ol>
-    </section>
-  )
+  return <section class="flex min-h-0 flex-col rounded-2xl border border-border-weak-base bg-surface-raised-strong" aria-labelledby="execution-timeline-title">
+    <header class="flex items-center justify-between gap-3 border-b border-border-weak-base px-4 py-3">
+      <div><p id="execution-timeline-title" class="text-14-emphasis text-text-strong">{language.t("autonomousWorkspace.timeline.title")}</p><p class="text-12-regular text-text-weak">{language.t("autonomousWorkspace.timeline.description")}</p></div>
+      <span class="font-mono text-11-regular text-text-muted">{language.t("autonomousWorkspace.timeline.count", { count: props.events().length })}</span>
+    </header>
+    <ol class="min-h-0 overflow-auto p-3 sm:p-4" aria-label={language.t("autonomousWorkspace.timeline.listLabel")}>
+      <Show when={props.events().length > 0} fallback={<li class="py-8 text-center text-12-regular text-text-weak">{language.t("autonomousWorkspace.timeline.empty")}</li>}>
+        <For each={props.events()}>{(event) => <TimelineEvent event={event} />}</For>
+      </Show>
+    </ol>
+  </section>
 }
 
 function TimelineEvent(props: { event: AgentExecutionEvent }) {
   const language = useLanguage()
-  const eventTime = () => props.event.timestamp === undefined
-    ? language.t("autonomousWorkspace.common.unavailable")
-    : new Date(props.event.timestamp).toLocaleTimeString(language.intl(), { hour: "2-digit", minute: "2-digit", second: "2-digit" })
-  return (
-    <li class="relative flex gap-3 pb-3 last:pb-0">
-      <div class="flex w-7 shrink-0 flex-col items-center"><span class="grid size-7 place-items-center rounded-lg bg-surface-base-hover font-mono text-12-emphasis text-icon-info" aria-hidden="true">{kindIcon[props.event.kind]}</span><span class="mt-1 h-full w-px bg-border-weak-base last:hidden" aria-hidden="true" /></div>
-      <div class={`min-w-0 flex-1 rounded-xl border px-3 py-2 transition-colors motion-reduce:transition-none ${props.event.state === "active" ? "border-border-focus bg-surface-info-weak/40" : props.event.state === "failed" ? "border-border-critical/70 bg-surface-critical-weak/30" : "border-border-weak-base/70 bg-surface-base"}`}>
-        <div class="flex w-full items-start justify-between gap-3 text-left">
-          <span class="min-w-0"><span class="block truncate text-12-emphasis text-text-strong">{language.t(props.event.timelineLabelKey)}</span><span class="block text-11-regular text-text-weak">{eventTime()} <Show when={props.event.durationMs !== undefined}>· {language.t("autonomousWorkspace.timeline.duration", { duration: props.event.durationMs! })}</Show></span></span>
-          <span class={`shrink-0 rounded-full px-2 py-0.5 text-11-regular ${props.event.state === "failed" ? "bg-surface-critical-weak text-text-critical" : props.event.state === "active" ? "bg-surface-info-weak text-text-info" : "bg-surface-base-hover text-text-muted"}`}>{language.t(`autonomousWorkspace.timeline.state.${props.event.state}`)}</span>
-        </div>
-      </div>
-    </li>
-  )
+  const eventTime = () => props.event.timestamp === undefined ? language.t("autonomousWorkspace.common.unavailable") : new Date(props.event.timestamp).toLocaleTimeString(language.intl(), { hour: "2-digit", minute: "2-digit", second: "2-digit" })
+  const state = () => language.t(`autonomousWorkspace.timeline.state.${props.event.state}`)
+  const tone = () => props.event.state === "failed" ? "border-border-critical/70 bg-surface-critical-weak/30" : props.event.state === "active" ? "border-border-focus bg-surface-info-weak/40" : "border-border-weak-base/70 bg-surface-base"
+  return <li class="relative flex gap-3 pb-3 last:pb-0">
+    <div class="flex w-7 shrink-0 flex-col items-center"><span class="grid size-7 place-items-center rounded-lg bg-surface-base-hover font-mono text-12-emphasis text-icon-info" aria-hidden="true">{kindIcon[props.event.kind]}</span><span class="mt-1 h-full w-px bg-border-weak-base" aria-hidden="true" /></div>
+    <article class={`min-w-0 flex-1 rounded-xl border px-3 py-2 transition-colors motion-reduce:transition-none ${tone()}`} aria-label={`${language.t(props.event.timelineLabelKey)}: ${state()}`}>
+      <div class="flex w-full items-start justify-between gap-3 text-left"><span class="min-w-0"><span class="block truncate text-12-emphasis text-text-strong">{language.t(props.event.timelineLabelKey)}</span><span class="block text-11-regular text-text-weak">{eventTime()} <Show when={props.event.durationMs !== undefined}>· {language.t("autonomousWorkspace.timeline.duration", { duration: props.event.durationMs! })}</Show></span></span><span class={`shrink-0 rounded-full px-2 py-0.5 text-11-regular ${props.event.state === "failed" ? "bg-surface-critical-weak text-text-critical" : props.event.state === "active" ? "bg-surface-info-weak text-text-info" : "bg-surface-base-hover text-text-muted"}`}>{state()}</span></div>
+    </article>
+  </li>
 }

@@ -269,6 +269,20 @@ describe("query keys", () => {
     expect(result.connected).toEqual(["openai"])
   })
 
+  test("uses remote integration connections as provider auth state", async () => {
+    const result = await new QueryClient().fetchQuery(
+      loadProvidersQuery(ServerScope.local, "/repo", {
+        provider: { list: async () => ({ location: {}, data: [{ id: "anthropic", name: "Anthropic" }] }) },
+        model: { list: async () => ({ location: {}, data: [] }), default: async () => ({ location: {}, data: null }) },
+        integration: {
+          list: async () => ({ location: {}, data: [{ id: "anthropic", connections: [{ type: "credential", id: "anthropic" }] }] }),
+        },
+      } as unknown as CatalogApi),
+    )
+
+    expect(result.connected).toEqual(["anthropic"])
+  })
+
   test("keeps providers and models when the optional default endpoint is unsupported", async () => {
     const result = await new QueryClient().fetchQuery(
       loadProvidersQuery(ServerScope.local, "/repo", {

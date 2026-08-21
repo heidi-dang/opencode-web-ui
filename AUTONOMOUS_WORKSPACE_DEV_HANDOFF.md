@@ -25,6 +25,18 @@ The committed changes are limited to browser regression/stability harness behavi
 they preserve the session-scoped controller, existing PTY/runtime ownership,
 virtualized timeline, exact-origin security, and production application behavior.
 
+## Remote provider auth fix — 2026-08-21
+
+Remote OpenCode servers own their provider API keys and OAuth credentials. The web
+UI now requests the server's location-scoped integration catalogue during provider
+bootstrap and treats an integration with an active connection as connected. This
+prevents the UI from incorrectly presenting the local “API key required” flow for a
+model whose auth is configured remotely. The response contains connection metadata
+only; provider secret values are not copied into browser state or logs.
+
+The integration request is optional for older servers that do not expose the
+endpoint; provider/model bootstrap remains available on those servers.
+
 ## E2E closure pass — 2026-08-21
 
 The latest fixture pass corrected two repository-controlled issues: `/vcs/diff` was

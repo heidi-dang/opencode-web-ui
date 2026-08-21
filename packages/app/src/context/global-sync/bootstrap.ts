@@ -296,9 +296,16 @@ export const loadProvidersQuery = (
           return normalizeProviderList(result.data!)
         }
         const location = directory ? { location: { directory } } : undefined
-        const [providers, models] = await Promise.all([
+        const [providers, models, integrations] = await Promise.all([
           sdk.provider.list(location),
           sdk.model.list(location),
+          // Provider credentials live on the selected OpenCode server. Fetch
+          // the server's auth catalogue through the same authenticated client
+          // so the web UI never falls back to asking for a local API key.
+          Promise.resolve(
+            (sdk as CatalogApi & { integration?: { list?: (input?: unknown) => Promise<{ data?: unknown }> } })
+              .integration?.list?.(location),
+          ).catch(() => undefined),
         ])
         let defaultModel: ModelDefaultOutput["data"] = null
         try {
@@ -309,7 +316,19 @@ export const loadProvidersQuery = (
           // usable; resolve a default from the first connected model instead.
           if (!(error instanceof ClientError) || error.reason !== "UnsupportedContentType") throw error
         }
-        return normalizeProviderList(providers.data, models.data, defaultModel)
+        const normalized = normalizeProviderList(providers.data, models.data, defaultModel)
+        const connectedRemoteProviders = new Set(
+          ((integrations?.data ?? []) as Array<{ id?: unknown; connections?: unknown }>).flatMap((integration) =>
+            typeof integration.id === "string" && Array.isArray(integration.connections) && integration.connections.length > 0
+              ? [integration.id]
+              : [],
+          ),
+        )
+        if (connectedRemoteProviders.size === 0) return normalized
+        return {
+          ...normalized,
+          connected: Array.from(new Set([...normalized.connected, ...connectedRemoteProviders])).filter((id) => normalized.all.has(id)),
+        }
       }),
   })
 
