@@ -3,7 +3,6 @@ import { apiResponse } from "../packages/app/src/server/production-server"
 
 export const config = {
   api: { bodyParser: false },
-  runtime: "bun1.x",
 }
 
 type VercelRequest = IncomingMessage & { method?: string; url?: string }
