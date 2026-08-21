@@ -316,8 +316,7 @@ function HomeProjectList(props: HomeProjectListProps) {
 
   return (
     <DragDropProvider
-      sensors={(defaults) => [
-        ...defaults.filter((sensor) => sensor !== PointerSensor),
+      sensors={() => [
         PointerSensor.configure({
           activationConstraints: (event) =>
             event.pointerType === "touch"

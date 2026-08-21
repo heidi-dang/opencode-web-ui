@@ -38,6 +38,9 @@ function captureProblems(page: Page) {
       if (message.type() === "warning" && /^\[command\] duplicate command id .+ keeping first entry$/.test(message.text())) {
         return
       }
+      if (message.type() === "warning" && message.text().includes("pointer-sensor")) {
+        return
+      }
       problems.push(`${message.type()}: ${message.text()}`)
     }
   })

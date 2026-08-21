@@ -137,7 +137,7 @@ const showRequestError = (language: ReturnType<typeof useLanguage>, err: unknown
   })
 }
 
-export function SessionHeader() {
+export function SessionHeader(props: { workspaceEnabled?: () => boolean; onToggleWorkspace?: () => void } = {}) {
   const layout = useLayout()
   const command = useCommand()
   const server = useServer()
@@ -242,6 +242,8 @@ export function SessionHeader() {
     reviewVisible: isDesktop(),
     reviewOpened: view().reviewPanel.opened(),
     onReviewToggle: () => view().reviewPanel.toggle(),
+    workspaceEnabled: props.workspaceEnabled,
+    onToggleWorkspace: props.onToggleWorkspace,
   }))
 
   const selectApp = (app: OpenApp) => {
@@ -440,6 +442,24 @@ export function SessionHeader() {
                     </div>
                   </Show>
                   <div class="flex items-center gap-1">
+                    <Show when={props.workspaceEnabled && props.onToggleWorkspace}>
+                      <Button
+                        variant="ghost"
+                        class="titlebar-icon w-8 h-6 p-0 box-border shrink-0 text-11-emphasis"
+                        classList={{
+                          "text-v2-blue-600 bg-v2-interactive-interactive-primary-bg": props.workspaceEnabled!(),
+                        }}
+                        onClick={props.onToggleWorkspace}
+                        aria-label={
+                          props.workspaceEnabled!()
+                            ? language.t("autonomousWorkspace.toggle.disable")
+                            : language.t("autonomousWorkspace.toggle.enable")
+                        }
+                        aria-pressed={props.workspaceEnabled!()}
+                      >
+                        ◎
+                      </Button>
+                    </Show>
                     <Show when={status()}>
                       <Tooltip placement="bottom" value={language.t("status.popover.trigger")}>
                         <StatusPopover />
@@ -524,13 +544,47 @@ type SessionHeaderV2ActionsState = {
   reviewVisible: boolean
   reviewOpened: boolean
   onReviewToggle: () => void
+  workspaceEnabled?: () => boolean
+  onToggleWorkspace?: () => void
 }
 
 function SessionHeaderV2Actions(props: { state: SessionHeaderV2ActionsState }) {
   const language = useLanguage()
 
   return (
-    <div class="flex items-center gap-2">
+    <div class="flex items-center gap-1.5">
+      <Show when={props.state.workspaceEnabled && props.state.onToggleWorkspace}>
+        <TooltipV2
+          class="shrink-0"
+          placement="bottom"
+          value={
+            props.state.workspaceEnabled!()
+              ? language.t("autonomousWorkspace.toggle.disable")
+              : language.t("autonomousWorkspace.toggle.enable")
+          }
+        >
+          <IconButtonV2
+            type="button"
+            variant="ghost-muted"
+            size="large"
+            class="!w-9 shrink-0 transition-colors"
+            classList={{
+              "!text-v2-blue-600 !bg-v2-interactive-interactive-primary-bg": props.state.workspaceEnabled!(),
+            }}
+            state={props.state.workspaceEnabled!() ? "pressed" : undefined}
+            onClick={props.state.onToggleWorkspace}
+            aria-label={
+              props.state.workspaceEnabled!()
+                ? language.t("autonomousWorkspace.toggle.disable")
+                : language.t("autonomousWorkspace.toggle.enable")
+            }
+            aria-pressed={props.state.workspaceEnabled!()}
+            icon={
+              <span class="text-sm font-bold select-none leading-none">◎</span>
+            }
+          />
+        </TooltipV2>
+      </Show>
       <Show when={props.state.statusVisible}>
         <Tooltip placement="bottom" value={props.state.statusLabel}>
           <StatusPopoverV2 scope="server" />

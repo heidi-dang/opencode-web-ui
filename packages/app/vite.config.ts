@@ -79,7 +79,7 @@ export default defineConfig(({ mode }) => {
   } catch {
     // Production and non-v0 environments provide secrets through process.env.
   }
-  for (const key of ["APP_ENCRYPTION_KEY", "APP_ENCRYPTION_KEY_2", "CONTROL_PLANE_DB"]) {
+  for (const key of ["APP_ENCRYPTION_KEY", "APP_ENCRYPTION_KEY_2", "CONTROL_PLANE_DB", "OPENCODE_ALLOWED_SERVERS", "WEBUI_BIND_HOST"]) {
     const value = process.env[key] || env[key] || projectEnv[key]
     if (value) process.env[key] = value
   }

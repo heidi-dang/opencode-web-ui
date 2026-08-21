@@ -460,14 +460,14 @@ export const Terminal = (props: TerminalProps) => {
       if (local.autoFocus === true) {
         focusTerminal()
         local.onAutoFocus?.()
-      }
-      if (local.autoFocus !== true) {
+      } else {
         const restoreFocus = () => {
           const current = document.activeElement
-          if (current !== container && !container.contains(current)) return
-          t.blur()
-          t.textarea?.blur()
-          if (active instanceof HTMLElement && active.isConnected) active.focus()
+          if (current && (current === container || container.contains(current))) {
+            t.blur()
+            t.textarea?.blur()
+            if (active instanceof HTMLElement && active.isConnected) active.focus()
+          }
         }
         restoreFocus()
         const timer = setTimeout(restoreFocus, 0)

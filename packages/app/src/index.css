@@ -2,13 +2,10 @@
 @import "@opencode-ai/session-ui/styles";
 @import "@opencode-ai/ui/v2/styles/tailwind.css";
 @import "tw-animate-css";
-/* ─── Missing design-token aliases ──────────────────────────────────────────
-   The UI-library @theme maps most tokens but omits some common aliases used
-   by Fleet, FlowDeck, and other pages.  We fill the gaps here so that any
-   component class (shadcn-style or v2-style) resolves to a real CSS variable.
-──────────────────────────────────────────────────────────────────────────── */
+
+/* ─── Unified Design Tokens (Midnight Graphite + Restrained Aurora) ────────── */
 @theme {
-  /* Shadcn-style aliases used by Fleet */
+  /* Shadcn-style aliases used across features */
   --color-card: var(--surface-raised-strong);
   --color-card-foreground: var(--text-strong);
   --color-muted: var(--surface-weak);
@@ -25,24 +22,29 @@
   --color-destructive-foreground: #ffffff;
   --color-input: var(--input-base);
 
-  /* v2 token aliases used by FlowDeck */
+  /* v2 token aliases */
   --color-v2-background-bg-raised: var(--v2-background-bg-layer-01);
   --color-v2-background-bg-sunken: var(--v2-background-bg-deep);
   --color-v2-border-border-default: var(--v2-border-border-base);
   --color-v2-interactive-interactive-primary: var(--v2-blue-600);
-  --color-v2-interactive-interactive-primary-bg: rgba(59, 130, 246, 0.12);
+  --color-v2-interactive-interactive-primary-bg: rgba(56, 189, 248, 0.12);
   --color-v2-status-danger-fg: var(--v2-state-fg-danger);
 }
 
-
-
-
-/* ─── v2 typography utility classes used by FlowDeck dashboard ────────── */
+/* ─── Typography Utility Classes ────────────────────────────────────────── */
 .text-11-regular {
   font-family: var(--v2-font-family-sans, "Inter", sans-serif);
   font-size: 11px;
   font-style: normal;
   font-weight: var(--font-weight-body, 440);
+  line-height: 16px;
+  letter-spacing: var(--v2-tracking-body, -0.04px);
+}
+.text-11-emphasis {
+  font-family: var(--v2-font-family-sans, "Inter", sans-serif);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: var(--font-weight-emphasis, 530);
   line-height: 16px;
   letter-spacing: var(--v2-tracking-body, -0.04px);
 }
@@ -60,6 +62,22 @@
   font-style: normal;
   font-weight: var(--font-weight-emphasis, 530);
   line-height: 16px;
+  letter-spacing: var(--v2-tracking-body, -0.04px);
+}
+.text-13-regular {
+  font-family: var(--v2-font-family-sans, "Inter", sans-serif);
+  font-size: 13px;
+  font-style: normal;
+  font-weight: var(--font-weight-body, 440);
+  line-height: 18px;
+  letter-spacing: var(--v2-tracking-body, -0.04px);
+}
+.text-13-emphasis {
+  font-family: var(--v2-font-family-sans, "Inter", sans-serif);
+  font-size: 13px;
+  font-style: normal;
+  font-weight: var(--font-weight-emphasis, 530);
+  line-height: 18px;
   letter-spacing: var(--v2-tracking-body, -0.04px);
 }
 .text-14-regular {
@@ -103,71 +121,9 @@
   font-display: swap;
 }
 
-
-/* ─── v2 typography utility classes used by FlowDeck dashboard ────────── */
-.text-11-regular {
-  font-family: var(--v2-font-family-sans, "Inter", sans-serif);
-  font-size: 11px;
-  font-style: normal;
-  font-weight: var(--font-weight-body, 440);
-  line-height: 16px;
-  letter-spacing: var(--v2-tracking-body, -0.04px);
-}
-.text-12-regular {
-  font-family: var(--v2-font-family-sans, "Inter", sans-serif);
-  font-size: 12px;
-  font-style: normal;
-  font-weight: var(--font-weight-body, 440);
-  line-height: 16px;
-  letter-spacing: var(--v2-tracking-body, -0.04px);
-}
-.text-12-emphasis {
-  font-family: var(--v2-font-family-sans, "Inter", sans-serif);
-  font-size: 12px;
-  font-style: normal;
-  font-weight: var(--font-weight-emphasis, 530);
-  line-height: 16px;
-  letter-spacing: var(--v2-tracking-body, -0.04px);
-}
-.text-14-regular {
-  font-family: var(--v2-font-family-sans, "Inter", sans-serif);
-  font-size: 14px;
-  font-style: normal;
-  font-weight: var(--font-weight-body, 440);
-  line-height: 20px;
-  letter-spacing: var(--v2-tracking-body, -0.04px);
-}
-.text-14-emphasis {
-  font-family: var(--v2-font-family-sans, "Inter", sans-serif);
-  font-size: 14px;
-  font-style: normal;
-  font-weight: var(--font-weight-emphasis, 530);
-  line-height: 20px;
-  letter-spacing: var(--v2-tracking-body, -0.04px);
-}
-.text-16-emphasis {
-  font-family: var(--v2-font-family-sans, "Inter", sans-serif);
-  font-size: 16px;
-  font-style: normal;
-  font-weight: var(--font-weight-emphasis, 530);
-  line-height: 24px;
-  letter-spacing: var(--v2-tracking-body, -0.04px);
-}
-.text-22-emphasis {
-  font-family: var(--v2-font-family-sans, "Inter", sans-serif);
-  font-size: 22px;
-  font-style: normal;
-  font-weight: var(--font-weight-emphasis, 530);
-  line-height: 28px;
-  letter-spacing: var(--v2-tracking-body, -0.04px);
-}
-
-
-/* ─── Premium workspace finish ────────────────────────────────────────────────
-   A restrained graphite system with one cool focus accent. Keep this layer
-   last so shared package styles resolve through the app's final surface rules.
-────────────────────────────────────────────────────────────────────────────── */
+/* ─── Premium Midnight Graphite Palette ────────────────────────────────────── */
 :root {
+<<<<<<< HEAD
   --workspace-canvas: var(--background-base);
   --workspace-surface-1: color-mix(in srgb, var(--background-base) 96%, white 4%);
   --workspace-surface-2: color-mix(in srgb, var(--surface-raised-strong) 94%, white 6%);
@@ -194,6 +150,58 @@
   --workspace-surface-1: #f7f8fa;
   --workspace-surface-2: #ffffff;
   --workspace-floating: #ffffff;
+=======
+  --graphite-ink: #0c1015;
+  --graphite-deep: #090d12;
+  --graphite-layer-01: #12171f;
+  --graphite-layer-02: #18202c;
+  --graphite-layer-03: #202a3a;
+  --graphite-border: rgba(255, 255, 255, 0.08);
+  --graphite-border-hover: rgba(255, 255, 255, 0.16);
+  --graphite-border-strong: rgba(255, 255, 255, 0.22);
+  --graphite-text-strong: #edf2f7;
+  --graphite-text-base: #cbd5e1;
+  --graphite-text-muted: #8494a7;
+  --graphite-text-faint: #546478;
+  --graphite-accent: #38bdf8;
+  --graphite-accent-muted: #0284c7;
+
+  --workspace-focus: #38bdf8;
+  --workspace-focus-soft: rgba(56, 189, 248, 0.14);
+  --workspace-surface: var(--graphite-layer-01);
+  --workspace-surface-raised: var(--graphite-layer-02);
+  --workspace-border: var(--graphite-border);
+  --workspace-shadow: 0 16px 40px -8px rgba(0, 0, 0, 0.45);
+}
+
+[data-color-scheme="dark"] {
+  --background-base: var(--graphite-ink);
+  --surface-base: var(--graphite-ink);
+  --surface-raised-strong: var(--graphite-layer-01);
+  --surface-base-hover: var(--graphite-layer-02);
+  --border-weak-base: var(--graphite-border);
+  --border-strong-base: var(--graphite-border-hover);
+  --text-strong: var(--graphite-text-strong);
+  --text-base: var(--graphite-text-base);
+  --text-weak: var(--graphite-text-muted);
+  --v2-background-bg-base: var(--graphite-ink);
+  --v2-background-bg-deep: var(--graphite-deep);
+  --v2-background-bg-layer-01: var(--graphite-layer-01);
+  --v2-background-bg-layer-02: var(--graphite-layer-02);
+  --v2-background-bg-layer-03: var(--graphite-layer-03);
+  --v2-border-border-base: var(--graphite-border);
+  --v2-border-border-muted: rgba(255, 255, 255, 0.05);
+  --v2-border-border-strong: var(--graphite-border-strong);
+  --v2-text-text-base: var(--graphite-text-strong);
+  --v2-text-text-muted: var(--graphite-text-muted);
+  --v2-text-text-faint: var(--graphite-text-faint);
+  --v2-blue-600: var(--graphite-accent);
+  --v2-icon-icon-accent: var(--graphite-accent);
+}
+
+[data-color-scheme="dark"] #root {
+  background: var(--graphite-ink);
+>>>>>>> origin/encryption-key-configuration
 }
 
 ::selection {
@@ -215,15 +223,24 @@
   box-shadow: 0 0 0 3px var(--workspace-focus-soft);
 }
 
-:where([data-component="dialog"], [data-slot="dialog-content"], [data-component="popover-content"], [data-slot="popover-content"]) {
-  border-color: var(--workspace-border);
+/* ─── Glassmorphism & Panel Surfaces ───────────────────────────────────────── */
+.glass-panel {
+  background: color-mix(in srgb, var(--v2-background-bg-layer-01) 85%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--workspace-border);
   box-shadow: var(--workspace-shadow);
 }
 
-:where([data-component="sidebar-rail"], [data-component="sidebar-panel"], [data-component="sidebar-nav-desktop"]) {
-  border-color: var(--workspace-border);
+.glass-card {
+  background: color-mix(in srgb, var(--v2-background-bg-layer-01) 90%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid var(--workspace-border);
+  transition: transform 150ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 150ms cubic-bezier(0.16, 1, 0.3, 1), border-color 150ms ease;
 }
 
+<<<<<<< HEAD
 [data-component="sidebar-rail"] {
   background: var(--workspace-surface-1);
   border-right: 1px solid var(--workspace-border);
@@ -233,14 +250,21 @@
 [data-component="sidebar-rail"] [data-component="icon-button"]:hover:not(:disabled) {
   background: var(--workspace-focus-soft);
   color: var(--text-strong);
+=======
+.glass-card:hover {
+  transform: translateY(-1px);
+  border-color: var(--graphite-border-hover);
+  box-shadow: 0 8px 24px -4px rgba(0, 0, 0, 0.35);
+>>>>>>> origin/encryption-key-configuration
 }
 
+/* ─── Titlebar and Navigation ──────────────────────────────────────────────── */
 [data-component="titlebar"],
 [data-slot="titlebar-v2"] {
   border-bottom: 1px solid var(--workspace-border);
-  background: color-mix(in srgb, var(--background-base) 88%, transparent);
-  backdrop-filter: blur(18px);
-  -webkit-backdrop-filter: blur(18px);
+  background: color-mix(in srgb, var(--background-base) 92%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 
 [data-slot="titlebar-tab-item"] {
@@ -256,52 +280,47 @@
   box-shadow: inset 0 -2px 0 var(--workspace-focus);
 }
 
+<<<<<<< HEAD
 :where([data-component="card"], [data-slot="card"], .glass-card, .glass-panel) {
   border-color: var(--workspace-border);
   background: var(--workspace-surface-2);
+=======
+/* ─── Sidebar ─────────────────────────────────────────────────────────────── */
+[data-component="sidebar-rail"] {
+  background: var(--workspace-surface) !important;
+  border-right: 1px solid var(--workspace-border);
+>>>>>>> origin/encryption-key-configuration
 }
 
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 1ms !important;
-    animation-iteration-count: 1 !important;
-    scroll-behavior: auto !important;
-    transition-duration: 1ms !important;
-  }
-}
-
-[data-slot="home-projects-scroll"] {
-  scrollbar-gutter: stable;
-}
-
-[data-slot="home-projects-scroll"] [data-component="home-project-nav-button"],
-[data-slot="home-projects-scroll"] button {
-  border: 1px solid transparent;
-  border-radius: 8px;
-  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
-}
-
-[data-slot="home-projects-scroll"] [data-component="home-project-nav-button"]:hover,
-[data-slot="home-projects-scroll"] button:hover {
+[data-component="sidebar-rail"] [data-component="icon-button-v2"]:hover:not(:disabled),
+[data-component="sidebar-rail"] [data-component="icon-button"]:hover:not(:disabled) {
   background: var(--workspace-focus-soft);
-  border-color: color-mix(in srgb, var(--workspace-focus) 22%, transparent);
-}
-
-[data-slot="home-projects-scroll"] [data-selected=""] {
-  background: color-mix(in srgb, var(--workspace-focus) 12%, transparent);
-  border-color: color-mix(in srgb, var(--workspace-focus) 30%, transparent);
   color: var(--text-strong);
 }
 
+:where([data-component="sidebar-rail"], [data-component="sidebar-panel"], [data-component="sidebar-nav-desktop"]) {
+  border-color: var(--workspace-border);
+}
+
+/* ─── Single Unified Session Prompt Dock Ownership ────────────────────────── */
 [data-component="session-prompt-dock"] {
   border-top: 1px solid var(--workspace-border);
+<<<<<<< HEAD
   background: color-mix(in srgb, var(--workspace-canvas) 94%, transparent);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
+=======
+  background: color-mix(in srgb, var(--background-base) 94%, transparent);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+>>>>>>> origin/encryption-key-configuration
 }
 
 [data-component="session-prompt-dock"] .prompt-composer-stack {
+  display: flex;
+  flex-direction: column;
   gap: 0;
+<<<<<<< HEAD
   filter: drop-shadow(0 12px 28px color-mix(in srgb, var(--background-base) 38%, transparent));
 }
 
@@ -343,8 +362,139 @@
 [data-component="session-prompt-dock"] [data-component="prompt-input-v2"]:focus-within {
   border-color: var(--workspace-border-active);
   box-shadow: 0 0 0 3px var(--workspace-focus-soft), var(--workspace-shadow-soft);
+=======
+  filter: drop-shadow(0 14px 28px rgba(0, 0, 0, 0.4));
 }
 
+[data-component="session-prompt-dock"] [data-component="streaming-status-bar"] {
+  position: relative;
+  z-index: 1;
+  min-height: 30px;
+  padding: 5px 14px;
+  border: 1px solid var(--workspace-border);
+  border-bottom: 0;
+  border-radius: 12px 12px 0 0;
+  background: color-mix(in srgb, var(--v2-background-bg-layer-01) 92%, transparent);
+  color: var(--text-weak);
+}
+
+[data-component="session-prompt-dock"] [data-component="prompt-input-v2"] {
+  border: 1px solid var(--workspace-border);
+  border-radius: 12px;
+  background: var(--v2-background-bg-base);
+  box-shadow: 0 4px 16px -2px rgba(0, 0, 0, 0.25);
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+[data-component="session-prompt-dock"]:has([data-component="streaming-status-bar"]) [data-component="prompt-input-v2"] {
+  border-top: 1px solid var(--workspace-border);
+  border-radius: 0 0 12px 12px;
+}
+
+[data-component="session-prompt-dock"] [data-component="prompt-input-v2"]:focus-within {
+  border-color: var(--workspace-focus) !important;
+  box-shadow: 0 0 0 3px var(--workspace-focus-soft), 0 6px 20px -2px rgba(0, 0, 0, 0.35);
+>>>>>>> origin/encryption-key-configuration
+}
+
+/* ─── Streaming Status & Waveform ─────────────────────────────────────────── */
+.streaming-status-bar {
+  background: color-mix(in srgb, var(--v2-background-bg-layer-01) 94%, transparent);
+  border-top: 1px solid var(--workspace-border);
+}
+
+.status-text-verbose,
+.streaming-status-bar .status-text-verbose {
+  display: block;
+  flex: 0 1 auto;
+  min-width: 90px;
+  min-height: 16px;
+  max-width: 22rem;
+}
+
+@keyframes status-phrase-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes status-phrase-out {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(-4px); }
+}
+
+.status-phrase-enter {
+  animation: status-phrase-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.status-phrase-exit {
+  animation: status-phrase-out 0.25s ease-in both;
+}
+
+.status-text-compact {
+  display: none;
+}
+
+.streaming-status-telemetry {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--text-strong);
+  font-family: var(--font-family-mono, monospace);
+  font-size: 11px;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  padding: 2px 8px;
+  border: 1px solid var(--workspace-border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--v2-background-bg-layer-02) 80%, transparent);
+}
+
+.streaming-token-usage {
+  color: var(--text-strong);
+  font-weight: 520;
+  letter-spacing: -0.01em;
+}
+
+.streaming-cost {
+  color: var(--text-weak);
+}
+
+@keyframes glow-pulse {
+  0%, 100% {
+    box-shadow: 0 0 8px rgba(56, 189, 248, 0.25);
+  }
+  50% {
+    box-shadow: 0 0 16px rgba(56, 189, 248, 0.45);
+  }
+}
+
+.streaming-active-glow {
+  animation: glow-pulse 2s var(--v2-motion-easing-standard) infinite;
+  border-radius: 8px;
+}
+
+@keyframes live-status-ping {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 5px rgba(16, 185, 129, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+  }
+}
+
+.status-pulse-emerald {
+  animation: live-status-ping 2s infinite;
+}
+
+/* ─── Settings & Cards ────────────────────────────────────────────────────── */
 [data-component="settings-v2-list"] {
   overflow: hidden;
   border: 1px solid var(--workspace-border);
@@ -353,8 +503,8 @@
 }
 
 [data-component="settings-v2-row"] {
-  min-height: 64px;
-  padding: 14px 16px;
+  min-height: 56px;
+  padding: 12px 16px;
   border-bottom: 1px solid var(--workspace-border);
   transition: background-color 140ms ease;
 }
@@ -364,7 +514,7 @@
 }
 
 [data-component="settings-v2-row"]:hover {
-  background: color-mix(in srgb, var(--workspace-focus) 6%, transparent);
+  background: var(--workspace-focus-soft);
 }
 
 [data-slot="settings-v2-row-title"] {
@@ -385,6 +535,7 @@
   background: color-mix(in srgb, var(--surface-raised-strong) 72%, transparent);
 }
 
+<<<<<<< HEAD
 @media (display-mode: standalone) {
   /* WebKit excludes safe-area insets from dvh in installed apps. */
   #root {
@@ -877,6 +1028,9 @@
 /* --- Polished UI Enhancements & Micro-Effects --- */
 
 /* Custom Smooth Translucent Scrollbars */
+=======
+/* ─── Custom Scrollbars ───────────────────────────────────────────────────── */
+>>>>>>> origin/encryption-key-configuration
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -887,7 +1041,7 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(140, 150, 170, 0.2);
+  background: rgba(140, 150, 170, 0.22);
   border-radius: 4px;
   transition: background-color 0.2s ease;
 }
@@ -896,7 +1050,6 @@
   background: rgba(140, 150, 170, 0.4);
 }
 
-/* Polished Keybind Shortcuts */
 kbd, [data-slot="desktop-app-menu-keybind"] {
   display: inline-flex;
   align-items: center;
@@ -912,125 +1065,29 @@ kbd, [data-slot="desktop-app-menu-keybind"] {
   color: var(--text-weak);
 }
 
-/* AI Thinking & Streaming Glowing Accents */
-@keyframes glow-pulse {
-  0%, 100% {
-    box-shadow: var(--v2-glow-accent-sm);
-  }
-  50% {
-    box-shadow: var(--v2-glow-accent-md);
-  }
-}
-
-.streaming-active-glow {
-  animation: glow-pulse 2s var(--v2-motion-easing-standard) infinite;
-  border-radius: var(--radius-lg, 8px);
-}
-
-/* ─── prefers-reduced-motion ─────────────────────────────────────────────────
-   Disable all non-essential animations & transitions for users who have
-   enabled "Reduce Motion" in their OS accessibility settings (iOS, macOS,
-   Android, Windows). Covers our custom keyframes AND Tailwind transitions.
-──────────────────────────────────────────────────────────────────────────── */
-@media (prefers-reduced-motion: reduce) {
-  /* Stop our custom glow/streaming animation */
-  .streaming-active-glow {
-    animation: none;
+/* ─── Safe Area Insets (iPhone notch / home indicator) ─────────────────────── */
+@supports (padding: max(0px)) {
+  #root {
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
   }
 
-  /* Stop enhanced streaming animations */
-  .streaming-active-glow-enhanced,
-  .streaming-border-animated,
-  .streaming-status-bar {
-    animation: none;
-    background: var(--v2-background-bg-layer-01);
-  }
-
-  /* Stop todo dock animations */
-  .todo-dot-glow,
-  .todo-complete-flash,
-  .status-pulse-emerald {
-    animation: none;
-  }
-
-  /* Stop the title-bar update loader spin */
-  [data-slot="titlebar-update-loader"] {
-    animation: none;
-  }
-
-  /* Neutralize all CSS transitions globally (sidebar slide, opacity fades, etc.) */
-  *,
-  ::before,
-  ::after {
-    animation-duration: 0.001ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.001ms !important;
-    scroll-behavior: auto !important;
-  }
-}
-
-/* ─── prefers-contrast: more ─────────────────────────────────────────────────
-   Increase visual distinction between UI elements when the user requests
-   higher contrast in OS accessibility settings.
-──────────────────────────────────────────────────────────────────────────── */
-@media (prefers-contrast: more) {
-  /* Strengthen all border colours */
-  [class*="border-"] {
-    border-color: rgba(200, 200, 220, 0.5) !important;
-  }
-
-  /* Ensure weak text is still readable */
-  [class*="text-weak"],
-  [class*="text-weaker"],
-  [data-slot="desktop-app-menu-keybind"] {
-    color: rgba(220, 220, 240, 0.85) !important;
-  }
-
-  /* Keyboard shortcut badges — boost legibility */
-  kbd,
-  [data-slot="desktop-app-menu-keybind"] {
-    background: rgba(255, 255, 255, 0.12) !important;
-    border-color: rgba(255, 255, 255, 0.35) !important;
-  }
-
-  /* Mobile sidebar gets a crisper edge */
   [data-component="sidebar-nav-mobile"] {
-    border-right-width: 2px;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  [data-component="titlebar"][data-position="bottom"] {
+    padding-bottom: max(env(safe-area-inset-bottom, 0px), 4px);
   }
 }
 
-/* ─── forced-colors (Windows High Contrast Mode) ─────────────────────────────
-   Ensure custom decorative elements don't render as invisible blocks.
-   The browser re-colours most text & buttons automatically; we only need
-   to handle decorative backgrounds and box-shadows.
-──────────────────────��───────────────────────────────────────────────────── */
-@media (forced-colors: active) {
-  /* Let the OS control our custom scrollbar — hide the Webkit overrides */
-  ::-webkit-scrollbar,
-  ::-webkit-scrollbar-track,
-  ::-webkit-scrollbar-thumb {
-    display: none;
-  }
-
-  /* Remove decorative glows that force-colors can't translate */
-  .streaming-active-glow {
-    animation: none;
-    box-shadow: none;
-    outline: 2px solid Highlight;
-  }
-
-  /* Ensure mobile sidebar overlay backdrop is visible */
-  [data-component="sidebar-nav-mobile"] {
-    border-right: 2px solid ButtonText;
-  }
-
-  /* Title-bar update badge */
-  [data-slot="titlebar-update-loader"] {
-    border-color: ButtonText;
-    animation: none;
+@media (display-mode: standalone) {
+  #root {
+    height: 100vh;
   }
 }
 
+<<<<<<< HEAD
 /* ─── Premium Glassmorphism & UI Polish Design Tokens ─────────────────────────── */
 /* Uses Deep Aurora semantic tokens from packages/ui/src/v2/styles/theme.css  */
 .glass-panel {
@@ -1133,16 +1190,29 @@ kbd, [data-slot="desktop-app-menu-keybind"] {
   outline-offset: 2px;
 }
 
+=======
+/* ─── Responsive Adjustments ──────────────────────────────────────────────── */
+>>>>>>> origin/encryption-key-configuration
 @media (max-width: 640px) {
-  [data-component="streaming-status-bar"] {
-    padding-inline: 12px;
+  [data-component="session-prompt-dock"] {
+    padding-inline: 0;
   }
 
+  [data-component="session-prompt-dock"] [data-component="streaming-status-bar"] {
+    padding-inline: 10px;
+    border-radius: 0;
+  }
+
+  [data-component="session-prompt-dock"] [data-component="prompt-input-v2"] {
+    border-radius: 10px;
+  }
+
+  .status-text-verbose,
   [data-component="streaming-status-bar"] .status-text-verbose {
-    min-width: 0;
-    flex: 1;
+    display: none !important;
   }
 
+<<<<<<< HEAD
   [data-component="streaming-status-bar"] .streaming-status-telemetry {
     gap: 5px;
   }
@@ -1539,10 +1609,14 @@ kbd, [data-slot="desktop-app-menu-keybind"] {
   .progress-ring-container {
     width: 22px;
     height: 22px;
+=======
+  .status-text-compact {
+    display: block !important;
+>>>>>>> origin/encryption-key-configuration
   }
 
   .streaming-status-telemetry {
-    gap: 5px;
+    gap: 4px;
     max-width: min(58vw, 180px);
     padding: 1px 6px;
   }
@@ -1556,6 +1630,19 @@ kbd, [data-slot="desktop-app-menu-keybind"] {
   .streaming-cost {
     display: none;
   }
+
+  [data-session-id] {
+    min-height: 42px;
+  }
+
+  [data-action="project-switch"] {
+    min-width: 40px;
+    min-height: 40px;
+  }
+
+  :where(button, a, input, textarea, select) {
+    touch-action: manipulation;
+  }
 }
 
 @media (max-width: 390px) {
@@ -1565,7 +1652,81 @@ kbd, [data-slot="desktop-app-menu-keybind"] {
 }
 
 @media (min-width: 641px) {
+  .status-text-compact,
   .streaming-status-bar .status-text-compact {
+    display: none !important;
+  }
+}
+
+/* ─── Accessibility: prefers-reduced-motion ────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .streaming-active-glow,
+  .streaming-active-glow-enhanced,
+  .streaming-border-animated,
+  .streaming-status-bar,
+  .todo-dot-glow,
+  .todo-complete-flash,
+  .status-pulse-emerald,
+  [data-slot="titlebar-update-loader"],
+  .shimmer-wave {
+    animation: none !important;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ─── Accessibility: prefers-contrast: more ────────────────────────────────── */
+@media (prefers-contrast: more) {
+  [class*="border-"],
+  :where([data-component="card"], [data-slot="card"], .glass-card, .glass-panel) {
+    border-color: rgba(220, 230, 245, 0.5) !important;
+  }
+
+  [class*="text-weak"],
+  [class*="text-weaker"],
+  [data-slot="desktop-app-menu-keybind"] {
+    color: rgba(220, 230, 245, 0.9) !important;
+  }
+
+  kbd,
+  [data-slot="desktop-app-menu-keybind"] {
+    background: rgba(255, 255, 255, 0.14) !important;
+    border-color: rgba(255, 255, 255, 0.4) !important;
+  }
+
+  [data-component="sidebar-nav-mobile"] {
+    border-right-width: 2px;
+  }
+}
+
+/* ─── Accessibility: forced-colors (High Contrast) ─────────────────────────── */
+@media (forced-colors: active) {
+  ::-webkit-scrollbar,
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-thumb {
     display: none;
+  }
+
+  .streaming-active-glow {
+    animation: none;
+    box-shadow: none;
+    outline: 2px solid Highlight;
+  }
+
+  [data-component="sidebar-panel"],
+  [data-component="sidebar-rail"],
+  .glass-panel,
+  .glass-card {
+    background: Canvas !important;
+    border: 1px solid CanvasText !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
   }
 }
