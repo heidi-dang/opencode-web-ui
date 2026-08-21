@@ -50,7 +50,7 @@ export function PromptInputV2Composer(props: PromptInputV2ComposerProps) {
   const language = useLanguage()
 
   return (
-    <div class="flex flex-col gap-3">
+    <div class="flex flex-col w-full">
       <PromptInputV2
         controller={props.controller}
         borderUnderlay={props.borderUnderlay}

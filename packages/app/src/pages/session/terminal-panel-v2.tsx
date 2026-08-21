@@ -233,7 +233,8 @@ export function TerminalPanelV2(props: { stacked?: boolean } = {}) {
           }
         >
           <DragDropProvider
-            sensors={[
+            sensors={(defaults) => [
+              ...defaults.filter((sensor) => sensor !== PointerSensor),
               PointerSensor.configure({
                 activationConstraints: [new PointerActivationConstraints.Distance({ value: 4 })],
                 preventActivation: (event) =>

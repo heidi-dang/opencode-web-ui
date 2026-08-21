@@ -26,7 +26,13 @@ type Context = {
 }
 
 const tokenTotal = (msg: AssistantMessage) => {
-  return msg.tokens.input + msg.tokens.output + msg.tokens.reasoning + msg.tokens.cache.read + msg.tokens.cache.write
+  if (!msg.tokens) return 0
+  const input = msg.tokens.input ?? 0
+  const output = msg.tokens.output ?? 0
+  const reasoning = msg.tokens.reasoning ?? 0
+  const cacheRead = msg.tokens.cache?.read ?? 0
+  const cacheWrite = msg.tokens.cache?.write ?? 0
+  return input + output + reasoning + cacheRead + cacheWrite
 }
 
 const lastAssistantWithTokens = (messages: Message[]) => {

@@ -347,8 +347,8 @@ function SessionPanelFrame(props: ParentProps<{ newLayout: boolean; raised?: boo
         "flex-1 min-h-0 flex flex-col": true,
         "bg-v2-background-bg-base": props.newLayout,
         "bg-background-stronger": !props.newLayout,
-        "rounded-[10px] overflow-hidden": props.newLayout,
-        "shadow-[var(--v2-elevation-raised)]": props.newLayout && props.raised,
+        "md:rounded-xl overflow-hidden": props.newLayout,
+        "md:shadow-[var(--v2-elevation-raised)]": props.newLayout && props.raised,
       }}
     >
       {props.children}
@@ -569,11 +569,11 @@ export default function Page() {
       files: desktopFileTreeOpen(),
     }),
   )
-  const workspaceTerminal = createMemo(() => {
-    if (!terminalOpen()) return undefined
+  const workspaceTerminal = () => {
+    if (!workspaceEnabled() || !terminalOpen()) return undefined
     if (newSessionDesign()) return <TerminalPanelV2 stacked={desktopV2PanelLayout().stacked} />
     return <TerminalPanel />
-  })
+  }
 
   function normalizeTab(tab: string) {
     if (!tab.startsWith("file://")) return tab
@@ -2118,39 +2118,52 @@ export default function Page() {
   useUsageExceededDialogs()
 
   const mobileTabs = (compact = false, bottom = false) => (
-    <Tabs value={store.mobileTab} class="h-auto">
-      <Tabs.List
-        classList={{
-          "!h-9": compact,
-          "[&::after]:!border-b-0 [&::after]:!border-t [&::after]:!border-border-weak-base": bottom,
-        }}
-      >
-        <Tabs.Trigger
-          value="session"
+    <div
+      data-component="mobile-session-tabs"
+      class="w-full px-3 py-1.5 shrink-0"
+      classList={{
+        "border-t border-border-weak-base bg-v2-background-bg-base": bottom,
+        "border-b border-border-weak-base bg-v2-background-bg-base": !bottom,
+      }}
+    >
+      <div class="relative flex h-8 w-full max-w-sm mx-auto items-center rounded-lg bg-v2-background-bg-layer-01 p-0.5 text-12-emphasis border border-border-weak-base/40">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={store.mobileTab === "session"}
+          class="relative flex-1 h-7 flex items-center justify-center rounded-md px-3 font-medium transition-all duration-150"
           classList={{
-            "!w-1/2 !max-w-none": true,
-            "!border-b-0 !border-t !border-border-weak-base [&:has([data-selected])]:!border-t-transparent": bottom,
+            "bg-v2-background-bg-layer-02 text-text-strong shadow-xs": store.mobileTab === "session",
+            "text-text-weak hover:text-text-base": store.mobileTab !== "session",
           }}
-          classes={{ button: compact ? "w-full !py-2" : "w-full" }}
           onClick={() => setStore("mobileTab", "session")}
         >
           {language.t("session.tab.session")}
-        </Tabs.Trigger>
-        <Tabs.Trigger
-          value="changes"
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={store.mobileTab === "changes"}
+          class="relative flex-1 h-7 flex items-center justify-center gap-1.5 rounded-md px-3 font-medium transition-all duration-150"
           classList={{
-            "!w-1/2 !max-w-none !border-r-0": true,
-            "!border-b-0 !border-t !border-border-weak-base [&:has([data-selected])]:!border-t-transparent": bottom,
+            "bg-v2-background-bg-layer-02 text-text-strong shadow-xs": store.mobileTab === "changes",
+            "text-text-weak hover:text-text-base": store.mobileTab !== "changes",
           }}
-          classes={{ button: compact ? "w-full !py-2" : "w-full" }}
           onClick={() => setStore("mobileTab", "changes")}
         >
-          {hasReview()
-            ? language.t("session.review.filesChanged", { count: reviewCount() })
-            : language.t("session.review.change.other")}
-        </Tabs.Trigger>
-      </Tabs.List>
-    </Tabs>
+          <span>
+            {hasReview()
+              ? language.t("session.review.filesChanged", { count: reviewCount() })
+              : language.t("session.review.change.other")}
+          </span>
+          <Show when={hasReview() && reviewCount() > 0}>
+            <span class="inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-[10px] font-mono font-medium bg-v2-interactive-interactive-primary-bg text-v2-blue-600">
+              {reviewCount()}
+            </span>
+          </Show>
+        </button>
+      </div>
+    </div>
   )
   const mobileTabsBottom = createMemo(
     () => !isDesktop() && settings.general.newLayoutDesigns() && settings.general.mobileTitlebarPosition() === "bottom",
@@ -2373,17 +2386,12 @@ export default function Page() {
 
   return (
     <SessionRouteFrame>
-      <SessionHeader />
-      <Show when={params.id}>
-        <div class="flex shrink-0 justify-end px-3 py-1 md:px-5">
-          <WorkspaceModeToggle enabled={workspaceEnabled} onToggle={toggleWorkspace} />
-        </div>
-      </Show>
+      <SessionHeader workspaceEnabled={workspaceEnabled} onToggleWorkspace={toggleWorkspace} />
       <div
         ref={panelRow}
         class="flex-1 min-h-0 flex flex-col md:flex-row"
         classList={{
-          "gap-2 p-2": settings.general.newLayoutDesigns(),
+          "md:gap-2 md:p-2": settings.general.newLayoutDesigns(),
         }}
       >
         <Show when={!isDesktop() && !!params.id && !settings.general.newLayoutDesigns()}>{mobileTabs()}</Show>
@@ -2516,7 +2524,7 @@ export default function Page() {
       </div>
 
       <Show when={!newSessionDesign()}>
-              <Show when={!workspaceEnabled()}><TerminalPanel /></Show>
+        <Show when={!workspaceEnabled()}><TerminalPanel /></Show>
       </Show>
     </SessionRouteFrame>
   )
