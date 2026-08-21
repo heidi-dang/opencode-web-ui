@@ -116,10 +116,7 @@ function showErrors(input: {
 export const loadGlobalConfigQuery = (scope: ServerScope, sdk: OpencodeClient, protocol?: Promise<ServerProtocol>) =>
   queryOptions({
     queryKey: [scope, "config"],
-    queryFn: async () => {
-      if ((await protocol) !== "v1") return {}
-      return retry(() => sdk.global.config.get().then((x) => x.data!))
-    },
+    queryFn: async () => retry(() => sdk.global.config.get().then((x) => x.data!)),
   })
 
 type ProjectApi = {
