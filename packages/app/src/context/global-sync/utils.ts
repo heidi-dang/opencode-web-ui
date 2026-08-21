@@ -119,8 +119,7 @@ export function normalizeProviderList(
         !Array.isArray(model.capabilities.output) ||
         !Array.isArray(model.cost) ||
         !Array.isArray(model.variants) ||
-        !record(model.time) ||
-        typeof model.time.released !== "number" ||
+        (model.time !== undefined && (!record(model.time) || typeof model.time.released !== "number")) ||
         !record(model.limit),
     )
   ) {

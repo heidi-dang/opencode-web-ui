@@ -165,7 +165,7 @@ export async function mockOpenCodeServer(page: Page, config: MockServerConfig) {
             family: id,
             capabilities: { tools: true, input: ["text"], output: ["text"] },
             variants: [],
-            ...(current.time === undefined ? {} : { time: current.time }),
+            time: (current.time as { released?: number } | undefined) ?? { released: 1700000000000 },
             cost: current.cost ?? [{ input: 0, output: 0, cache: { read: 0, write: 0 } }],
             status: "active",
             enabled: true,
