@@ -141,7 +141,7 @@ export function nodeResponse() {
   return { response, responseReady }
 }
 
-async function apiResponse(request: Request) {
+export async function apiResponse(request: Request) {
   const req = nodeRequest(request)
   const { response, responseReady } = nodeResponse()
   void runtimeMiddleware(req, response, () => {
