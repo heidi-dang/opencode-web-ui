@@ -229,7 +229,7 @@ export async function mockMultiServer(page: Page, configs: MockServerConfig[]) {
     }
 
     const currentSessions = () =>
-      typeof config.sessions === "function" ? config.sessions() : config.sessions
+      (typeof config.sessions === "function" ? config.sessions() : config.sessions) ?? []
 
     const currentAgents = () => {
       const agents = typeof config.agents === "function" ? config.agents() : config.agents
@@ -291,7 +291,7 @@ export async function mockMultiServer(page: Page, configs: MockServerConfig[]) {
       ...createdProviders(),
     ]
 
-    if (path === "/global/config" || path === "/api/global/config") {
+    if (path === "/global/config" || path === "/api/global/config" || path === "/config" || path === "/api/config") {
       if (method === "GET") return json(route, rt.config)
       if (method === "POST" || method === "PATCH" || method === "PUT") {
         const body = request.postDataJSON() as Record<string, unknown> | undefined

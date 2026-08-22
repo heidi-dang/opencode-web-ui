@@ -111,8 +111,10 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
       }
     }
 
+    const backendDefaultAgent = () => sync().data.config.default_agent
+
     const pickAgent = (name: string | undefined) => {
-      return resolveAgent(list(), name)
+      return resolveAgent(list(), name, backendDefaultAgent())
     }
 
     createEffect(() => {
@@ -122,7 +124,8 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
         return
       }
       if (items.some((item) => item.name === store.current)) return
-      setStore("current", items[0]?.name)
+      const resolved = resolveAgent(items, undefined, backendDefaultAgent())
+      setStore("current", resolved?.name)
     })
 
     const scope = createMemo<State | undefined>(() => {
@@ -183,7 +186,7 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
       list,
       visible: agentsVisible,
       current() {
-        return pickAgent(agentsVisible() ? (scope()?.agent ?? store.current) : "build")
+        return pickAgent(scope()?.agent ?? store.current)
       },
       set(name: string | undefined) {
         const item = pickAgent(name)
