@@ -7,19 +7,22 @@ const directory = "C:/OpenCode/RemoteAgentExecution"
 const projectID = "proj_remote_agent_exec"
 const sessionID = "ses_remote_agent_exec"
 const title = "Remote Agent Execution"
-const server = `http://${process.env.PLAYWRIGHT_SERVER_HOST ?? "127.0.0.1"}:${process.env.PLAYWRIGHT_SERVER_PORT ?? "4096"}`
+const server = `http://100.64.0.10:${process.env.PLAYWRIGHT_SERVER_PORT ?? "4096"}`
 
 test.describe("remote-opencode-agent-execution", () => {
   let modelSwitched = false
   let agentSwitched = false
+  let providerRuntimeRefreshed = false
   let promptReceived = false
 
   test.beforeEach(async ({ page }) => {
     modelSwitched = false
     agentSwitched = false
+    providerRuntimeRefreshed = false
     promptReceived = false
 
     await mockOpenCodeServer(page, {
+      serverUrl: server,
       protocol: "v2",
       directory,
       project: {
@@ -56,6 +59,9 @@ test.describe("remote-opencode-agent-execution", () => {
           time: { created: 1700000000000, updated: 1700000000000 },
         },
       ],
+      onInstanceDispose: () => {
+        providerRuntimeRefreshed = true
+      },
       onSwitchModel: () => {
         modelSwitched = true
       },
@@ -63,6 +69,7 @@ test.describe("remote-opencode-agent-execution", () => {
         agentSwitched = true
       },
       onPrompt: () => {
+        expect(providerRuntimeRefreshed).toBe(true)
         promptReceived = true
       },
       pageMessages: () => ({ items: [] }),
@@ -87,7 +94,7 @@ test.describe("remote-opencode-agent-execution", () => {
     )
   })
 
-  test("submits prompt and admits execution", async ({ page }) => {
+  test("submits prompt only after backend-owned provider credentials are reloaded", async ({ page }) => {
     await page.goto(`/server/${base64Encode(server)}/session/${sessionID}`)
     await expectSessionTitle(page, title)
 
@@ -99,6 +106,7 @@ test.describe("remote-opencode-agent-execution", () => {
     const submit = page.getByRole("button", { name: "Send" })
     await submit.click()
 
+    await expect.poll(() => providerRuntimeRefreshed).toBe(true)
     await expect.poll(() => promptReceived).toBe(true)
   })
 })
