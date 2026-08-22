@@ -230,7 +230,7 @@ test.describe("remote-opencode-sse-recovery", () => {
       },
     ])
 
-    await expect(page.getByText("hello ")).toBeVisible()
+    await expect(page.getByText("hello", { exact: true })).toBeVisible()
 
     // Disconnect stream
     await transport.disconnect("Deliberate network disruption during text")
