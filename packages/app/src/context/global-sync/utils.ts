@@ -135,6 +135,9 @@ export function normalizeProviderList(
       env: [],
       options: provider.settings ?? {},
       models: {},
+      ...(typeof (provider as { integrationID?: unknown }).integrationID === "string"
+        ? { integrationID: (provider as { integrationID: string }).integrationID }
+        : {}),
     })
   }
 
@@ -196,7 +199,7 @@ export function normalizeProviderList(
 
   return {
     all,
-    connected: providers.map((provider) => provider.id),
+    connected: [],
     defaultModel: defaultModel ? { providerID: defaultModel.providerID, modelID: defaultModel.id } : null,
     default: Object.fromEntries(
       providers.flatMap((provider) => {

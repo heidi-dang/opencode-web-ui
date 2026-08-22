@@ -48,7 +48,7 @@ describe("SessionRunnerModel", () => {
         model({ type: "aisdk", package: "@ai-sdk/openai", url: "https://openai.example/v1" }),
       )
 
-      expect(resolved).toMatchObject({ id: "api-test-model", provider: "test-provider" })
+      expect(resolved.llm).toMatchObject({ id: "api-test-model", provider: "test-provider" })
       expect(resolved.route).toMatchObject({
         id: "openai-responses",
         endpoint: { baseURL: "https://openai.example/v1" },
@@ -66,7 +66,7 @@ describe("SessionRunnerModel", () => {
       const resolved = yield* SessionRunnerModel.fromCatalogModel(
         model({ type: "aisdk", package: "@ai-sdk/openai", url: "https://openai.example/v1" }),
       )
-      const prepared = yield* LLMClient.prepare(LLM.request({ model: resolved, prompt: "Hello" }))
+      const prepared = yield* LLMClient.prepare(LLM.request({ model: resolved.llm, prompt: "Hello" }))
 
       expect(JSON.stringify(prepared.body)).not.toContain("apiKey")
       expect(JSON.stringify(prepared.body)).not.toContain("secret")
@@ -86,7 +86,7 @@ describe("SessionRunnerModel", () => {
           request: { headers: {}, body: {} },
         }),
       )
-      const request = LLM.request({ model: resolved, prompt: "Hello" })
+      const request = LLM.request({ model: resolved.llm, prompt: "Hello" })
       const headers = yield* resolved.route.auth.apply({
         request,
         method: "POST",
@@ -256,7 +256,7 @@ describe("SessionRunnerModel", () => {
         }),
         Credential.Key.make({ type: "key", key: "secret" }),
       )
-      const request = LLM.request({ model: resolved, prompt: "Hello" })
+      const request = LLM.request({ model: resolved.llm, prompt: "Hello" })
       const headers = yield* resolved.route.auth.apply({
         request,
         method: "POST",
@@ -280,7 +280,7 @@ describe("SessionRunnerModel", () => {
         credential,
       )
       const headers = yield* resolved.route.auth.apply({
-        request: LLM.request({ model: resolved, prompt: "Hello" }),
+        request: LLM.request({ model: resolved.llm, prompt: "Hello" }),
         method: "POST",
         url: "https://openai.example/v1/responses",
         body: "{}",

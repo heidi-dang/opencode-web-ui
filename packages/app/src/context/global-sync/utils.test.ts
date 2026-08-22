@@ -113,7 +113,7 @@ describe("normalizeProviderList", () => {
       { id: "gpt-5", providerID: "openai" } as ModelDefaultOutput["data"],
     )
 
-    expect(result.connected).toEqual(["openai"])
+    expect(result.connected).toEqual([])
     expect(result.defaultModel).toEqual({ providerID: "openai", modelID: "gpt-5" })
     expect(result.default).toEqual({ openai: "gpt-5" })
     expect(result.all.get("openai")?.models["gpt-old"]).toBeUndefined()

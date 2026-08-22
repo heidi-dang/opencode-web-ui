@@ -131,7 +131,7 @@ const apiName = (model: ModelV2.Info) =>
 export const fromCatalogModel = (
   model: ModelV2.Info,
   credential?: Credential.Value,
-): Effect.Effect<{ llm: Model; info: ModelV2.Info }, UnsupportedApiError> => {
+): Effect.Effect<{ llm: Model; info: ModelV2.Info; route: AnyRoute }, UnsupportedApiError> => {
   const resolved =
     credential?.type !== "key" || credential.metadata === undefined
       ? model
@@ -140,26 +140,32 @@ export const fromCatalogModel = (
         })
   const key = apiKey(resolved, credential)
   if (resolved.api.type === "aisdk" && resolved.api.package === "@ai-sdk/openai") {
+    const route = withDefaults(resolved, OpenAIResponses.route).with({
+      auth: key === undefined ? Auth.none : Auth.bearer(key),
+    })
     return Effect.succeed({
-      llm: withDefaults(resolved, OpenAIResponses.route)
-        .with({ auth: key === undefined ? Auth.none : Auth.bearer(key) })
-        .model({ id: resolved.api.id }),
+      route,
+      llm: route.model({ id: resolved.api.id }),
       info: model,
     })
   }
   if (resolved.api.type === "aisdk" && resolved.api.package === "@ai-sdk/anthropic") {
+    const route = withDefaults(resolved, AnthropicMessages.route).with({
+      auth: key === undefined ? Auth.none : Auth.header("x-api-key", key),
+    })
     return Effect.succeed({
-      llm: withDefaults(resolved, AnthropicMessages.route)
-        .with({ auth: key === undefined ? Auth.none : Auth.header("x-api-key", key) })
-        .model({ id: resolved.api.id }),
+      route,
+      llm: route.model({ id: resolved.api.id }),
       info: model,
     })
   }
   if (resolved.api.type === "aisdk" && resolved.api.package === "@ai-sdk/openai-compatible" && resolved.api.url) {
+    const route = withDefaults(resolved, OpenAICompatibleChat.route).with({
+      auth: key === undefined ? Auth.none : Auth.bearer(key),
+    })
     return Effect.succeed({
-      llm: withDefaults(resolved, OpenAICompatibleChat.route)
-        .with({ auth: key === undefined ? Auth.none : Auth.bearer(key) })
-        .model({ id: resolved.api.id }),
+      route,
+      llm: route.model({ id: resolved.api.id }),
       info: model,
     })
   }

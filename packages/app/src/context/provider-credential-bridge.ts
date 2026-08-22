@@ -1,4 +1,4 @@
-const PROVIDER_EXECUTION_METHODS = new Set<PropertyKey>(["switchModel", "prompt", "command", "shell", "compact"])
+const PROVIDER_EXECUTION_METHODS = new Set<PropertyKey>(["switchModel", "prompt", "command", "shell", "compact", "create"])
 const wrappedSDKs = new WeakMap<object, object>()
 
 type BackendInstanceClient = {
@@ -33,10 +33,16 @@ export function isRemoteOpenCodeBackend(url: string) {
 export function providerIDFromExecutionInput(input: unknown) {
   if (!input || typeof input !== "object" || Array.isArray(input)) return
   const model = (input as { model?: unknown }).model
-  if (!model || typeof model !== "object" || Array.isArray(model)) return
-  const providerID = (model as { providerID?: unknown }).providerID
-  if (typeof providerID !== "string" || providerID.length === 0) return
-  return providerID
+  if (model && typeof model === "object" && !Array.isArray(model)) {
+    const providerID =
+      (model as { providerID?: unknown; provider?: unknown }).providerID ??
+      (model as { provider?: unknown }).provider
+    if (typeof providerID === "string" && providerID.length > 0) return providerID
+  }
+  const directProviderID =
+    (input as { providerID?: unknown; provider?: unknown }).providerID ??
+    (input as { provider?: unknown }).provider
+  if (typeof directProviderID === "string" && directProviderID.length > 0) return directProviderID
 }
 
 function createBackendProviderCredentialReloader(client: BackendInstanceClient) {

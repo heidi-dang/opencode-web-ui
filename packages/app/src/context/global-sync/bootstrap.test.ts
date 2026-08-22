@@ -266,21 +266,38 @@ describe("query keys", () => {
       ["model", { location: { directory: "/repo" } }],
       ["default", { location: { directory: "/repo" } }],
     ])
-    expect(result.connected).toEqual(["openai"])
+    expect(result.connected).toEqual([])
   })
 
-  test("uses remote integration connections as provider auth state", async () => {
+  test("uses remote integration connections as provider auth state and maps integrationID correctly", async () => {
     const result = await new QueryClient().fetchQuery(
       loadProvidersQuery(ServerScope.local, "/repo", {
-        provider: { list: async () => ({ location: {}, data: [{ id: "anthropic", name: "Anthropic" }] }) },
+        provider: {
+          list: async () => ({
+            location: {},
+            data: [
+              { id: "anthropic", name: "Anthropic" },
+              { id: "deepseek-9router", name: "DeepSeek", integrationID: "9router" },
+              { id: "unconfigured-provider", name: "Unconfigured" },
+            ],
+          }),
+        },
         model: { list: async () => ({ location: {}, data: [] }), default: async () => ({ location: {}, data: null }) },
         integration: {
-          list: async () => ({ location: {}, data: [{ id: "anthropic", connections: [{ type: "credential", id: "anthropic" }] }] }),
+          list: async () => ({
+            location: {},
+            data: [
+              { id: "anthropic", connections: [{ type: "credential", id: "anthropic" }] },
+              { id: "9router", connections: [{ type: "credential", id: "9router" }] },
+              { id: "unconfigured-provider", connections: [] },
+            ],
+          }),
         },
       } as unknown as CatalogApi),
     )
 
-    expect(result.connected).toEqual(["anthropic"])
+    expect(result.connected).toEqual(["anthropic", "deepseek-9router"])
+    expect(result.connected).not.toContain("unconfigured-provider")
   })
 
   test("keeps providers and models when the optional default endpoint is unsupported", async () => {
@@ -298,7 +315,7 @@ describe("query keys", () => {
       } as unknown as CatalogApi),
     )
 
-    expect(result.connected).toEqual(["openai"])
+    expect(result.connected).toEqual([])
     expect(result.all.size).toBe(1)
   })
 

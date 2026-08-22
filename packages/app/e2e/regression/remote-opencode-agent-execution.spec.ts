@@ -533,4 +533,33 @@ test.describe("remote-opencode-agent-execution", () => {
     await expect(page.getByText("Compilation successful.")).toBeVisible()
     await expect(page.locator('[data-component="user-message"]')).toHaveCount(1)
   })
+
+  test("submits prompt only after backend-owned provider credentials are reloaded on model switch without prompting for client keys", async ({ page }) => {
+    await page.goto(`/server/${base64Encode(server)}/session/${sessionID}`)
+    await expectSessionTitle(page, title)
+
+    const composer = page.locator('[data-component="prompt-input"]')
+    await expect(composer).toBeVisible()
+
+    // Select remote provider model
+    const modelButton = page.locator('[data-action="prompt-model"]')
+    await expect(modelButton).toBeVisible()
+    await modelButton.click()
+
+    const modelOption = page.locator('[role="menuitemradio"]').filter({ hasText: "Claude 3.5 Sonnet" })
+    await expect(modelOption).toBeVisible()
+    await modelOption.click()
+
+    await expect.poll(() => switchedModels.length).toBeGreaterThan(0)
+
+    // Type prompt and submit
+    await composer.click()
+    await page.keyboard.type("Review security policy")
+    await page.getByRole("button", { name: "Send" }).click()
+
+    // Assert backend credentials reload happened before prompt admission
+    await expect.poll(() => promptsReceived.length).toBe(1)
+    // Confirm no dialog asking for user API key appeared
+    await expect(page.locator('[data-component="dialog-connect-provider"]')).toHaveCount(0)
+  })
 })

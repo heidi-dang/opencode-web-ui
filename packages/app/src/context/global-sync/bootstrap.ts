@@ -317,18 +317,24 @@ export const loadProvidersQuery = (
           if (!(error instanceof ClientError) || error.reason !== "UnsupportedContentType") throw error
         }
         const normalized = normalizeProviderList(providers.data, models.data, defaultModel)
-        const connectedRemoteProviders = new Set(
-          ((integrations?.data ?? []) as Array<{ id?: unknown; connections?: unknown }>).flatMap((integration) =>
-            typeof integration.id === "string" && Array.isArray(integration.connections) && integration.connections.length > 0
-              ? [integration.id]
-              : [],
-          ),
-        )
-        if (connectedRemoteProviders.size === 0) return normalized
-        return {
-          ...normalized,
-          connected: Array.from(new Set([...normalized.connected, ...connectedRemoteProviders])).filter((id) => normalized.all.has(id)),
+        if (integrations?.data && Array.isArray(integrations.data)) {
+          const connectedIntegrations = new Set(
+            integrations.data.flatMap((integration) =>
+              typeof integration.id === "string" && Array.isArray(integration.connections) && integration.connections.length > 0
+                ? [integration.id]
+                : [],
+            ),
+          )
+          const connectedProviders = Array.from(normalized.all.values()).flatMap((provider) => {
+            const targetIntegration = (provider as { integrationID?: string }).integrationID || provider.id
+            return connectedIntegrations.has(targetIntegration) ? [provider.id] : []
+          })
+          return {
+            ...normalized,
+            connected: connectedProviders,
+          }
         }
+        return normalized
       }),
   })
 

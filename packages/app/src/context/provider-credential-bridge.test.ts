@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
-import { isRemoteOpenCodeBackend, withBackendProviderCredentials } from "./provider-credential-bridge"
+import { isRemoteOpenCodeBackend, providerIDFromExecutionInput, withBackendProviderCredentials } from "./provider-credential-bridge"
 
-type ExecutionInput = { model?: { providerID?: string } }
+type ExecutionInput = { model?: { providerID?: string; provider?: string }; providerID?: string; provider?: string }
 
 function fakeSDK(input: {
   url?: string
@@ -26,6 +26,7 @@ function fakeSDK(input: {
         command: execute("command"),
         shell: execute("shell"),
         compact: execute("compact"),
+        create: execute("create"),
       },
     },
   }
@@ -39,6 +40,16 @@ describe("backend provider credential bridge", () => {
     expect(isRemoteOpenCodeBackend("http://100.64.0.10:4096")).toBe(true)
     expect(isRemoteOpenCodeBackend("https://opencode-node.example.test")).toBe(true)
     expect(isRemoteOpenCodeBackend("not a url")).toBe(false)
+  })
+
+  test("extracts provider ID from various execution input structures", () => {
+    expect(providerIDFromExecutionInput({ model: { providerID: "anthropic" } })).toBe("anthropic")
+    expect(providerIDFromExecutionInput({ model: { provider: "openai" } })).toBe("openai")
+    expect(providerIDFromExecutionInput({ providerID: "9router" })).toBe("9router")
+    expect(providerIDFromExecutionInput({ provider: "deepseek" })).toBe("deepseek")
+    expect(providerIDFromExecutionInput({})).toBeUndefined()
+    expect(providerIDFromExecutionInput(null)).toBeUndefined()
+    expect(providerIDFromExecutionInput("invalid")).toBeUndefined()
   })
 
   test("reloads backend-owned credentials before the first remote provider execution", async () => {
@@ -72,6 +83,22 @@ describe("backend provider credential bridge", () => {
     await sdk.api.session.prompt({})
 
     expect(events).toEqual(["dispose", "switchModel:router", "prompt:undefined"])
+  })
+
+  test("reloads backend-owned credentials on session create with provider/model", async () => {
+    const events: string[] = []
+    const raw = fakeSDK({
+      dispose: async () => {
+        events.push("dispose")
+        return true
+      },
+      onExecute: (method, value) => events.push(`${method}:${value.model?.providerID}`),
+    })
+    const sdk = withBackendProviderCredentials(raw)
+
+    await sdk.api.session.create({ model: { providerID: "anthropic" } })
+
+    expect(events).toEqual(["dispose", "create:anthropic"])
   })
 
   test("reloads once per provider for a directory SDK", async () => {
