@@ -21,6 +21,7 @@ function fakeSDK(input: {
     },
     api: {
       session: {
+        switchModel: execute("switchModel"),
         prompt: execute("prompt"),
         command: execute("command"),
         shell: execute("shell"),
@@ -54,6 +55,23 @@ describe("backend provider credential bridge", () => {
     await sdk.api.session.prompt({ model: { providerID: "router" } })
 
     expect(events).toEqual(["dispose", "prompt:router"])
+  })
+
+  test("reloads backend-owned credentials on model switch before a model-less prompt", async () => {
+    const events: string[] = []
+    const raw = fakeSDK({
+      dispose: async () => {
+        events.push("dispose")
+        return true
+      },
+      onExecute: (method, value) => events.push(`${method}:${value.model?.providerID}`),
+    })
+    const sdk = withBackendProviderCredentials(raw)
+
+    await sdk.api.session.switchModel({ model: { providerID: "router" } })
+    await sdk.api.session.prompt({})
+
+    expect(events).toEqual(["dispose", "switchModel:router", "prompt:undefined"])
   })
 
   test("reloads once per provider for a directory SDK", async () => {
