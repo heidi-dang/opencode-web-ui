@@ -266,7 +266,78 @@ describe("query keys", () => {
       ["model", { location: { directory: "/repo" } }],
       ["default", { location: { directory: "/repo" } }],
     ])
-    expect(result.connected).toEqual([])
+    expect(result.connected).toEqual(["openai"])
+  })
+
+  test("V2 providers returned by provider.list remain connected when integration.list is unavailable", async () => {
+    const result = await new QueryClient().fetchQuery(
+      loadProvidersQuery(ServerScope.local, "/repo", {
+        provider: {
+          list: async () => ({
+            location: {},
+            data: [
+              { id: "anthropic", name: "Anthropic", package: "@ai-sdk/anthropic" },
+              { id: "custom-router", name: "Custom Router", package: "@ai-sdk/openai-compatible", integrationID: "9router" },
+            ],
+          }),
+        },
+        model: {
+          list: async () => ({
+            location: {},
+            data: [
+              {
+                id: "claude",
+                modelID: "claude",
+                providerID: "anthropic",
+                name: "Claude",
+                capabilities: { tools: true, input: ["text"], output: ["text"] },
+                variants: [],
+                time: { released: Date.now() },
+                cost: [],
+                status: "active",
+                enabled: true,
+                limit: { context: 100, output: 100 },
+              },
+              {
+                id: "beam",
+                modelID: "beam",
+                providerID: "custom-router",
+                name: "Beam",
+                capabilities: { tools: true, input: ["text"], output: ["text"] },
+                variants: [],
+                time: { released: Date.now() },
+                cost: [],
+                status: "active",
+                enabled: true,
+                limit: { context: 100, output: 100 },
+              },
+            ],
+          }),
+          default: async () => ({ location: {}, data: null }),
+        },
+        integration: {
+          list: async () => {
+            throw new Error("integration catalogue unavailable")
+          },
+        },
+      } as unknown as CatalogApi),
+    )
+
+    expect(result.connected).toEqual(["anthropic", "custom-router"])
+    expect((result.all.get("custom-router") as { integrationID?: string } | undefined)?.integrationID).toBe("9router")
+    expect(result.all.get("anthropic")?.models["claude"]).toBeDefined()
+    expect(result.all.get("custom-router")?.models["beam"]).toBeDefined()
+  })
+
+  test("V2 providers returned by provider.list remain connected when integration.list is empty", async () => {
+    const result = await new QueryClient().fetchQuery(
+      loadProvidersQuery(ServerScope.local, "/repo", {
+        provider: { list: async () => ({ location: {}, data: [{ id: "openai", name: "OpenAI" }] }) },
+        model: { list: async () => ({ location: {}, data: [] }), default: async () => ({ location: {}, data: null }) },
+      } as unknown as CatalogApi),
+    )
+
+    expect(result.connected).toEqual(["openai"])
   })
 
   test("uses remote integration connections as provider auth state and maps integrationID correctly", async () => {
@@ -296,8 +367,10 @@ describe("query keys", () => {
       } as unknown as CatalogApi),
     )
 
-    expect(result.connected).toEqual(["anthropic", "deepseek-9router"])
-    expect(result.connected).not.toContain("unconfigured-provider")
+    // provider.list is authoritative for availability; integration.list is
+    // connection metadata and may not remove a returned provider.
+    expect(result.connected).toEqual(["anthropic", "deepseek-9router", "unconfigured-provider"])
+    expect((result.all.get("deepseek-9router") as { integrationID?: string } | undefined)?.integrationID).toBe("9router")
   })
 
   test("keeps providers and models when the optional default endpoint is unsupported", async () => {
@@ -315,7 +388,7 @@ describe("query keys", () => {
       } as unknown as CatalogApi),
     )
 
-    expect(result.connected).toEqual([])
+    expect(result.connected).toEqual(["openai"])
     expect(result.all.size).toBe(1)
   })
 

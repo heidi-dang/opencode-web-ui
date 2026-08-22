@@ -296,17 +296,12 @@ export const loadProvidersQuery = (
           return normalizeProviderList(result.data!)
         }
         const location = directory ? { location: { directory } } : undefined
-        const [providers, models, integrations] = await Promise.all([
-          sdk.provider.list(location),
-          sdk.model.list(location),
-          // Provider credentials live on the selected OpenCode server. Fetch
-          // the server's auth catalogue through the same authenticated client
-          // so the web UI never falls back to asking for a local API key.
-          Promise.resolve(
-            (sdk as CatalogApi & { integration?: { list?: (input?: unknown) => Promise<{ data?: unknown }> } })
-              .integration?.list?.(location),
-          ).catch(() => undefined),
-        ])
+        // The V2 server already resolves availability (integration state,
+        // provider.integrationID, credential/env/config availability) inside
+        // provider.list and model.list. Treat those as authoritative — never
+        // intersect them with integration.list, which is only connection
+        // metadata for settings/connection management.
+        const [providers, models] = await Promise.all([sdk.provider.list(location), sdk.model.list(location)])
         let defaultModel: ModelDefaultOutput["data"] = null
         try {
           defaultModel = (await sdk.model.default(location)).data
@@ -316,25 +311,11 @@ export const loadProvidersQuery = (
           // usable; resolve a default from the first connected model instead.
           if (!(error instanceof ClientError) || error.reason !== "UnsupportedContentType") throw error
         }
-        const normalized = normalizeProviderList(providers.data, models.data, defaultModel)
-        if (integrations?.data && Array.isArray(integrations.data)) {
-          const connectedIntegrations = new Set(
-            integrations.data.flatMap((integration) =>
-              typeof integration.id === "string" && Array.isArray(integration.connections) && integration.connections.length > 0
-                ? [integration.id]
-                : [],
-            ),
-          )
-          const connectedProviders = Array.from(normalized.all.values()).flatMap((provider) => {
-            const targetIntegration = (provider as { integrationID?: string }).integrationID || provider.id
-            return connectedIntegrations.has(targetIntegration) ? [provider.id] : []
-          })
-          return {
-            ...normalized,
-            connected: connectedProviders,
-          }
-        }
-        return normalized
+        // provider.list is the authoritative list of available providers;
+        // model.list the authoritative list of models. integration.list is not
+        // fetched here because a missing/empty/throwing integration catalogue
+        // must never erase a provider the backend already returned.
+        return normalizeProviderList(providers.data, models.data, defaultModel)
       }),
   })
 

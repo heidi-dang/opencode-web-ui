@@ -47,6 +47,12 @@ export interface MockServerConfig {
   healthy?: boolean
   healthState?: "READY" | "UNHEALTHY" | "CONNECTING"
   statusOverride?: (path: string, method: string, headers: Record<string, string>) => { status: number; body?: unknown; headers?: Record<string, string> } | undefined
+  /** Initial legacy global config (provider map) served by GET /global/config. */
+  globalConfig?: Record<string, unknown> | (() => Record<string, unknown>)
+  /** Captures POST /global/config mutations (custom provider configuration). */
+  onGlobalConfigUpdate?: (config: Record<string, unknown>) => void | Promise<void>
+  /** Captures POST /api/integration/:id/connect/key credential submissions. */
+  onIntegrationConnectKey?: (input: { integrationID: string; body: unknown }) => void | Promise<void>
 }
 
 export async function mockMultiServer(page: Page, configs: MockServerConfig[]) {
@@ -94,6 +100,22 @@ export async function mockMultiServer(page: Page, configs: MockServerConfig[]) {
 
   const cursors = new Map<string, string>()
   let nextCursor = 0
+
+  // Per-server mutable runtime: config store (legacy provider map) and
+  // integration credential state so tests can drive custom-provider creation.
+  const runtime = new Map<
+    string,
+    {
+      config: Record<string, unknown>
+      integrations: Map<string, { connections: unknown[] }>
+      createdProviders: Array<{ id: string; name: string; models: Array<{ id: string; name: string }> }>
+    }
+  >()
+  for (const cfg of normalizedConfigs) {
+    const initialConfig =
+      typeof cfg.globalConfig === "function" ? cfg.globalConfig() : (cfg.globalConfig ?? {})
+    runtime.set(cfg.serverId, { config: initialConfig, integrations: new Map(), createdProviders: [] })
+  }
 
   await page.route("**/*", async (route) => {
     const request = route.request()
@@ -246,6 +268,40 @@ export async function mockMultiServer(page: Page, configs: MockServerConfig[]) {
 
     if (path === "/global/health")
       return config.protocol === "v2" ? json(route, {}, undefined, 404) : json(route, { healthy: config.healthy ?? true })
+    const rt = runtime.get(config.serverId)!
+    const createdProviders = () => rt.createdProviders
+    const configProviderMap = (rt.config.provider as Record<string, unknown> | undefined) ?? {}
+    const legacyToProvider = (id: string, item: Record<string, unknown>) => {
+      const options = (item.options as Record<string, unknown> | undefined) ?? {}
+      const modelsMap = (item.models as Record<string, unknown> | undefined) ?? {}
+      return {
+        id,
+        name: typeof item.name === "string" ? item.name : id,
+        npm: typeof item.npm === "string" ? item.npm : "@ai-sdk/openai-compatible",
+        models: Object.fromEntries(
+          Object.entries(modelsMap).map(([mid, model]) => {
+            const m = (model as Record<string, unknown>) ?? {}
+            return [mid, { id: mid, name: typeof m.name === "string" ? m.name : mid, ...(options.baseURL ? { url: options.baseURL } : {}) }]
+          }),
+        ),
+      }
+    }
+    const allConfigProviders = () => [
+      ...Object.entries(configProviderMap).map(([id, item]) => legacyToProvider(id, item as Record<string, unknown>)),
+      ...createdProviders(),
+    ]
+
+    if (path === "/global/config" || path === "/api/global/config") {
+      if (method === "GET") return json(route, rt.config)
+      if (method === "POST" || method === "PATCH" || method === "PUT") {
+        const body = request.postDataJSON() as Record<string, unknown> | undefined
+        const payload = method === "PATCH" && body && "config" in body ? (body.config as Record<string, unknown>) : body
+        Object.assign(rt.config, payload ?? {})
+        await config.onGlobalConfigUpdate?.(rt.config)
+        return route.fulfill({ status: 200, headers: { "access-control-allow-origin": "*" }, body: JSON.stringify({}) })
+      }
+    }
+
     if (path === "/api/health" && config.protocol === "v2")
       return json(route, { healthy: config.healthy ?? true, version: "2.0.0", pid: 1 })
     if (path === "/experimental/capabilities") return json(route, { backgroundSubagents: true })
@@ -253,20 +309,56 @@ export async function mockMultiServer(page: Page, configs: MockServerConfig[]) {
       return json(route, typeof config.provider === "function" ? config.provider() : config.provider)
     if (path === "/api/provider") {
       const value = (typeof config.provider === "function" ? config.provider() : config.provider) as {
-        all?: Array<{ id: string; name?: string }>
+        all?: Array<{ id: string; name?: string; integrationID?: string }>
       }
+      const base = (value.all ?? []).map((p) => ({
+        id: p.id,
+        name: p.name ?? p.id,
+        settings: {},
+        ...(typeof p.integrationID === "string" ? { integrationID: p.integrationID } : {}),
+      }))
+      const merged = new Map(base.map((p) => [p.id, p]))
+      for (const p of allConfigProviders()) merged.set(p.id, { id: p.id, name: p.name, settings: {} })
       return json(route, {
         location: location(config),
-        data: (value.all ?? []).map((p) => ({ id: p.id, name: p.name ?? p.id, settings: {} })),
+        data: Array.from(merged.values()),
       })
     }
     if (path === "/api/model") {
       const value = (typeof config.provider === "function" ? config.provider() : config.provider) as {
         all?: Array<{ id: string; name?: string; models?: Record<string, unknown> }>
       }
-      const data = (value.all ?? []).flatMap((provider) =>
-        Object.values(provider.models ?? {}).map((model) => {
-          const current = model as Record<string, unknown>
+      const providerModels = new Map<string, Array<Record<string, unknown>>>()
+      for (const provider of value.all ?? []) {
+        providerModels.set(
+          provider.id,
+          Object.values(provider.models ?? {}).map((model) => {
+            const current = model as Record<string, unknown>
+            const id = typeof current.id === "string" ? current.id : "model"
+            return {
+              id,
+              modelID: id,
+              providerID: provider.id,
+              name: typeof current.name === "string" ? current.name : id,
+              family: id,
+              capabilities: { tools: true, input: ["text"], output: ["text"] },
+              variants: Array.isArray(current.variants)
+                ? current.variants.map((v) => (typeof v === "string" ? { id: v } : v))
+                : current.variants && typeof current.variants === "object"
+                  ? Object.keys(current.variants).map((id) => ({ id }))
+                  : [],
+              time: (current.time as { released?: number } | undefined) ?? { released: Date.now() },
+              cost: current.cost ?? [{ input: 0, output: 0, cache: { read: 0, write: 0 } }],
+              status: "active",
+              enabled: true,
+              limit: { context: 200_000, output: 16_000 },
+            }
+          }),
+        )
+      }
+      for (const provider of allConfigProviders()) {
+        const models = Object.values((provider.models ?? {}) as Record<string, unknown>).map((m) => {
+          const current = (m as Record<string, unknown>) ?? {}
           const id = typeof current.id === "string" ? current.id : "model"
           return {
             id,
@@ -275,20 +367,17 @@ export async function mockMultiServer(page: Page, configs: MockServerConfig[]) {
             name: typeof current.name === "string" ? current.name : id,
             family: id,
             capabilities: { tools: true, input: ["text"], output: ["text"] },
-            variants: Array.isArray(current.variants)
-              ? current.variants.map((v) => (typeof v === "string" ? { id: v } : v))
-              : current.variants && typeof current.variants === "object"
-                ? Object.keys(current.variants).map((id) => ({ id }))
-                : [],
-            time: (current.time as { released?: number } | undefined) ?? { released: Date.now() },
-            cost: current.cost ?? [{ input: 0, output: 0, cache: { read: 0, write: 0 } }],
+            variants: [],
+            time: { released: Date.now() },
+            cost: [{ input: 0, output: 0, cache: { read: 0, write: 0 } }],
             status: "active",
             enabled: true,
             limit: { context: 200_000, output: 16_000 },
           }
-        }),
-      )
-      return json(route, { location: location(config), data })
+        })
+        providerModels.set(provider.id, models)
+      }
+      return json(route, { location: location(config), data: Array.from(providerModels.values()).flat() })
     }
     if (path === "/api/model/default") {
       const value = (typeof config.provider === "function" ? config.provider() : config.provider) as {
@@ -384,7 +473,12 @@ export async function mockMultiServer(page: Page, configs: MockServerConfig[]) {
       })
     const integrationConnect = path.match(/^\/api\/integration\/([^/]+)\/connect\/key$/)?.[1]
     if (integrationConnect && method === "POST") {
-      config.onConnectKey?.({ integrationID: integrationConnect, body: request.postDataJSON() })
+      const body = request.postDataJSON() as Record<string, unknown> | undefined
+      config.onConnectKey?.({ integrationID: integrationConnect, body })
+      await config.onIntegrationConnectKey?.({ integrationID: integrationConnect, body })
+      const state = runtime.get(config.serverId)!
+      if (!state.integrations.has(integrationConnect)) state.integrations.set(integrationConnect, { connections: [] })
+      state.integrations.get(integrationConnect)!.connections.push({ type: "credential", id: integrationConnect, label: integrationConnect })
       return route.fulfill({ status: 204, headers: { "access-control-allow-origin": "*" } })
     }
     if (path === "/api/project") return json(route, [config.project])

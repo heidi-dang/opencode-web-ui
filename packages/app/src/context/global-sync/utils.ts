@@ -197,9 +197,14 @@ export function normalizeProviderList(
     }
   }
 
+  // The V2 server already filters provider.list and model.list through its
+  // catalog availability logic (integration state, provider.integrationID,
+  // disabled state, credential/env/config availability). Treat those
+  // responses as authoritative and keep every returned provider connected so
+  // the UI model catalog derives from what the backend actually exposes.
   return {
     all,
-    connected: [],
+    connected: providers.map((provider) => provider.id),
     defaultModel: defaultModel ? { providerID: defaultModel.providerID, modelID: defaultModel.id } : null,
     default: Object.fromEntries(
       providers.flatMap((provider) => {

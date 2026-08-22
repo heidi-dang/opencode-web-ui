@@ -224,7 +224,7 @@ export const SettingsProvidersV2: Component<{
               )}
             </For>
 
-            <Show when={protocol() === "v1"}>
+            <Show when={protocol() === "v1" || protocol() === "v2"}>
               <div class="settings-v2-provider-row" data-component="custom-provider-section">
                 <div class="settings-v2-provider-lead">
                   <ProviderIcon

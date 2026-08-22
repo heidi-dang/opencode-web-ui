@@ -113,7 +113,7 @@ describe("normalizeProviderList", () => {
       { id: "gpt-5", providerID: "openai" } as ModelDefaultOutput["data"],
     )
 
-    expect(result.connected).toEqual([])
+    expect(result.connected).toEqual(["openai"])
     expect(result.defaultModel).toEqual({ providerID: "openai", modelID: "gpt-5" })
     expect(result.default).toEqual({ openai: "gpt-5" })
     expect(result.all.get("openai")?.models["gpt-old"]).toBeUndefined()
@@ -151,6 +151,59 @@ describe("normalizeProviderList", () => {
     )
 
     expect(result.all.get("9router")?.models["heidi-antigravity"]?.release_date).toBe("")
+  })
+
+  test("V2 provider.list ids remain connected and integrationID metadata is preserved", () => {
+    const result = normalizeProviderList(
+      [
+        { id: "anthropic", name: "Anthropic", package: "@ai-sdk/anthropic" },
+        { id: "custom-router", name: "Custom Router", package: "@ai-sdk/openai-compatible", integrationID: "9router" },
+      ] as ProviderListOutput["data"],
+      [
+        {
+          id: "claude",
+          modelID: "claude",
+          providerID: "anthropic",
+          name: "Claude",
+          capabilities: { tools: true, input: ["text"], output: ["text"] },
+          variants: [],
+          time: { released: Date.now() },
+          cost: [],
+          status: "active",
+          enabled: true,
+          limit: { context: 100, output: 100 },
+        },
+        {
+          id: "beam",
+          modelID: "beam",
+          providerID: "custom-router",
+          name: "Beam",
+          capabilities: { tools: true, input: ["text"], output: ["text"] },
+          variants: [],
+          time: { released: Date.now() },
+          cost: [],
+          status: "active",
+          enabled: true,
+          limit: { context: 100, output: 100 },
+        },
+      ] as ModelListOutput["data"],
+    )
+
+    // The V2 server already filters availability; provider.list output is the
+    // authoritative connected set regardless of integration.list state.
+    expect(result.connected).toEqual(["anthropic", "custom-router"])
+    expect((result.all.get("custom-router") as { integrationID?: string } | undefined)?.integrationID).toBe("9router")
+    expect(result.all.get("anthropic")?.models["claude"]).toBeDefined()
+    expect(result.all.get("custom-router")?.models["beam"]).toBeDefined()
+  })
+
+  test("V2 provider with integrationID alias stays connected even when models are absent", () => {
+    const result = normalizeProviderList(
+      [{ id: "deepseek-9router", name: "DeepSeek", package: "@ai-sdk/openai-compatible", integrationID: "9router" }] as ProviderListOutput["data"],
+      [] as ModelListOutput["data"],
+    )
+    expect(result.connected).toEqual(["deepseek-9router"])
+    expect((result.all.get("deepseek-9router") as { integrationID?: string } | undefined)?.integrationID).toBe("9router")
   })
 })
 

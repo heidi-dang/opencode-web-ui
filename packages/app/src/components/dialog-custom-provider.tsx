@@ -131,24 +131,59 @@ export function CustomProviderForm(props: { autofocus?: boolean } = {}) {
 
   const saveMutation = useMutation(() => ({
     mutationFn: async (result: NonNullable<ReturnType<typeof validate>>) => {
-      if ((await serverSDK().protocol) !== "v1") throw new Error(language.t("provider.custom.unavailable"))
+      const protocol = await serverSDK().protocol
       const disabledProviders = serverSync().data.config.disabled_providers ?? []
       const nextDisabled = disabledProviders.filter((id) => id !== result.providerID)
 
-      if (result.key) {
-        await serverSDK().client.auth.set({
-          providerID: result.providerID,
-          auth: {
-            type: "api",
+      const saveCredential = async () => {
+        if (!result.key) return
+        if (protocol === "v1") {
+          // V1 legacy auth store: preserved unchanged.
+          await serverSDK().client.auth.set({
+            providerID: result.providerID,
+            auth: { type: "api", key: result.key },
+          })
+          return
+        }
+        // V2 canonical integration credential store on the remote backend. The
+        // key is submitted once and never persisted or mirrored by the browser.
+        try {
+          await serverSDK().api.integration.connect.key({
+            integrationID: result.providerID,
             key: result.key,
-          },
-        })
+          })
+        } catch {
+          // Some backends have no key method registered for a fresh custom
+          // provider integration; fall back to the official /auth credential
+          // store, which also persists the key on the backend only.
+          await serverSDK().client.auth.set({
+            providerID: result.providerID,
+            auth: { type: "api", key: result.key },
+          })
+        }
       }
 
-      await serverSync().updateConfig({
-        provider: { [result.providerID]: result.config },
-        disabled_providers: nextDisabled,
-      })
+      if (protocol === "v1") {
+        // Preserve current V1 ordering: credential first, then config.
+        await saveCredential()
+        await serverSync().updateConfig({
+          provider: { [result.providerID]: result.config },
+          disabled_providers: nextDisabled,
+        })
+      } else {
+        // V2: persist provider config through the backend's config endpoint
+        // first so the provider exists, then attach its credential. A failed
+        // credential leaves a configured provider (reconnectable) rather than
+        // a dangling credential for an unknown provider.
+        await serverSync().updateConfig({
+          provider: { [result.providerID]: result.config },
+          disabled_providers: nextDisabled,
+        })
+        await saveCredential()
+      }
+
+      // Make the new provider and its models available without a page reload.
+      await serverSync().refreshProviders()
       return result
     },
     onSuccess: (result) => {
