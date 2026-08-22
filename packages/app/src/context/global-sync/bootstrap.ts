@@ -117,8 +117,7 @@ export const loadGlobalConfigQuery = (scope: ServerScope, sdk: OpencodeClient, p
   queryOptions({
     queryKey: [scope, "config"],
     queryFn: async () => {
-      if (protocol && (await protocol) !== "v1") return {}
-      return retry(() => sdk.global.config.get().then((x) => x.data!))
+      return retry(() => sdk.global.config.get().then((x) => x.data ?? {})).catch(() => ({}))
     },
   })
 
@@ -196,7 +195,10 @@ export async function bootstrapGlobal(input: {
   }
 
   const slow = [
-    () => input.queryClient.fetchQuery(loadGlobalConfigQuery(input.scope, input.serverSDK, input.protocol)),
+    () =>
+      input.queryClient
+        .fetchQuery(loadGlobalConfigQuery(input.scope, input.serverSDK, input.protocol))
+        .then((data) => input.setGlobalStore("config", data)),
     () =>
       input.queryClient.fetchQuery(
         loadProvidersQuery(input.scope, null, input.serverAPI, input.serverSDK, input.protocol),
@@ -479,8 +481,7 @@ export async function bootstrapDirectory(input: {
           .then((data) => input.setStore("agent", data)),
       () =>
         retry(async () => {
-          if ((await input.protocol) !== "v1") return
-          return input.sdk.config.get().then((x) => input.setStore("config", reconcile(x.data!, { merge: false })))
+          return input.sdk.config.get().then((x) => input.setStore("config", reconcile(x.data ?? {}, { merge: false }))).catch(() => undefined)
         }),
       () =>
         retry(() =>

@@ -82,6 +82,8 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
       }),
     )
 
+    const backendDefaultAgent = () => sync().data.config.default_agent
+
     const [store, setStore] = createStore<{
       current?: string
       draft?: State
@@ -93,7 +95,7 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
         variant?: string | null
       }
     }>({
-      current: list()[0]?.name,
+      current: resolveAgent(list(), undefined, backendDefaultAgent())?.name,
       draft: undefined,
       last: undefined,
     })
@@ -111,8 +113,6 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
       }
     }
 
-    const backendDefaultAgent = () => sync().data.config.default_agent
-
     const pickAgent = (name: string | undefined) => {
       return resolveAgent(list(), name, backendDefaultAgent())
     }
@@ -128,10 +128,26 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
       setStore("current", resolved?.name)
     })
 
+    const sessionInfo = createMemo(() => {
+      const sessionID = id()
+      if (!sessionID) return undefined
+      return sync().session.get(sessionID)
+    })
+
     const scope = createMemo<State | undefined>(() => {
       const session = id()
       if (!session) return store.draft ?? store.promoting
-      return saved.session[session] ?? handoff.get(handoffKey(serverSDK().scope, sdk().directory, session))
+      const persistedState = saved.session[session] ?? handoff.get(handoffKey(serverSDK().scope, sdk().directory, session))
+      if (persistedState) return persistedState
+      const info = sessionInfo()
+      if (info?.agent || info?.model) {
+        return {
+          agent: info.agent,
+          model: info.model ? { providerID: info.model.providerID, modelID: info.model.id, variant: info.model.variant } : undefined,
+          variant: info.model?.variant,
+        }
+      }
+      return undefined
     })
 
     createEffect(() => {

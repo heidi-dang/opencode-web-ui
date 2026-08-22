@@ -186,12 +186,13 @@ describe("bootstrapDirectory", () => {
 })
 
 describe("config queries", () => {
-  test("skips legacy global config for v2 servers", async () => {
+  test("loads global config for v2 servers gracefully", async () => {
+    const config = { default_agent: "heidi" } satisfies Config
     const sdk = {
       global: {
         config: {
           get: async () => {
-            throw new Error("legacy global config should not be called")
+            return { data: config }
           },
         },
       },
@@ -201,7 +202,7 @@ describe("config queries", () => {
       loadGlobalConfigQuery(ServerScope.local, sdk, Promise.resolve("v2")),
     )
 
-    expect(result).toEqual({})
+    expect(result).toEqual(config)
   })
 
   test("loads legacy global config for v1 servers", async () => {

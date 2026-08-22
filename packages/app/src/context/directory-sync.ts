@@ -33,6 +33,11 @@ export const createDirSyncContext = (
     get(_, property: keyof State) {
       if (property === "session_working") return serverSync.session.data.session_working.bind(serverSync.session.data)
       if (sessionFields.has(property)) return serverSync.session.data[property as keyof typeof serverSync.session.data]
+      if (property === "config") {
+        const dirConfig = current()[0].config
+        if (dirConfig && Object.keys(dirConfig).length > 0) return dirConfig
+        return serverSync.data.config
+      }
       return current()[0][property]
     },
   })

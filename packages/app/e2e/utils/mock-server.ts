@@ -1,7 +1,7 @@
 import type { Page, Route } from "@playwright/test"
 
 const emptyList = new Set(["/skill", "/command", "/lsp", "/formatter", "/vcs/status"])
-const emptyObject = new Set(["/global/config", "/config", "/provider/auth", "/mcp", "/experimental/resource"])
+const emptyObject = new Set(["/provider/auth", "/mcp", "/experimental/resource"])
 
 export interface MockServerConfig {
   serverId?: string
@@ -778,7 +778,7 @@ export function currentSession(session: { id: string } & Record<string, unknown>
     id: session.id,
     parentID: session.parentID,
     projectID: session.projectID ?? "project",
-    agent: session.agent ?? "build",
+    agent: session.agent,
     model: session.model ?? { id: "mock-model", providerID: "mock-provider" },
     cost: session.cost ?? 0,
     tokens: session.tokens ?? { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
