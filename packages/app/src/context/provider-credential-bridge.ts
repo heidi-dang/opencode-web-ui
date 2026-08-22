@@ -1,4 +1,4 @@
-const PROVIDER_EXECUTION_METHODS = new Set<PropertyKey>(["prompt", "command", "shell", "compact"])
+const PROVIDER_EXECUTION_METHODS = new Set<PropertyKey>(["switchModel", "prompt", "command", "shell", "compact"])
 const wrappedSDKs = new WeakMap<object, object>()
 
 type BackendInstanceClient = {
@@ -63,6 +63,11 @@ function createBackendProviderCredentialReloader(client: BackendInstanceClient) 
  * fetch, persist, or forward those secrets itself. Before the first execution
  * for a provider, dispose the directory-scoped OpenCode instance so its normal
  * provider bootstrap reloads credentials already stored on that backend.
+ *
+ * V2 selects the provider through session.switchModel before the later prompt,
+ * and that prompt does not need to repeat model metadata. Treat switchModel as
+ * a credential-bearing execution boundary so the reload happens before the
+ * backend accepts the selected provider/model.
  */
 export function withBackendProviderCredentials<T extends BridgeableSDK>(sdk: T): T {
   if (!isRemoteOpenCodeBackend(sdk.url)) return sdk
